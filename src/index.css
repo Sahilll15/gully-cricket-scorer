@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  /* chalkesahil.ai brand: black base, orange is the only accent */
+  --font-sans: "Poppins", system-ui, sans-serif;
+  --color-sun: #ff8a3d;
+  --color-sun-soft: #2a1a0f;
+  --color-cream: #050507;
+  --color-panel: #0d0d12;
+  --color-key: #17171f;
+  --color-raised: #1f1f29;
+  --color-teal: #f1ece4;
+  --color-fg: #ffffff;
+  --color-ink: #111111;
+  --color-mute: #9a9aa5;
+  --color-line: #24242d;
+  --color-out: #ff4d4d;
+  --color-six: #ff8a3d;
+  --color-four: #f1ece4;
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  background: var(--color-cream);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+button { cursor: pointer; touch-action: manipulation; }
+/* Inputs keep a ~20ch intrinsic width and refuse to shrink in flex rows; that pushed rows past narrow iPhones. */
+input { min-width: 0; }
+#root { overflow-x: clip; }
+button:disabled { cursor: not-allowed; }
+
+.press { transition: transform 0.08s ease; }
+.press:active { transform: scale(0.95); }
+
+.header-glow {
+  background:
+    radial-gradient(70% 90% at 50% 0%, rgba(255, 138, 61, 0.22), transparent 70%),
+    var(--color-panel);
+}
+
+.stadium {
+  background:
+    radial-gradient(55% 45% at 12% 0%, rgba(255, 255, 255, 0.22), transparent 60%),
+    radial-gradient(55% 45% at 88% 0%, rgba(255, 255, 255, 0.18), transparent 60%),
+    radial-gradient(120% 70% at 50% 125%, rgba(255, 138, 61, 0.35) 0%, transparent 70%),
+    linear-gradient(180deg, #1a1a22 0%, #0b0b10 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes pulse-dot { 50% { opacity: 0.3; } }
+.live-dot { animation: pulse-dot 1s infinite; }
+
+@keyframes roll { from { transform: translateY(40%); opacity: 0; } to { transform: none; opacity: 1; } }
+.roll { animation: roll 0.25s ease-out; }
+
+@keyframes pop { 0% { opacity: 0; transform: scale(0.5); } 25% { opacity: 1; transform: scale(1.1); } 75% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.2); } }
+.pop { animation: pop 0.9s ease-out forwards; }
+
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-in { animation: sheet-in 0.22s ease-out; }
+
+@keyframes flip { 0% { transform: translateY(0) rotateX(0); } 45% { transform: translateY(-110px) rotateX(1260deg); } 100% { transform: translateY(0) rotateX(2160deg); } }
+.coin-flip { animation: flip 1.3s cubic-bezier(0.3, 0.7, 0.4, 1); }
+
+.safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
