@@ -131,13 +131,16 @@ export function target(m: Match, idx: number): number | null {
 
 export function needsBowler(m: Match, idx: number): boolean {
   const st = replay(m, idx), inn = m.innings[idx];
-  return !st.ended && st.legal > 0 && st.legal % 6 === 0 && inn.bowlerSetAt !== st.legal;
+  if (st.ended || st.legal === 0 || st.legal % 6 !== 0) return false;
+  // Undo across an over can leave last over's bowler in place with a matching count, so check who is bowling too.
+  return inn.bowlerSetAt !== st.legal || !canBowl(m, idx, inn.bowler);
 }
 
 export function canBowl(m: Match, idx: number, id: string): boolean {
   const st = replay(m, idx), max = m.rules.maxOversPerBowler;
   if (id === st.striker || id === st.nonStriker) return false;
-  if (st.legal % 6 === 0 && st.legal > 0 && id === st.lastOverBowler && m.teams[otherSide(m.innings[idx].bat)].players.length > 1) return false;
+  // Whoever bowled the last over can't bowl any part of this one, mid-over changes included.
+  if (id === st.lastOverBowler && m.teams[otherSide(m.innings[idx].bat)].players.length > 1) return false;
   const b = st.bowl.get(id);
   return !(max && b && Math.floor(b.legal / 6) >= max);
 }

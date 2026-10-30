@@ -241,3 +241,25 @@ describe("common player", () => {
     expect(awards(m).potm!.id).toBe("C");
   });
 });
+
+describe("no bowler bowls two overs in a row", () => {
+  const over = (m: Match) => play(m, r(0), r(0), r(0), r(0), r(0), r(0));
+
+  it("asks again for a bowler after undoing and re-scoring the last ball of an over", () => {
+    let m = over(setup());
+    m = setBowler(m, "B2");
+    m = play(m, r(1));
+    m = undo(m).match;            // back to the new over's first ball
+    m = undo(m).match;            // back into the last ball of over 1
+    m = play(m, r(0));            // over 1 done again
+    expect(needsBowler(m, 0)).toBe(true);
+    expect(canBowl(m, 0, "B1")).toBe(false);
+  });
+
+  it("won't let the last over's bowler take over part-way through the next over", () => {
+    let m = setBowler(over(setup()), "B2");
+    m = play(m, r(0), r(0));
+    expect(canBowl(m, 0, "B1")).toBe(false);
+    expect(canBowl(m, 0, "B3")).toBe(true);
+  });
+});
