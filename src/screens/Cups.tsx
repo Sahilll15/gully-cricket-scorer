@@ -4,7 +4,7 @@ import { champion, newTournament, standings, withFinal, type Fixture, type Tourn
 import type { Match, Rules } from "../engine/types";
 import { useStore } from "../store";
 import { leaders, strikeRate } from "../stats";
-import { Badge, BottomNav, Card, cx, Header, PrimaryButton, Segmented, Stepper } from "../ui";
+import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Stepper } from "../ui";
 
 export const CUP_RULES: Rules = {
   overs: 5, extraRun: true, rebowl: true, freeHit: false, lastManStands: false, oneTipCatch: false,
@@ -134,6 +134,7 @@ export function Cup() {
   const { cups, cupId, matches, teams, go, putCup, removeCup, openPlayer } = useStore();
   const cup = cups.find((c) => c.id === cupId);
   const [tab, setTab] = useState<"fix" | "table" | "stats">("fix");
+  const [askDel, setAskDel] = useState(false);
   useEffect(() => {
     if (!cup) return;
     const next = withFinal(cup, matches);
@@ -191,9 +192,11 @@ export function Cup() {
             ))}
           </div>
         )}
-        <button onClick={() => { if (confirm(`Delete ${cup.name}? Its matches stay in History.`)) { removeCup(cup.id); go("cups"); } }}
+        <button onClick={() => setAskDel(true)}
           className="press min-h-12 w-full rounded-2xl font-semibold text-out">Delete tournament</button>
       </main>
+      {askDel && <ConfirmSheet title={`Delete ${cup.name}?`} body="Its matches stay in History." yes="Delete" danger
+        onYes={() => { removeCup(cup.id); go("cups"); }} onClose={() => setAskDel(false)} />}
     </div>
   );
 }

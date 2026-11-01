@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { economy, leaders, strikeRate } from "../stats";
-import { Badge, BottomNav, Card, Header, Segmented } from "../ui";
+import { Badge, BottomNav, Card, ConfirmSheet, Header, Segmented } from "../ui";
+import type { Match } from "../engine/types";
 import { MatchCard } from "./Home";
 
 export function History() {
   const { matches, remove } = useStore();
   const [q, setQ] = useState("");
   const [f, setF] = useState<"all" | "live" | "done">("all");
+  const [ask, setAsk] = useState<Match | null>(null);
   const list = matches.filter((m) =>
     (f === "all" || (f === "done" ? m.status === "done" : m.status !== "done")) &&
     m.teams.some((t) => t.name.toLowerCase().includes(q.toLowerCase())));
@@ -22,12 +24,14 @@ export function History() {
         {list.map((m) => (
           <div key={m.id} className="relative">
             <MatchCard m={m} />
-            <button onClick={() => confirm(`Delete ${m.teams[0].name} vs ${m.teams[1].name}?`) && remove(m.id)}
+            <button onClick={() => setAsk(m)}
               className="press absolute bottom-3 right-3 min-h-10 rounded-full px-3 text-xs font-semibold text-out" aria-label="Delete match">Delete</button>
           </div>
         ))}
         {!list.length && <p className="pt-8 text-center text-mute">No matches here yet.</p>}
       </main>
+      {ask && <ConfirmSheet title="Delete this match?" body={`${ask.teams[0].name} vs ${ask.teams[1].name}. Its runs and wickets come off everyone's stats.`}
+        yes="Delete" danger onYes={() => remove(ask.id)} onClose={() => setAsk(null)} />}
       <BottomNav />
     </div>
   );

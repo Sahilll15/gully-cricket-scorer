@@ -77,7 +77,7 @@ export function OpenersSheet({ match, onStart, onClose }: { match: Match; onStar
   );
 }
 
-export function BowlerSheet({ match, onPick, onClose }: { match: Match; onPick: (m: Match) => void; onClose?: () => void }) {
+export function BowlerSheet({ match, onPick, onClose, onEnd }: { match: Match; onPick: (m: Match) => void; onClose?: () => void; onEnd?: () => void }) {
   const idx = match.innings.length - 1, field = E.otherSide(match.innings[idx].bat);
   const st = E.replay(match, idx);
   const fig = (id: string) => { const b = st.bowl.get(id); return b ? `${E.oversText(b.legal)}-${b.maidens}-${b.runs}-${b.wickets}` : "Yet to bowl"; };
@@ -87,6 +87,7 @@ export function BowlerSheet({ match, onPick, onClose }: { match: Match; onPick: 
         disabled={(id) => !E.canBowl(match, idx, id)} set={(id) => onPick(E.setBowler(match, id))} />
       <AddName label="New bowler's name" onAdd={(name) => { const r = addPlayer(match, field, name); onPick(E.setBowler(r.match, r.id)); }} />
       <p className="mt-3 text-xs text-mute">Faded names bowled the last over, hit the overs limit, or are batting.</p>
+      {onEnd && <button onClick={onEnd} className="press mt-4 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-out">End innings instead</button>}
     </Sheet>
   );
 }

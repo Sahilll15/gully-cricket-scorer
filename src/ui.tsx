@@ -143,3 +143,19 @@ export function Segmented<T extends string | number>({ items, value, set }: { it
     </div>
   );
 }
+
+/** In-app yes/no. The browser's confirm() is silently blocked in Instagram's and other in-app browsers. */
+export function ConfirmSheet({ title, body, yes, danger, onYes, onClose }: {
+  title: string; body?: ReactNode; yes: string; danger?: boolean; onYes: () => void; onClose: () => void;
+}) {
+  return (
+    <Sheet title={title} onClose={onClose}>
+      {body && <p className="text-[15px] text-fg/85">{body}</p>}
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <button onClick={onClose} className="press min-h-14 rounded-2xl border-2 border-line font-semibold text-fg">Cancel</button>
+        <button onClick={() => { onYes(); onClose(); }}
+          className={cx("press min-h-14 rounded-2xl font-bold", danger ? "bg-out text-white" : "bg-sun text-ink")}>{yes}</button>
+      </div>
+    </Sheet>
+  );
+}

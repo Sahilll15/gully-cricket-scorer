@@ -3,7 +3,7 @@ import * as E from "../engine/engine";
 import type { BallInput, Extra, Match } from "../engine/types";
 import { useMatch, useStore } from "../store";
 import { BowlerSheet, EditBallSheet, OpenersSheet, OversSheet, RetireSheet, WicketSheet } from "../sheets";
-import { Badge, BallChip, Card, cx, Header, LivePill, PrimaryButton, Sheet } from "../ui";
+import { Badge, BallChip, Card, ConfirmSheet, cx, Header, LivePill, PrimaryButton, Sheet } from "../ui";
 import { listen, parse, voiceSupported } from "../voice";
 import { liveSupported, newCode, newLiveKey, watchLink } from "../live";
 import { track } from "../track";
@@ -22,6 +22,7 @@ export default function Live() {
   const [pickBowler, setPickBowler] = useState(false);
   const [oversOpen, setOversOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [flash, setFlash] = useState<{ text: string; tone: string; key: number } | null>(null);
   const [mic, setMic] = useState(false);
   const [heard, setHeard] = useState("");
@@ -188,7 +189,10 @@ export default function Live() {
       </div>}
 
       {m.status === "live" && (pickBowler || bowlerDue) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
-        onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)} />}
+        onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)} onEnd={() => setEnding(true)} />}
+      {ending && <ConfirmSheet title="End this innings?" yes="End innings" danger onClose={() => setEnding(false)}
+        onYes={() => { put(E.closeInnings(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
+        body={<>{batTeam.name} finish on <b>{st.runs}/{st.wickets}</b> in {E.oversText(st.legal)} overs.{tgt !== null ? " That ends the match." : ""} You can undo it.</>} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
       {retireOpen && <RetireSheet match={m} onClose={() => setRetireOpen(false)} onSave={(n) => { put(n); setRetireOpen(false); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} onDone={confirmWicket} onClose={() => setWicket(false)} />}
@@ -204,7 +208,7 @@ export default function Live() {
             <PrimaryButton tone="navy" onClick={() => { setMore(false); setPickBowler(true); }}>Change bowler</PrimaryButton>
             {!inn.superOver && <PrimaryButton tone="navy" onClick={() => { setMore(false); setOversOpen(true); }}>Change overs ({inn.overs})</PrimaryButton>}
             <PrimaryButton tone="navy" onClick={() => { setMore(false); setRetireOpen(true); }}>Retire a batter</PrimaryButton>
-            <PrimaryButton onClick={() => { if (confirm("End this innings now?")) { put(E.closeInnings(m)); setMore(false); } }}>End innings</PrimaryButton>
+            <PrimaryButton onClick={() => { setMore(false); setEnding(true); }}>End innings</PrimaryButton>
           </div>
           <div className="mt-4 rounded-2xl bg-sun-soft p-3 text-sm text-fg">
             <b>Rules this match:</b> {m.rules.overs} overs

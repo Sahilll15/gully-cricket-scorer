@@ -3,14 +3,15 @@ import * as E from "../engine/engine";
 import type { SavedTeam } from "../engine/tournament";
 import { useStore } from "../store";
 import { average, economy, profile, strikeRate } from "../stats";
-import { Badge, BottomNav, Card, Header, PrimaryButton, Sheet } from "../ui";
+import { Badge, BottomNav, Card, ConfirmSheet, Header, PrimaryButton, Sheet } from "../ui";
 
 function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void }) {
   const { putTeam, removeTeam, openPlayer } = useStore();
   const [t, setT] = useState(team);
   const [v, setV] = useState("");
+  const [askDel, setAskDel] = useState(false);
   const save = (next: SavedTeam) => { setT(next); putTeam(next); };
-  return (
+  return (<>
     <Sheet title="Edit team" onClose={onClose}>
       <input value={t.name} onChange={(e) => save({ ...t, name: e.target.value })} maxLength={18}
         className="min-h-12 w-full rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none" />
@@ -28,9 +29,11 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
           className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
         <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
       </form>
-      <button onClick={() => { if (confirm(`Delete ${t.name}?`)) { removeTeam(t.id); onClose(); } }} className="press mt-5 min-h-12 w-full rounded-2xl font-semibold text-out">Delete team</button>
+      <button onClick={() => setAskDel(true)} className="press mt-5 min-h-12 w-full rounded-2xl font-semibold text-out">Delete team</button>
     </Sheet>
-  );
+    {askDel && <ConfirmSheet title={`Delete ${t.name}?`} body="Past matches keep their scores." yes="Delete" danger
+      onYes={() => { removeTeam(t.id); onClose(); }} onClose={() => setAskDel(false)} />}
+  </>);
 }
 
 export function Teams() {
