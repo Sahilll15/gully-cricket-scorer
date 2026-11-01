@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "./store";
+import { startAccountSync } from "./account";
 import { cleanCode, liveSupported, publish } from "./live";
 import { track } from "./track";
 import Watch from "./screens/Watch";
@@ -32,6 +33,7 @@ function LivePublisher() {
 export default function App() {
   const screen = useStore((s) => s.screen);
   const loaded = useRef(false);
+  useEffect(() => startAccountSync(), []);
   // The first view is already counted by gtag's own page_view on load.
   useEffect(() => {
     if (loaded.current) track("page_view", { page_title: `Scorer: ${screen}`, page_location: `${location.origin}${import.meta.env.BASE_URL}${screen}` });

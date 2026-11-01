@@ -2,6 +2,7 @@ import { useState } from "react";
 import * as E from "../engine/engine";
 import { cleanCode, liveSupported } from "../live";
 import { InstallCard } from "../install";
+import { AccountButton, BackupCard } from "../accountUi";
 import type { Match } from "../engine/types";
 import { useStore } from "../store";
 import { leaders } from "../stats";
@@ -48,8 +49,8 @@ export default function Home() {
   return (
     <div className="min-h-screen pb-28">
       <header className="header-glow rounded-b-[36px] border-b border-line px-5 pb-7 pt-[max(22px,env(safe-area-inset-top))]">
-        <p className="text-sm font-semibold text-sun">GULLY SCORER</p>
-        <h1 className="mt-1 text-[34px] font-extrabold leading-[1.05] text-fg">Score every ball.<br /><span className="text-sun">No login.</span></h1>
+        <div className="flex items-center justify-between"><p className="text-sm font-semibold text-sun">GULLY SCORER</p><AccountButton /></div>
+        <h1 className="mt-1 text-[34px] font-extrabold leading-[1.05] text-fg">Score every ball.<br /><span className="text-sun">No login needed.</span></h1>
         <p className="mt-2 text-sm text-fg/75">Tap or just say it: "four", "wide", "out".</p>
         <div className="mt-5 grid grid-cols-4 gap-2">
           {[["Matches", matches.length], ["Runs", total("runs")], ["Sixes", total("sixes")], ["Wickets", total("wickets")]].map(([k, v]) => (
@@ -63,6 +64,7 @@ export default function Home() {
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-5">
         <PrimaryButton onClick={() => go("setup")}>+ Start new match</PrimaryButton>
         {liveSupported && <button onClick={() => setAsk(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">📡 Watch a live match</button>}
+        {matches.length > 0 && <BackupCard />}
         <InstallCard />
         {live.length > 0 && <h2 className="pt-3 font-bold text-fg">Live now</h2>}
         {live.map((m) => <MatchCard key={m.id} m={m} />)}
