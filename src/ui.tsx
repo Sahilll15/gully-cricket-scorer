@@ -44,7 +44,7 @@ export function BallChip({ b, onClick, size = 36 }: { b: Ball; onClick?: () => v
   );
 }
 
-export function Sheet({ title, onClose, children }: { title: string; onClose?: () => void; children: ReactNode }) {
+export function Sheet({ title, onClose, children, footer }: { title: string; onClose?: () => void; children: ReactNode; footer?: ReactNode }) {
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/70" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}
@@ -55,6 +55,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose?: (
           {onClose && <button onClick={onClose} className="press w-10 h-10 rounded-full bg-panel text-mute font-bold" aria-label="Close">✕</button>}
         </div>
         {children}
+        {footer && <div className="sticky -bottom-4 -mx-5 mt-5 border-t border-line bg-panel px-5 pb-4 pt-3">{footer}</div>}
       </div>
     </div>
   );

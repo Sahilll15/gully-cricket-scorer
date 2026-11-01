@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import * as E from "./engine/engine";
-import type { BallInput, Ev, Match, Player } from "./engine/types";
+import type { BallInput, Ev, Match, Player, Rules } from "./engine/types";
 import type { SavedTeam, Tournament } from "./engine/tournament";
 import { track } from "./track";
+
+/** What the last match was set up with, so the next one starts filled in. */
+export interface LastSetup { a: string; b: string; na: string[]; nb: string[]; size: number; rules: Rules; common: string }
 
 export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch";
 
@@ -34,6 +37,7 @@ interface Store {
   watchCode: string | null;
   watchKey: string | null;
   watchMatch: (code: string, key?: string | null) => void;
+  lastSetup: LastSetup | null;
 }
 
 export const useStore = create<Store>()(
@@ -87,6 +91,7 @@ export const useStore = create<Store>()(
         openPlayer: (name) => { set({ player: name, screen: "player" }); window.scrollTo(0, 0); },
         watchCode: null,
         watchKey: null,
+        lastSetup: null,
         watchMatch: (code, key = null) => { track("watch_live", { via: key ? "link" : "code" }); set({ watchCode: code, watchKey: key, screen: "watch" }); window.scrollTo(0, 0); },
         playFixture: (cupId, fixtureId) => { set({ fixture: { cupId, fixtureId }, screen: "setup" }); window.scrollTo(0, 0); },
         ball: (id, input) => { put(E.addBall(find(id), input)); set({ redo: [] }); },
@@ -104,10 +109,10 @@ export const useStore = create<Store>()(
       };
     },
     {
-      name: "gully-scorer", version: 2,
-      partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player }),
-      // v1 had no saved teams or tournaments.
-      migrate: (old) => ({ teams: [], cups: [], cupId: null, player: null, ...(old as object) }) as never,
+      name: "gully-scorer", version: 3,
+      partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup }),
+      // v1 had no saved teams or tournaments, v2 no remembered setup.
+      migrate: (old) => ({ teams: [], cups: [], cupId: null, player: null, lastSetup: null, ...(old as object) }) as never,
     },
   ),
 );

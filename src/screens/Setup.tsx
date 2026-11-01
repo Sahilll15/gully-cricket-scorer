@@ -4,46 +4,61 @@ import type { Match, Player, Rules, Side, Team } from "../engine/types";
 import { useStore } from "../store";
 import { track } from "../track";
 import { OpenersSheet } from "../sheets";
-import { Badge, Card, cx, Header, Pill, PrimaryButton, Segmented, Stepper, Toggle } from "../ui";
+import { Badge, Card, cx, Header, Pill, PrimaryButton, Segmented, Sheet, Stepper, Toggle } from "../ui";
 
 const DEFAULT_RULES: Rules = {
   overs: 5, extraRun: true, rebowl: true, freeHit: false, lastManStands: false, oneTipCatch: false,
   wall: "none", tipAndRun: false, maxOversPerBowler: null,
 };
 
-function TeamCard({ label, name, setName, names, setNames, size, locked }: {
-  label: string; name: string; setName: (s: string) => void; names: string[]; setNames: (n: string[]) => void; size: number; locked?: boolean;
+/** Splits "Rahul, Amit\nSam" into names, so a squad can be pasted in one go. */
+const splitNames = (v: string) => v.split(/[,\n]/).map((n) => n.trim()).filter(Boolean);
+
+function TeamCard({ label, name, setName, names, setNames, size, locked, other }: {
+  label: string; name: string; setName: (s: string) => void; names: string[]; setNames: (n: string[]) => void; size: number; locked?: boolean; other: string;
 }) {
-  const saved = useStore((s) => s.teams);
+  const saved = useStore((s) => s.teams).filter((t) => t.name !== other);
   const [v, setV] = useState("");
-  const add = () => { const t = v.trim(); if (t && !names.includes(t)) setNames([...names, t]); setV(""); };
+  const add = () => {
+    const have = new Set(names.map((n) => n.toLowerCase()));
+    const fresh = splitNames(v).filter((n) => !have.has(n.toLowerCase()) && have.add(n.toLowerCase()));
+    if (fresh.length) setNames([...names, ...fresh]);
+    setV("");
+  };
   return (
     <Card>
-      <div className="flex items-center gap-3">
+      <label className="flex items-center gap-3">
         <Badge name={name || label} />
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={label} maxLength={18} readOnly={locked}
-          className="min-h-12 flex-1 rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none placeholder:text-mute" />
-      </div>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={label} maxLength={18} readOnly={locked} aria-label={`${label} name`}
+          className="min-h-12 flex-1 rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none placeholder:text-mute focus:ring-2 focus:ring-sun" />
+        {!locked && <span className="text-mute" aria-hidden>✎</span>}
+      </label>
       {!locked && saved.length > 0 && (
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {saved.map((t) => (
-            <button key={t.id} onClick={() => { setName(t.name); setNames(t.players.map((p) => p.name)); }}
-              className="press shrink-0 rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-semibold text-fg">{t.name}</button>
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs font-semibold text-mute">Your teams</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {saved.map((t) => (
+              <button key={t.id} onClick={() => { setName(t.name); setNames(t.players.map((p) => p.name)); }}
+                className={cx("press shrink-0 rounded-full border px-3 py-2 text-sm font-semibold", t.name === name ? "border-sun bg-sun text-ink" : "border-line bg-key text-fg")}>
+                {t.name} <span className="opacity-60">· {t.players.length}</span></button>
+            ))}
+          </div>
+        </div>
+      )}
+      {names.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {names.map((n) => (
+            <button key={n} onClick={() => setNames(names.filter((x) => x !== n))} aria-label={`Remove ${n}`}
+              className="press flex min-h-10 items-center gap-1.5 rounded-full bg-sun-soft px-3 text-sm font-semibold text-fg">{n}<span className="text-mute">✕</span></button>
           ))}
         </div>
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {names.map((n) => (
-          <button key={n} onClick={() => setNames(names.filter((x) => x !== n))}
-            className="press flex min-h-10 items-center gap-1.5 rounded-full bg-sun-soft px-3 text-sm font-semibold text-fg">{n}<span className="text-mute">✕</span></button>
-        ))}
-      </div>
-      <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}>
-        <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Add a player" maxLength={20}
+      <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}>
+        <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Add players: Rahul, Amit, Sam" maxLength={300}
           className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
-        <button className="press min-h-12 rounded-2xl bg-raised px-4 font-semibold text-white">Add</button>
+        <button className="press min-h-12 rounded-2xl bg-raised px-4 font-semibold text-white" disabled={!v.trim()}>Add</button>
       </form>
-      <p className="mt-2 text-xs text-mute">{names.length >= size ? `${names.length} players` : `${names.length} named, ${size - names.length} more as Player N`}</p>
+      <p className="mt-2 text-xs text-mute">{names.length >= size ? `${names.length} players` : `${names.length} named · ${size - names.length} more will be Player N`}</p>
     </Card>
   );
 }
@@ -54,19 +69,28 @@ const roster = (named: string[], size: number): Player[] => {
   return list;
 };
 
+const OVERS = [3, 4, 5, 6, 10];
+
 export default function Setup() {
-  const { go, add, put, fixture, cups, teams, saveTeam } = useStore();
+  const { go, add, put, fixture, cups, teams, saveTeam, lastSetup } = useStore();
   const cup = fixture ? cups.find((c) => c.id === fixture.cupId) : undefined;
   const fx = cup?.fixtures.find((f) => f.id === fixture?.fixtureId);
-  const [a, setA] = useState("Team A"), [b, setB] = useState("Team B");
-  const [na, setNa] = useState<string[]>([]), [nb, setNb] = useState<string[]>([]);
-  const [size, setSize] = useState(6);
-  const [common, setCommon] = useState("");
-  const [rules, setRules] = useState<Rules>(DEFAULT_RULES);
-  const [custom, setCustom] = useState(false);
+  const last = cup ? null : lastSetup;
+  const [a, setA] = useState(last?.a ?? "Team A"), [b, setB] = useState(last?.b ?? "Team B");
+  const [na, setNa] = useState<string[]>(last?.na ?? []), [nb, setNb] = useState<string[]>(last?.nb ?? []);
+  const [size, setSize] = useState(last?.size ?? 6);
+  const [common, setCommon] = useState(last?.common ?? "");
+  const [rules, setRules] = useState<Rules>(last ? { ...DEFAULT_RULES, ...last.rules } : DEFAULT_RULES);
+  const [custom, setCustom] = useState(!OVERS.includes(last?.rules.overs ?? DEFAULT_RULES.overs));
+  const clear = () => {
+    setA("Team A"); setB("Team B"); setNa([]); setNb([]); setSize(6); setCommon(""); setRules(DEFAULT_RULES); setCustom(false);
+    useStore.setState({ lastSetup: null });
+  };
   const [toss, setToss] = useState<{ winner: Side; face: string } | null>(null);
   const [flipping, setFlipping] = useState(false);
   const [pending, setPending] = useState<Match | null>(null);
+  const [tossOpen, setTossOpen] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const r = <K extends keyof Rules>(k: K) => (v: Rules[K]) => setRules({ ...rules, [k]: v });
   useEffect(() => {
     if (!cup || !fx) return;
@@ -75,6 +99,9 @@ export default function Setup() {
     if (tb) { setB(tb.name); setNb(tb.players.map((p) => p.name)); }
     setRules(cup.rules);
   }, [cup, fx, teams]);
+
+  // Named squads set the side size, so nobody gets "Player 5" padding they didn't ask for.
+  useEffect(() => { const n = Math.max(na.length, nb.length); if (n >= 2) setSize(n); }, [na.length, nb.length]);
 
   function flip() {
     setFlipping(true); setToss(null);
@@ -93,37 +120,44 @@ export default function Setup() {
     if (cup && fx) m.cup = { id: cup.id, fixtureId: fx.id };
     for (const t of pair) if (!/^team [ab]$/i.test(t.name)) saveTeam(t.name, t.players.filter((p) => p.id !== c?.id));
     track("match_start", { overs: rules.overs, players: Math.max(size, na.length, nb.length), cup: cup ? 1 : 0, common: c ? 1 : 0 });
+    setTossOpen(false);
     setPending(m);
   }
 
+  const on = [rules.extraRun && "Wide +1", rules.rebowl && "Re-bowl", rules.freeHit && "Free hit", rules.lastManStands && "Last man stands",
+    rules.oneTipCatch && "One-tip catch", rules.wall !== "none" && `Wall ${rules.wall}`, rules.maxOversPerBowler && `${rules.maxOversPerBowler} overs a bowler`,
+    common.trim() && `${common.trim()} plays both sides`].filter(Boolean).join(" · ");
+
   return (
-    <div className="min-h-screen pb-10">
+    <div className="min-h-screen pb-36">
       <Header title={cup ? cup.name : "New Match"} back={() => { useStore.setState({ fixture: null }); go(cup ? "cup" : "home"); }} />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={size} locked={!!cup} />
-        <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={size} locked={!!cup} />
+        {last && <div className="flex items-center justify-between gap-3 rounded-2xl bg-sun-soft px-4 py-2 text-sm text-fg">
+          <span>Filled in from your last match</span>
+          <button onClick={clear} className="press min-h-10 shrink-0 font-semibold text-sun">Start fresh</button>
+        </div>}
+        <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={size} locked={!!cup} other={b} />
+        <p className="text-center text-xs font-extrabold tracking-[0.3em] text-mute">VS</p>
+        <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={size} locked={!!cup} other={a} />
 
         <Card>
-          <p className="text-sm font-semibold text-teal">Common player</p>
-          <p className="mt-1 text-xs text-mute">Odd number of players? One person can play for both teams. They bat in both innings and can bowl for either side, but not while batting.</p>
-          <input value={common} onChange={(e) => setCommon(e.target.value)} placeholder="Name (optional)" maxLength={20}
-            className="mt-3 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
-        </Card>
-
-        <Card>
-          <p className="mb-2 text-sm font-semibold text-teal">Players a side</p>
-          <Stepper value={size} set={setSize} min={2} max={15} />
-          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Overs an innings</p>
-          <div className="grid grid-cols-5 gap-2">
-            {[3, 5, 6, 10].map((o) => <Pill key={o} active={!custom && rules.overs === o} onClick={() => { setCustom(false); r("overs")(o); }}>{o}</Pill>)}
+          <p className="mb-2 text-sm font-semibold text-teal">Overs an innings</p>
+          <div className="grid grid-cols-6 gap-2">
+            {OVERS.map((o) => <Pill key={o} active={!custom && rules.overs === o} onClick={() => { setCustom(false); r("overs")(o); }}>{o}</Pill>)}
             <Pill active={custom} onClick={() => setCustom(true)}>…</Pill>
           </div>
           {custom && <div className="mt-2"><Stepper value={rules.overs} set={r("overs")} max={50} /></div>}
+          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Players a side</p>
+          <Stepper value={size} set={setSize} min={2} max={15} />
         </Card>
 
-        <Card>
-          <p className="text-sm font-semibold text-teal">Gully rules</p>
-          <div className="divide-y divide-line">
+        <Card className="!p-0 overflow-hidden">
+          <button onClick={() => setShowRules(!showRules)} className="press flex w-full items-center gap-3 px-4 py-4 text-left">
+            <span className="flex-1"><span className="block font-semibold text-fg">Gully rules</span>
+              <span className="block text-xs text-mute">{on || "Standard cricket"}</span></span>
+            <span className={cx("text-mute transition-transform", showRules && "rotate-180")}>⌄</span>
+          </button>
+          {showRules && <div className="divide-y divide-line border-t border-line px-4">
             <Toggle on={rules.extraRun} set={r("extraRun")} label="Wide and no-ball give 1 run" />
             <Toggle on={rules.rebowl} set={r("rebowl")} label="Wide and no-ball bowled again" />
             <Toggle on={rules.freeHit} set={r("freeHit")} label="Free hit after a no-ball" hint="Only run out on the next ball" />
@@ -135,31 +169,47 @@ export default function Setup() {
               <Segmented value={rules.wall} set={r("wall")} items={[{ v: "none", label: "Normal" }, { v: "four", label: "4" }, { v: "six", label: "6" }, { v: "out", label: "Out" }]} />
             </div>
             <div className="py-3">
-              <Toggle on={rules.maxOversPerBowler !== null} set={(on) => r("maxOversPerBowler")(on ? Math.max(1, Math.ceil(rules.overs / 5)) : null)} label="Limit overs per bowler" />
+              <Toggle on={rules.maxOversPerBowler !== null} set={(v) => r("maxOversPerBowler")(v ? Math.max(1, Math.ceil(rules.overs / 5)) : null)} label="Limit overs per bowler" />
               {rules.maxOversPerBowler !== null && <Stepper value={rules.maxOversPerBowler} set={r("maxOversPerBowler")} max={rules.overs} />}
             </div>
-          </div>
-        </Card>
-
-        <Card className="text-center">
-          <p className="text-sm font-semibold text-teal">Toss</p>
-          <div className={cx("mx-auto my-4 grid h-28 w-28 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#ffd2b0,#ff8a3d_55%,#c25a1c)] text-lg font-extrabold text-fg shadow-[0_10px_30px_-8px_rgba(255,138,61,.6)]", flipping && "coin-flip")}>
-            {flipping ? "" : toss?.face ?? "TOSS"}
-          </div>
-          {toss ? (
-            <>
-              <p className="mb-3 text-lg font-bold text-fg">{(toss.winner === 0 ? a : b) || "Team"} won the toss</p>
-              <div className="grid grid-cols-2 gap-2">
-                <PrimaryButton onClick={() => begin({ winner: toss.winner, choice: "bat" })}>Bat first</PrimaryButton>
-                <PrimaryButton tone="navy" onClick={() => begin({ winner: toss.winner, choice: "bowl" })}>Bowl first</PrimaryButton>
-              </div>
-            </>
-          ) : <PrimaryButton disabled={flipping} onClick={flip}>Flip the coin</PrimaryButton>}
-          <button onClick={() => begin(null)} className="press mt-3 min-h-12 w-full rounded-2xl font-semibold text-mute">Skip toss, {a || "Team A"} bats first</button>
+            <div className="py-3">
+              <p className="font-semibold text-fg">Common player</p>
+              <p className="mt-0.5 text-xs text-mute">Odd number of players? One person plays for both teams. They bat in both innings and can bowl for either side, but not while batting.</p>
+              <input value={common} onChange={(e) => setCommon(e.target.value)} placeholder="Name (optional)" maxLength={20}
+                className="mt-2 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
+            </div>
+          </div>}
         </Card>
       </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[480px] bg-gradient-to-t from-cream from-60% to-transparent px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-8">
+        <PrimaryButton onClick={() => setTossOpen(true)}>Next: toss →</PrimaryButton>
+      </div>
+
+      {tossOpen && (
+        <Sheet title="Toss" onClose={() => { if (!flipping) { setTossOpen(false); setToss(null); } }}>
+          <div className="text-center">
+            <div className={cx("mx-auto my-2 grid h-28 w-28 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#ffd2b0,#ff8a3d_55%,#c25a1c)] text-lg font-extrabold text-fg shadow-[0_10px_30px_-8px_rgba(255,138,61,.6)]", flipping && "coin-flip")}>
+              {flipping ? "" : toss?.face ?? "TOSS"}
+            </div>
+            {toss ? (
+              <>
+                <p className="mb-3 mt-3 text-lg font-bold text-fg">{(toss.winner === 0 ? a : b) || "Team"} won the toss</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <PrimaryButton onClick={() => begin({ winner: toss.winner, choice: "bat" })}>Bat first</PrimaryButton>
+                  <PrimaryButton tone="navy" onClick={() => begin({ winner: toss.winner, choice: "bowl" })}>Bowl first</PrimaryButton>
+                </div>
+              </>
+            ) : <div className="mt-4"><PrimaryButton disabled={flipping} onClick={flip}>Flip the coin</PrimaryButton></div>}
+            <button onClick={() => begin(null)} className="press mt-2 min-h-12 w-full rounded-2xl font-semibold text-mute">Skip toss, {a || "Team A"} bats first</button>
+          </div>
+        </Sheet>
+      )}
       {pending && <OpenersSheet match={pending} onClose={() => setPending(null)}
-        onStart={(m) => { add(m); put(m); go("live", m.id); }} />}
+        onStart={(m) => {
+          if (!m.cup) useStore.setState({ lastSetup: { a, b, na, nb, size, rules, common } });
+          add(m); put(m); go("live", m.id);
+        }} />}
     </div>
   );
 }

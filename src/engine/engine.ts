@@ -1,6 +1,6 @@
 import type { Ball, BallInput, Ev, Innings, Match, Player, Rules, Side, Team } from "./types";
 
-export interface BatStat { id: string; runs: number; balls: number; fours: number; sixes: number; out: { kind: string; bowler: string } | null }
+export interface BatStat { id: string; runs: number; balls: number; fours: number; sixes: number; out: { kind: string; bowler: string } | null; retired?: boolean }
 export interface BowlStat { id: string; legal: number; runs: number; wickets: number; maidens: number; wides: number; noBalls: number }
 export interface Fow { score: number; wicket: number; over: string; id: string }
 
@@ -42,8 +42,8 @@ export function playerName(m: Match, id: string | null): string {
 /** Common players are on both teams under the same id: they bat for both and bowl for either. */
 export const isCommon = (m: Match, id: string) => m.teams.every((t) => t.players.some((p) => p.id === id));
 
-export const wicketLimit = (team: Team, rules: Rules) =>
-  Math.max(1, rules.lastManStands ? team.players.length : team.players.length - 1);
+export const wicketLimit = (team: Team, rules: Rules, solo = false) =>
+  Math.max(1, rules.lastManStands || solo ? team.players.length : team.players.length - 1);
 
 export function replay(m: Match, idx: number): State {
   const inn = m.innings[idx], r = m.rules;
@@ -66,6 +66,14 @@ export function replay(m: Match, idx: number): State {
 
   for (const e of inn.events) {
     if (e.t === "swap") { if (st.nonStriker) [st.striker, st.nonStriker] = [st.nonStriker, st.striker]; continue; }
+    if (e.t === "retire") {
+      const b = bat.get((e.out === "s" ? st.striker : st.nonStriker) ?? "");
+      if (b) b.retired = true;
+      addBat(e.newId);
+      if (e.out === "s") st.striker = e.newId; else st.nonStriker = e.newId;
+      if (!st.striker && st.nonStriker) { st.striker = st.nonStriker; st.nonStriker = null; }
+      continue;
+    }
     const legal = isLegal(e, r), pen = extraPenalty(e, r), total = e.runs + pen;
     const overIdx = Math.floor(st.legal / 6);
     (st.overs[overIdx] ||= []).push(e);
@@ -114,7 +122,7 @@ export function replay(m: Match, idx: number): State {
   }
 
   const tgt = target(m, idx);
-  st.ended = inn.closed || st.legal >= inn.overs * 6 || st.wickets >= inn.wicketLimit ||
+  st.ended = inn.closed || !st.striker || st.legal >= inn.overs * 6 || st.wickets >= inn.wicketLimit ||
     (tgt !== null && st.runs >= tgt);
   return st;
 }
@@ -161,8 +169,8 @@ export function startInnings(m: Match, striker: string, nonStriker: string | nul
   const bat: Side = idx === 0 ? firstBatting(n) : idx === 2 ? n.innings[1].bat : otherSide(n.innings[idx - 1].bat);
   n.innings.push({
     bat, overs: superOver ? 1 : n.rules.overs,
-    wicketLimit: superOver ? Math.min(2, wicketLimit(n.teams[bat], n.rules)) : wicketLimit(n.teams[bat], n.rules),
-    superOver, striker, nonStriker, bowler, bowlerSetAt: 0, events: [], closed: false,
+    wicketLimit: superOver ? Math.min(2, wicketLimit(n.teams[bat], n.rules)) : wicketLimit(n.teams[bat], n.rules, !nonStriker),
+    superOver, striker, nonStriker, solo: !nonStriker, bowler, bowlerSetAt: 0, events: [], closed: false,
   });
   n.status = "live";
   return n;
@@ -202,6 +210,28 @@ export function swapStrike(m: Match): Match {
   return n;
 }
 
+export function retire(m: Match, out: "s" | "ns", newId: string | null): Match {
+  const n = clone(m);
+  n.innings[n.innings.length - 1].events.push({ t: "retire", out, newId });
+  return settle(n);
+}
+
+/** Fewest overs the match can be cut to now: the current innings can't drop below balls already bowled. */
+export function minOvers(m: Match): number {
+  const idx = m.innings.length - 1, inn = m.innings[idx];
+  if (!inn || inn.superOver || m.status === "break") return 1;
+  return Math.max(1, Math.ceil(replay(m, idx).legal / 6));
+}
+
+/** Changes the overs for the rest of the match, like a gully game cut short when it gets dark. */
+export function setOvers(m: Match, overs: number): Match {
+  const n = clone(m), inn = n.innings[n.innings.length - 1];
+  n.rules.overs = overs;
+  if (n.rules.maxOversPerBowler) n.rules.maxOversPerBowler = Math.min(n.rules.maxOversPerBowler, overs);
+  if (inn && !inn.superOver && n.status === "live") inn.overs = Math.max(overs, minOvers(m));
+  return settle(n);
+}
+
 export function setBowler(m: Match, id: string): Match {
   const n = clone(m), idx = n.innings.length - 1;
   n.innings[idx].bowler = id;
@@ -235,6 +265,7 @@ export function undo(m: Match): { match: Match; popped: Ev | null; droppedInning
 export function redo(m: Match, ev: Ev): Match {
   const n = clone(m), inn = n.innings[n.innings.length - 1];
   if (ev.t === "ball") { inn.bowler = ev.bowler; return addBall(n, { runs: ev.runs, extra: ev.extra, wicket: ev.wicket }); }
+  if (ev.t === "retire") return retire(n, ev.out, ev.newId);
   return swapStrike(n);
 }
 

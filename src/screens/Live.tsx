@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as E from "../engine/engine";
 import type { BallInput, Extra, Match } from "../engine/types";
 import { useMatch, useStore } from "../store";
-import { BowlerSheet, EditBallSheet, OpenersSheet, WicketSheet } from "../sheets";
+import { BowlerSheet, EditBallSheet, OpenersSheet, OversSheet, RetireSheet, WicketSheet } from "../sheets";
 import { Badge, BallChip, Card, cx, Header, LivePill, PrimaryButton, Sheet } from "../ui";
 import { listen, parse, voiceSupported } from "../voice";
 import { liveSupported, newCode, newLiveKey, watchLink } from "../live";
@@ -20,6 +20,8 @@ export default function Live() {
   const [share, setShare] = useState(false);
   const [openers, setOpeners] = useState(false);
   const [pickBowler, setPickBowler] = useState(false);
+  const [oversOpen, setOversOpen] = useState(false);
+  const [retireOpen, setRetireOpen] = useState(false);
   const [flash, setFlash] = useState<{ text: string; tone: string; key: number } | null>(null);
   const [mic, setMic] = useState(false);
   const [heard, setHeard] = useState("");
@@ -111,6 +113,7 @@ export default function Live() {
             <p className="mt-1 text-3xl font-extrabold text-fg">{batTeam.name} {st.runs}/{st.wickets}</p>
             <p className="mt-1 text-mute">{fieldTeam.name} need {st.runs + 1} off {inn.overs * 6} balls</p>
             <div className="mt-5"><PrimaryButton onClick={() => setOpeners(true)}>Start the chase</PrimaryButton></div>
+            {!inn.superOver && <button onClick={() => setOversOpen(true)} className="press mt-3 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-fg">Change overs ({m.rules.overs})</button>}
             <button onClick={() => undo(m.id)} className="press mt-3 min-h-12 w-full rounded-2xl font-semibold text-mute">↶ Undo last ball</button>
           </Card>
         ) : (
@@ -136,7 +139,13 @@ export default function Live() {
               </div>
             </Card>
 
-            <div className="mt-4 grid grid-cols-4 gap-2.5">
+            {armed && (
+              <div className="mt-4 flex items-center gap-3 rounded-2xl border-2 border-sun bg-sun-soft px-4 py-2.5">
+                <p className="flex-1 text-sm font-semibold text-fg">{{ wd: "Wide", nb: "No ball", b: "Byes", lb: "Leg byes" }[armed]}: {armed === "wd" || armed === "nb" ? "runs taken off it? Tap 0 if none" : "how many did they run?"}</p>
+                <button onClick={() => setArmed(null)} className="press min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold text-mute">Cancel</button>
+              </div>
+            )}
+            <div className={cx("mt-4 grid grid-cols-4 gap-2.5", armed && "rounded-[24px] ring-2 ring-sun/60 ring-offset-4 ring-offset-cream")}>
               {[0, 1, 2, 3].map((r) => <Key key={r} onClick={() => score(r)} label={armed ? extraLabel(armed, r) : String(r)} />)}
               <Key onClick={() => score(4)} label="4" sub={armed ? extraLabel(armed, 4) : "Four"} tone="text-four" />
               <Key onClick={() => score(6)} label="6" sub={armed ? extraLabel(armed, 6) : "Six"} tone="text-six" />
@@ -151,7 +160,6 @@ export default function Live() {
                 </button>
               ))}
             </div>
-            {armed && <p className="mt-2 text-center text-sm font-medium text-teal">{armed === "wd" || armed === "nb" ? "Now tap runs taken off it (0 for none)" : "Now tap how many they ran"}</p>}
 
             <div className="mt-4 flex items-center justify-around rounded-full bg-panel px-2 py-1.5 shadow-[0_10px_30px_-12px_rgba(0,0,0,.3)]">
               <Tool onClick={() => undo(m.id)} icon="↶" label="Undo" />
@@ -169,7 +177,10 @@ export default function Live() {
         <span className={cx("pop text-[110px] font-extrabold italic tracking-tighter drop-shadow-[0_6px_0_#000]", flash.tone)}>{flash.text}</span>
       </div>}
 
-      {m.status === "live" && (pickBowler || E.needsBowler(m, idx)) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }} />}
+      {m.status === "live" && (pickBowler || E.needsBowler(m, idx)) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
+        onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)} />}
+      {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
+      {retireOpen && <RetireSheet match={m} onClose={() => setRetireOpen(false)} onSave={(n) => { put(n); setRetireOpen(false); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} onDone={confirmWicket} onClose={() => setWicket(false)} />}
       {edit !== null && inn.events[edit]?.t === "ball" && (
         <EditBallSheet ball={inn.events[edit] as E.State["overs"][number][number]} onClose={() => setEdit(null)}
@@ -181,6 +192,8 @@ export default function Live() {
         <Sheet title="Quick options" onClose={() => setMore(false)}>
           <div className="grid gap-2">
             <PrimaryButton tone="navy" onClick={() => { setMore(false); setPickBowler(true); }}>Change bowler</PrimaryButton>
+            {!inn.superOver && <PrimaryButton tone="navy" onClick={() => { setMore(false); setOversOpen(true); }}>Change overs ({inn.overs})</PrimaryButton>}
+            <PrimaryButton tone="navy" onClick={() => { setMore(false); setRetireOpen(true); }}>Retire a batter</PrimaryButton>
             <PrimaryButton onClick={() => { if (confirm("End this innings now?")) { put(E.closeInnings(m)); setMore(false); } }}>End innings</PrimaryButton>
           </div>
           <div className="mt-4 rounded-2xl bg-sun-soft p-3 text-sm text-fg">

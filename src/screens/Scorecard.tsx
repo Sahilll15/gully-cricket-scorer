@@ -68,7 +68,7 @@ export default function Scorecard() {
               <tbody>{st.order.map((id) => { const b = st.bat.get(id)!; return (
                 <tr key={id} className="border-t border-line">
                   <td className="px-3 py-2.5"><p className="font-semibold text-fg">{name(id)}{(id === st.striker || id === st.nonStriker) && !b.out && live && idx === m.innings.length - 1 ? " *" : ""}</p>
-                    <p className="text-xs text-mute">{howOut(b.out)}</p></td>
+                    <p className="text-xs text-mute">{b.retired ? "retired not out" : howOut(b.out)}</p></td>
                   <td className="px-1.5 text-right font-bold text-fg tabular-nums">{b.runs}</td>
                   <td className="px-1.5 text-right tabular-nums">{b.balls}</td>
                   <td className="px-1.5 text-right tabular-nums">{b.fours}</td>
@@ -110,7 +110,7 @@ export default function Scorecard() {
             <div key={o} className="flex items-center gap-2 border-t border-line py-2 first:border-0">
               <span className="w-12 shrink-0 text-xs font-semibold text-mute">Ov {o + 1}</span>
               <div className="flex flex-wrap gap-1.5">{balls.map((b: Ball, i) => {
-                while (inn.events[evCursor]?.t === "swap") evCursor++;
+                while (inn.events[evCursor] && inn.events[evCursor].t !== "ball") evCursor++;
                 const at = evCursor++;
                 return <BallChip key={i} b={b} size={32} onClick={() => setEdit(at)} />;
               })}</div>

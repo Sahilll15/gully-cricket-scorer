@@ -28,7 +28,9 @@ export interface Ball {
   bowler: string;
 }
 export interface Swap { t: "swap" }
-export type Ev = Ball | Swap;
+/** Batter leaves without being out (injury, has to go home). */
+export interface Retire { t: "retire"; out: "s" | "ns"; newId: string | null }
+export type Ev = Ball | Swap | Retire;
 
 export interface Innings {
   bat: Side;
@@ -37,6 +39,7 @@ export interface Innings {
   superOver: boolean;
   striker: string;
   nonStriker: string | null;
+  solo?: boolean;           // one batter at a time, so every player bats
   bowler: string;           // bowler for the next ball
   bowlerSetAt: number;      // legal-ball count when the bowler was last picked
   events: Ev[];
