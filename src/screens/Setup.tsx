@@ -14,17 +14,18 @@ const DEFAULT_RULES: Rules = {
 /** Splits "Rahul, Amit\nSam" into names, so a squad can be pasted in one go. */
 const splitNames = (v: string) => v.split(/[,\n]/).map((n) => n.trim()).filter(Boolean);
 
-function TeamCard({ label, name, setName, names, setNames, size, locked, other }: {
-  label: string; name: string; setName: (s: string) => void; names: string[]; setNames: (n: string[]) => void; size: number; locked?: boolean; other: string;
+function TeamCard({ label, name, setName, names, setNames, size, setSize, locked, other, known }: {
+  label: string; name: string; setName: (s: string) => void; names: string[]; setNames: (n: string[]) => void;
+  size: number; setSize: (n: number) => void; locked?: boolean; other: string; known: string[];
 }) {
   const saved = useStore((s) => s.teams).filter((t) => t.name !== other);
   const [v, setV] = useState("");
-  const add = () => {
+  const add = (list: string[]) => {
     const have = new Set(names.map((n) => n.toLowerCase()));
-    const fresh = splitNames(v).filter((n) => !have.has(n.toLowerCase()) && have.add(n.toLowerCase()));
+    const fresh = list.filter((n) => !have.has(n.toLowerCase()) && have.add(n.toLowerCase()));
     if (fresh.length) setNames([...names, ...fresh]);
-    setV("");
   };
+  const unnamed = Math.max(0, size - names.length);
   return (
     <Card>
       <label className="flex items-center gap-3">
@@ -45,20 +46,39 @@ function TeamCard({ label, name, setName, names, setNames, size, locked, other }
           </div>
         </div>
       )}
-      {names.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {names.map((n) => (
-            <button key={n} onClick={() => setNames(names.filter((x) => x !== n))} aria-label={`Remove ${n}`}
-              className="press flex min-h-10 items-center gap-1.5 rounded-full bg-sun-soft px-3 text-sm font-semibold text-fg">{n}<span className="text-mute">✕</span></button>
-          ))}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {names.map((n) => (
+          <span key={n} className="flex min-h-10 items-center rounded-full bg-sun-soft pl-3 text-sm font-semibold text-fg">
+            {n}
+            {!locked && <button onClick={() => setNames(names.filter((x) => x !== n))} aria-label={`Remove ${n}`} className="press grid h-10 w-9 place-items-center text-mute">✕</button>}
+          </span>
+        ))}
+        {Array.from({ length: unnamed }, (_, i) => (
+          <span key={i} className="flex min-h-10 items-center rounded-full border border-dashed border-line px-3 text-sm text-mute">Player {names.length + i + 1}</span>
+        ))}
+      </div>
+      {!locked && <>
+        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(splitNames(v)); setV(""); }}>
+          <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Type names, comma between" maxLength={300} enterKeyHint="done"
+            className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
+          <button className="press min-h-12 rounded-2xl bg-raised px-4 font-semibold text-white disabled:opacity-40" disabled={!v.trim()}>Add</button>
+        </form>
+        {known.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1.5 text-xs font-semibold text-mute">Played before, tap to add</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {known.map((n) => <button key={n} onClick={() => add([n])} className="press shrink-0 rounded-full border border-line bg-key px-3 py-2 text-sm font-semibold text-fg">+ {n}</button>)}
+            </div>
+          </div>
+        )}
+        <div className="mt-3 flex items-center gap-3 border-t border-line pt-3">
+          <span className="flex-1"><span className="block text-sm font-semibold text-fg">{size} player{size === 1 ? "" : "s"}</span>
+            <span className="block text-xs text-mute">{unnamed ? `${unnamed} without a name yet` : "Everyone's named"}</span></span>
+          <button onClick={() => setSize(Math.max(1, names.length, size - 1))} disabled={size <= Math.max(1, names.length)} aria-label="One fewer player"
+            className="press h-11 w-11 rounded-xl bg-key text-xl font-bold text-fg disabled:opacity-30">−</button>
+          <button onClick={() => setSize(Math.min(15, size + 1))} aria-label="One more player" className="press h-11 w-11 rounded-xl bg-key text-xl font-bold text-fg">+</button>
         </div>
-      )}
-      <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}>
-        <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Add players: Rahul, Amit, Sam" maxLength={300}
-          className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
-        <button className="press min-h-12 rounded-2xl bg-raised px-4 font-semibold text-white" disabled={!v.trim()}>Add</button>
-      </form>
-      <p className="mt-2 text-xs text-mute">{names.length >= size ? `${names.length} players` : `${names.length} named · ${size - names.length} more will be Player N`}</p>
+      </>}
     </Card>
   );
 }
@@ -78,12 +98,12 @@ export default function Setup() {
   const last = cup ? null : lastSetup;
   const [a, setA] = useState(last?.a ?? "Team A"), [b, setB] = useState(last?.b ?? "Team B");
   const [na, setNa] = useState<string[]>(last?.na ?? []), [nb, setNb] = useState<string[]>(last?.nb ?? []);
-  const [size, setSize] = useState(last?.size ?? 6);
+  const [sa, setSa] = useState(last?.sa ?? last?.size ?? 6), [sb, setSb] = useState(last?.sb ?? last?.size ?? 6);
   const [common, setCommon] = useState(last?.common ?? "");
   const [rules, setRules] = useState<Rules>(last ? { ...DEFAULT_RULES, ...last.rules } : DEFAULT_RULES);
   const [custom, setCustom] = useState(!OVERS.includes(last?.rules.overs ?? DEFAULT_RULES.overs));
   const clear = () => {
-    setA("Team A"); setB("Team B"); setNa([]); setNb([]); setSize(6); setCommon(""); setRules(DEFAULT_RULES); setCustom(false);
+    setA("Team A"); setB("Team B"); setNa([]); setNb([]); setSa(6); setSb(6); setCommon(""); setRules(DEFAULT_RULES); setCustom(false);
     useStore.setState({ lastSetup: null });
   };
   const [toss, setToss] = useState<{ winner: Side; face: string } | null>(null);
@@ -100,8 +120,17 @@ export default function Setup() {
     setRules(cup.rules);
   }, [cup, fx, teams]);
 
-  // Named squads set the side size, so nobody gets "Player 5" padding they didn't ask for.
-  useEffect(() => { const n = Math.max(na.length, nb.length); if (n >= 2) setSize(n); }, [na.length, nb.length]);
+  // Naming players sets that team's size, so nobody gets "Player 5" padding they didn't ask for.
+  useEffect(() => { if (na.length) setSa(na.length); }, [na.length]);
+  useEffect(() => { if (nb.length) setSb(nb.length); }, [nb.length]);
+  const taken = new Set([...na, ...nb, common.trim()].map((n) => n.toLowerCase()));
+  const known = [...new Set(teams.flatMap((t) => t.players.map((p) => p.name)))].filter((n) => !taken.has(n.toLowerCase())).slice(0, 20);
+  function shuffle() {
+    const pool = [...na, ...nb];
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const half = Math.ceil(pool.length / 2);
+    setNa(pool.slice(0, half)); setNb(pool.slice(half)); setSa(half); setSb(pool.length - half);
+  }
 
   function flip() {
     setFlipping(true); setToss(null);
@@ -110,16 +139,16 @@ export default function Setup() {
   function begin(t: Match["toss"]) {
     const c = common.trim() ? { id: E.uid(), name: common.trim() } : null;
     const others = (names: string[]) => names.filter((n) => n.toLowerCase() !== c?.name.toLowerCase());
-    const side = (names: string[]) => [...roster(others(names), Math.max(size, others(names).length)), ...(c ? [c] : [])];
+    const side = (names: string[], size: number) => [...roster(others(names), Math.max(size, others(names).length)), ...(c ? [c] : [])];
     const pair: [Team, Team] = [
-      { name: a.trim() || "Team A", players: side(na) },
-      { name: b.trim() || "Team B", players: side(nb) },
+      { name: a.trim() || "Team A", players: side(na, sa) },
+      { name: b.trim() || "Team B", players: side(nb, sb) },
     ];
     const m = E.newMatch(pair, rules);
     m.toss = t;
     if (cup && fx) m.cup = { id: cup.id, fixtureId: fx.id };
     for (const t of pair) if (!/^team [ab]$/i.test(t.name)) saveTeam(t.name, t.players.filter((p) => p.id !== c?.id));
-    track("match_start", { overs: rules.overs, players: Math.max(size, na.length, nb.length), cup: cup ? 1 : 0, common: c ? 1 : 0 });
+    track("match_start", { overs: rules.overs, players: Math.max(sa, sb), cup: cup ? 1 : 0, common: c ? 1 : 0 });
     setTossOpen(false);
     setPending(m);
   }
@@ -136,9 +165,12 @@ export default function Setup() {
           <span>Filled in from your last match</span>
           <button onClick={clear} className="press min-h-10 shrink-0 font-semibold text-sun">Start fresh</button>
         </div>}
-        <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={size} locked={!!cup} other={b} />
-        <p className="text-center text-xs font-extrabold tracking-[0.3em] text-mute">VS</p>
-        <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={size} locked={!!cup} other={a} />
+        <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={sa} setSize={setSa} locked={!!cup} other={b} known={known} />
+        <div className="flex items-center justify-center gap-3">
+          <span className="text-xs font-extrabold tracking-[0.3em] text-mute">VS</span>
+          {!cup && na.length + nb.length >= 2 && <button onClick={shuffle} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>}
+        </div>
+        <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={sb} setSize={setSb} locked={!!cup} other={a} known={known} />
 
         <Card>
           <p className="mb-2 text-sm font-semibold text-teal">Overs an innings</p>
@@ -147,8 +179,6 @@ export default function Setup() {
             <Pill active={custom} onClick={() => setCustom(true)}>…</Pill>
           </div>
           {custom && <div className="mt-2"><Stepper value={rules.overs} set={r("overs")} max={50} /></div>}
-          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Players a side</p>
-          <Stepper value={size} set={setSize} min={2} max={15} />
         </Card>
 
         <Card className="!p-0 overflow-hidden">
@@ -207,7 +237,7 @@ export default function Setup() {
       )}
       {pending && <OpenersSheet match={pending} onClose={() => setPending(null)}
         onStart={(m) => {
-          if (!m.cup) useStore.setState({ lastSetup: { a, b, na, nb, size, rules, common } });
+          if (!m.cup) useStore.setState({ lastSetup: { a, b, na, nb, size: Math.max(sa, sb), sa, sb, rules, common } });
           add(m); put(m); go("live", m.id);
         }} />}
     </div>

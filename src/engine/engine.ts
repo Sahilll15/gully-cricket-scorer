@@ -94,12 +94,14 @@ export function replay(m: Match, idx: number): State {
     }
     if (legal) { st.legal++; bw.legal++; }
 
+    // The scorer picks the run-out batter by name before the run is counted, so read it before they cross.
+    const namedOut = e.wicket?.outId ?? null;
     // Batters cross on odd runs actually run; boundaries are even anyway.
     if (e.runs % 2 === 1 && st.nonStriker) [st.striker, st.nonStriker] = [st.nonStriker, st.striker];
 
     if (e.wicket) {
       const w = e.wicket;
-      const outId = w.out === "s" ? st.striker : st.nonStriker;
+      const outId = namedOut ?? (w.out === "s" ? st.striker : st.nonStriker);
       st.wickets++;
       if (w.kind !== "run out") bw.wickets++;
       if (outId) {
@@ -108,7 +110,7 @@ export function replay(m: Match, idx: number): State {
         st.fow.push({ score: st.runs, wicket: st.wickets, over: oversText(st.legal), id: outId });
       }
       addBat(w.newId);
-      if (w.out === "s") st.striker = w.newId; else st.nonStriker = w.newId;
+      if (st.striker === outId) st.striker = w.newId; else st.nonStriker = w.newId;
       if (!st.striker && st.nonStriker) { st.striker = st.nonStriker; st.nonStriker = null; }
     }
 

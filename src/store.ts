@@ -6,7 +6,7 @@ import type { SavedTeam, Tournament } from "./engine/tournament";
 import { track } from "./track";
 
 /** What the last match was set up with, so the next one starts filled in. */
-export interface LastSetup { a: string; b: string; na: string[]; nb: string[]; size: number; rules: Rules; common: string }
+export interface LastSetup { a: string; b: string; na: string[]; nb: string[]; size: number; sa?: number; sb?: number; rules: Rules; common: string }
 
 export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch";
 

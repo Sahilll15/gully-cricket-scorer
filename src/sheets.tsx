@@ -118,9 +118,9 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
   const name = (id: string | null) => E.playerName(m, id);
 
   return (
-    <Sheet title={free ? "Out on a free hit? Only run out" : "How out?"} onClose={onClose}
+    <Sheet title={st.freeHit ? "Free hit: only a run out" : extra === "nb" ? "No ball: only a run out" : extra === "wd" ? "Out on a wide" : extra ? "Out on a bye: only a run out" : "How out?"} onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!ready}
-        onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", newId: needNew ? newId : null } })}>
+        onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: needNew ? newId : null } })}>
         Confirm wicket
       </PrimaryButton>}>
       <div className="grid grid-cols-2 gap-2">
@@ -133,7 +133,7 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
             <Pill active={out === "s"} onClick={() => setOut("s")}>{name(st.striker)}</Pill>
             {st.nonStriker && <Pill active={out === "ns"} onClick={() => setOut("ns")}>{name(st.nonStriker)}</Pill>}
           </div>
-          <p className="mb-2 mt-5 text-sm font-semibold text-teal">Runs completed before the run out</p>
+          <p className="mb-2 mt-5 text-sm font-semibold text-teal">Runs completed before the run out{extra === "nb" ? " (plus the no-ball run)" : extra === "wd" ? " (plus the wide)" : ""}</p>
           <div className="grid grid-cols-4 gap-2">{[0, 1, 2, 3].map((r) => <Pill key={r} active={runs === r} onClick={() => setRuns(r)}>{r}</Pill>)}</div>
         </>
       )}

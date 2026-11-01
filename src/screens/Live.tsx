@@ -30,6 +30,15 @@ export default function Live() {
   latest.current = m;
 
   useEffect(() => { if (m?.status === "done") go("result"); }, [m?.status, go]);
+  const overDone = !!m && m.status === "live" && m.innings.length > 0 && E.needsBowler(m, m.innings.length - 1);
+  const [bowlerDue, setBowlerDue] = useState(overDone);
+  // Let the last ball's FOUR or SIX land before the bowler sheet slides over it.
+  useEffect(() => {
+    if (!overDone) { setBowlerDue(false); return; }
+    const t = setTimeout(() => setBowlerDue(true), 700);
+    return () => clearTimeout(t);
+  }, [overDone]);
+  const waiting = overDone && !bowlerDue;
   useEffect(() => () => stopRef.current(), []);
   if (!m || !m.innings.length) return null;
 
@@ -64,7 +73,7 @@ export default function Live() {
       setHeard(cmd ? `Heard "${said}"` : `Heard "${said}", not a score`);
       if (!cmd || !cur || cur.status !== "live") return;
       if (cmd.kind === "undo") useStore.getState().undo(cur.id);
-      else if (cmd.kind === "out") setWicket(null);
+      else if (cmd.kind === "out") setWicket(cmd.extra ?? null);
       else if (!E.needsBowler(cur, cur.innings.length - 1)) { useStore.getState().ball(cur.id, cmd.input); show(cmd.input); }
     }, () => { setMic(false); setHeard("Mic is blocked. Allow it in your browser settings."); });
     setMic(true);
@@ -139,26 +148,27 @@ export default function Live() {
               </div>
             </Card>
 
-            {armed && (
-              <div className="mt-4 flex items-center gap-3 rounded-2xl border-2 border-sun bg-sun-soft px-4 py-2.5">
-                <p className="flex-1 text-sm font-semibold text-fg">{{ wd: "Wide", nb: "No ball", b: "Byes", lb: "Leg byes" }[armed]}: {armed === "wd" || armed === "nb" ? "runs taken off it? Tap 0 if none" : "how many did they run?"}</p>
-                <button onClick={() => setArmed(null)} className="press min-h-10 shrink-0 rounded-full px-3 text-sm font-semibold text-mute">Cancel</button>
+            {armed ? (
+              <div className="mt-4 flex min-h-12 items-center gap-2 rounded-full border-2 border-sun bg-sun-soft pl-4 pr-1">
+                <p className="flex-1 text-[13px] font-semibold leading-tight text-fg">{{ wd: "Wide", nb: "No ball", b: "Byes", lb: "Leg byes" }[armed]}: {armed === "wd" || armed === "nb" ? "tap runs taken, 0 if none" : "tap runs they ran"}</p>
+                <button onClick={() => setArmed(null)} className="press min-h-10 shrink-0 rounded-full bg-panel px-3 text-sm font-semibold text-mute">Cancel</button>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                {(["wd", "nb", "b", "lb"] as Extra[]).map((x) => (
+                  <button key={x} onClick={() => setArmed(x)} disabled={waiting}
+                    className="press min-h-12 rounded-full border-2 border-sun/80 bg-panel text-sm font-semibold text-fg">
+                    {{ wd: "Wide", nb: "No Ball", b: "Byes", lb: "Leg Bye" }[x]}
+                  </button>
+                ))}
               </div>
             )}
-            <div className={cx("mt-4 grid grid-cols-4 gap-2.5", armed && "rounded-[24px] ring-2 ring-sun/60 ring-offset-4 ring-offset-cream")}>
+            <div className={cx("mt-3 grid grid-cols-4 gap-2.5 transition-opacity", armed && "rounded-[24px] ring-2 ring-sun/60 ring-offset-4 ring-offset-cream", waiting && "pointer-events-none opacity-40")}>
               {[0, 1, 2, 3].map((r) => <Key key={r} onClick={() => score(r)} label={armed ? extraLabel(armed, r) : String(r)} />)}
               <Key onClick={() => score(4)} label="4" sub={armed ? extraLabel(armed, 4) : "Four"} tone="text-four" />
               <Key onClick={() => score(6)} label="6" sub={armed ? extraLabel(armed, 6) : "Six"} tone="text-six" />
               <Key onClick={() => score(5)} label="5" sub={armed ? extraLabel(armed, 5) : "Overthrow"} />
               <Key onClick={() => setWicket(armed)} label="OUT" tone="text-white" bg="bg-out" />
-            </div>
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              {(["wd", "nb", "b", "lb"] as Extra[]).map((x) => (
-                <button key={x} onClick={() => setArmed(armed === x ? null : x)}
-                  className={cx("press min-h-12 rounded-full border-2 text-sm font-semibold", armed === x ? "border-sun bg-sun text-ink" : "border-sun/80 bg-panel text-fg")}>
-                  {{ wd: "Wide", nb: "No Ball", b: "Byes", lb: "Leg Bye" }[x]}
-                </button>
-              ))}
             </div>
 
             <div className="mt-4 flex items-center justify-around rounded-full bg-panel px-2 py-1.5 shadow-[0_10px_30px_-12px_rgba(0,0,0,.3)]">
@@ -177,7 +187,7 @@ export default function Live() {
         <span className={cx("pop text-[110px] font-extrabold italic tracking-tighter drop-shadow-[0_6px_0_#000]", flash.tone)}>{flash.text}</span>
       </div>}
 
-      {m.status === "live" && (pickBowler || E.needsBowler(m, idx)) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
+      {m.status === "live" && (pickBowler || bowlerDue) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
         onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
       {retireOpen && <RetireSheet match={m} onClose={() => setRetireOpen(false)} onSave={(n) => { put(n); setRetireOpen(false); useStore.setState({ redo: [] }); }} />}

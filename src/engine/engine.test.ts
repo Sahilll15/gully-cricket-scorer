@@ -339,3 +339,50 @@ describe("retired batter", () => {
     expect(replay(redo(match, popped!), 0).striker).toBe("A3");
   });
 });
+
+describe("run outs by name", () => {
+  it("odd runs then a run out dismisses the batter the scorer picked, not whoever ends up at that end", () => {
+    const st = replay(play(setup(), { runs: 1, wicket: { kind: "run out", out: "ns", outId: "A2", newId: "A3" } }), 0);
+    expect(st.bat.get("A2")!.out).toMatchObject({ kind: "run out" });
+    expect(st.bat.get("A1")!.out).toBe(null);
+    expect(st.striker).toBe("A3");
+    expect(st.nonStriker).toBe("A1");
+  });
+
+  it("run out on a no-ball: runs to the batter, no-ball extra, no wicket for the bowler, ball bowled again", () => {
+    const m = play(setup(), { runs: 1, extra: "nb", wicket: { kind: "run out", out: "s", outId: "A1", newId: "A3" } });
+    const st = replay(m, 0);
+    expect(st.runs).toBe(2);
+    expect(st.legal).toBe(0);
+    expect(st.extras.nb).toBe(1);
+    expect(st.bat.get("A1")).toMatchObject({ runs: 1, balls: 1, out: { kind: "run out", bowler: "B1" } });
+    expect(st.bowl.get("B1")).toMatchObject({ wickets: 0, noBalls: 1, runs: 2 });
+    expect(st.wickets).toBe(1);
+    expect(st.freeHit).toBe(true);
+  });
+
+  it("run out on a wide counts the runs as wides", () => {
+    const st = replay(play(setup(), { runs: 1, extra: "wd", wicket: { kind: "run out", out: "ns", outId: "A2", newId: "A3" } }), 0);
+    expect(st.runs).toBe(2);
+    expect(st.extras.wd).toBe(2);
+    expect(st.bat.get("A1")!.runs).toBe(0);
+    expect(st.bat.get("A2")!.out).toMatchObject({ kind: "run out" });
+  });
+
+  it("editing the runs on a run-out ball keeps the same batter out", () => {
+    let m = play(setup(), { runs: 0, wicket: { kind: "run out", out: "s", outId: "A1", newId: "A3" } });
+    m = editBall(m, 0, 0, { runs: 1 });
+    const st = replay(m, 0);
+    expect(st.bat.get("A1")!.out).toMatchObject({ kind: "run out" });
+    expect(st.bat.get("A2")!.out).toBe(null);
+  });
+
+  it("teams of different sizes each use their own wicket count", () => {
+    const m0 = newMatch([team("A", 3), team("B", 5)], rules());
+    m0.toss = { winner: 0, choice: "bat" };
+    const m = startInnings(m0, "A1", "A2", "B1");
+    expect(m.innings[0].wicketLimit).toBe(2);
+    const done = closeInnings(m);
+    expect(startInnings(done, "B1", "B2", "A1").innings[1].wicketLimit).toBe(4);
+  });
+});

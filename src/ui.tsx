@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { Ball } from "./engine/types";
 import { ballLabel } from "./engine/engine";
 import { useStore, type Screen } from "./store";
@@ -45,10 +45,12 @@ export function BallChip({ b, onClick, size = 36 }: { b: Ball; onClick?: () => v
 }
 
 export function Sheet({ title, onClose, children, footer }: { title: string; onClose?: () => void; children: ReactNode; footer?: ReactNode }) {
+  // Without this the page behind scrolls and jumps while you drag inside the sheet.
+  useEffect(() => { const b = document.body.style; const prev = b.overflow; b.overflow = "hidden"; return () => { b.overflow = prev; }; }, []);
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/70" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}
-        className="sheet-in w-full max-w-[480px] max-h-[88vh] overflow-y-auto rounded-t-[28px] border-t border-line bg-panel px-5 pt-3 safe-bottom">
+        className="sheet-in w-full max-w-[480px] max-h-[88dvh] overflow-y-auto overscroll-contain rounded-t-[28px] border-t border-line bg-panel px-5 pt-3 safe-bottom">
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-line" />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-fg">{title}</h2>

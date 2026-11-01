@@ -29,4 +29,8 @@ describe("voice", () => {
   it.each(["undo", "galat", "cancel that"])("%s undoes", (said) => expect(parse(said)).toEqual({ kind: "undo" }));
 
   it.each(["hello there", "what a shot", "for the win"])("ignores %s", (said) => expect(parse(said)).toBeNull());
+
+  it("no ball run out keeps the wicket and the no-ball", () => expect(parse("no ball run out")).toEqual({ kind: "out", extra: "nb" }));
+  it("wide and stumped keeps the wide", () => expect(parse("wide stumped")).toEqual({ kind: "out", extra: "wd" }));
+  it("not out is not a wicket", () => expect(parse("not out")).toBeNull());
 });

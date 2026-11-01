@@ -2,7 +2,7 @@ import type { BallInput } from "./engine/types";
 
 export type VoiceCmd =
   | { kind: "ball"; input: Omit<BallInput, "wicket"> }
-  | { kind: "out" }
+  | { kind: "out"; extra?: "nb" | "wd" }
   | { kind: "undo" };
 
 const RUNS: Record<number, string[]> = {
@@ -21,13 +21,15 @@ export function parse(text: string): VoiceCmd | null {
   const s = ` ${text.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim()} `;
   const has = (w: string) => s.includes(` ${w} `);
   if (["undo", "cancel", "galat", "wapas", "go back"].some(has)) return { kind: "undo" };
+  if (has("not out")) return null;
   const hit = Object.keys(RUNS).find((r) => RUNS[Number(r)].some(has));
   const runs = hit === undefined ? 0 : Number(hit);
-  if (["no ball", "noball", "nobal", "no bal"].some(has)) return { kind: "ball", input: { runs, extra: "nb" } };
-  if (["wide", "vide", "wild"].some(has)) return { kind: "ball", input: { runs, extra: "wd" } };
+  const out = OUT.some(has);
+  if (["no ball", "noball", "nobal", "no bal"].some(has)) return out ? { kind: "out", extra: "nb" } : { kind: "ball", input: { runs, extra: "nb" } };
+  if (["wide", "vide", "wild"].some(has)) return out ? { kind: "out", extra: "wd" } : { kind: "ball", input: { runs, extra: "wd" } };
   if (["leg bye", "leg byes", "leg by", "legbye"].some(has)) return { kind: "ball", input: { runs: runs || 1, extra: "lb" } };
   if (["bye", "byes", "by"].some(has)) return { kind: "ball", input: { runs: runs || 1, extra: "b" } };
-  if (OUT.some(has)) return { kind: "out" };
+  if (out) return { kind: "out" };
   if (hit !== undefined) return { kind: "ball", input: { runs } };
   return null;
 }

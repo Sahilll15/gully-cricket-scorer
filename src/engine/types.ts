@@ -18,7 +18,10 @@ export interface Rules {
   maxOversPerBowler: number | null;
 }
 
-export interface Wicket { kind: WicketKind; out: "s" | "ns"; newId: string | null }
+export interface Wicket {
+  kind: WicketKind; out: "s" | "ns"; newId: string | null;
+  outId?: string;   // who is out, by id. Older balls only have \`out\`, read after the batters cross.
+}
 
 export interface Ball {
   t: "ball";
