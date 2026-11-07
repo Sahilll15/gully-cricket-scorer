@@ -77,6 +77,7 @@ export default function Result() {
           <button onClick={() => go("scorecard")} className="press min-h-12 rounded-2xl bg-panel font-semibold text-teal">Full scorecard</button>
           <button onClick={() => undo(m.id)} className="press min-h-12 rounded-2xl bg-panel font-semibold text-mute">↶ Undo last ball</button>
         </div>
+        <a href="/cards/" className="press flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-line bg-panel font-semibold text-teal">Who played best? Make everyone's player card</a>
         {m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>
           : <PrimaryButton tone="navy" onClick={() => go("setup")}>Play again, same teams</PrimaryButton>}
       </main>

@@ -64,6 +64,10 @@ export default function Home() {
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-5">
         <PrimaryButton onClick={() => go("setup")}>+ Start new match</PrimaryButton>
         {liveSupported && <button onClick={() => setAsk(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">📡 Watch a live match</button>}
+        {done.length > 0 && (
+          // Same site as /cards/, so Gully Cards reads these matches straight from this phone.
+          <a href="/cards/" className="press flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-line bg-panel font-semibold text-teal">Rate your squad: player cards from these matches</a>
+        )}
         {matches.length > 0 && <BackupCard />}
         <InstallCard />
         {live.length > 0 && <h2 className="pt-3 font-bold text-fg">Live now</h2>}
