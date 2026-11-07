@@ -69,3 +69,11 @@ export function profile(matches: Match[], name: string): Profile {
 }
 
 export const average = (p: Profile) => (p.innings - p.notOuts ? p.runs / (p.innings - p.notOuts) : p.runs);
+
+/** Every named player from saved teams and past matches, most recent match first. */
+export function playerPool(matches: Match[], teams: { players: { name: string }[] }[]): string[] {
+  const seen = new Set<string>(), out: string[] = [];
+  const names = [...matches.flatMap((m) => m.teams.flatMap((t) => t.players)), ...teams.flatMap((t) => t.players)].map((p) => p.name.trim());
+  for (const n of names) if (n && !AUTO.test(n) && !seen.has(n.toLowerCase())) { seen.add(n.toLowerCase()); out.push(n); }
+  return out;
+}

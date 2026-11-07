@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import * as E from "../engine/engine";
 import type { Match, Player, Rules, Side, Team } from "../engine/types";
 import { useStore } from "../store";
+import { playerPool } from "../stats";
 import { track } from "../track";
 import { OpenersSheet } from "../sheets";
 import { Badge, Card, cx, Header, Pill, PrimaryButton, Segmented, Sheet, Stepper, Toggle } from "../ui";
@@ -83,6 +84,30 @@ function TeamCard({ label, name, setName, names, setNames, size, setSize, locked
   );
 }
 
+/** Tick who turned up today from everyone saved, then split them into two teams at random. */
+function PickPlayers({ names, chosen, onClose, onSplit }: { names: string[]; chosen: string[]; onClose: () => void; onSplit: (names: string[]) => void }) {
+  const [on, setOn] = useState(() => new Set(chosen.map((n) => n.toLowerCase())));
+  const picked = names.filter((n) => on.has(n.toLowerCase()));
+  const flip = (n: string) => { const next = new Set(on), k = n.toLowerCase(); if (!next.delete(k)) next.add(k); setOn(next); };
+  return (
+    <Sheet title="Who's playing today?" onClose={onClose}
+      footer={<PrimaryButton disabled={picked.length < 2} onClick={() => onSplit(picked)}>Split {picked.length} into 2 teams</PrimaryButton>}>
+      <div className="mb-3 flex items-center justify-between text-sm">
+        <span className="text-mute">{picked.length} picked</span>
+        <button onClick={() => setOn(new Set(picked.length === names.length ? [] : names.map((n) => n.toLowerCase())))} className="press min-h-10 font-semibold text-sun">
+          {picked.length === names.length ? "Clear all" : "Pick all"}</button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {names.map((n) => (
+          <button key={n} onClick={() => flip(n)} aria-pressed={on.has(n.toLowerCase())}
+            className={cx("press min-h-11 rounded-full border px-4 text-sm font-semibold", on.has(n.toLowerCase()) ? "border-sun bg-sun text-ink" : "border-line bg-key text-fg")}>
+            {on.has(n.toLowerCase()) ? "✓ " : ""}{n}</button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
 const roster = (named: string[], size: number): Player[] => {
   const list = named.map((name) => ({ id: E.uid(), name }));
   for (let i = list.length; i < size; i++) list.push({ id: E.uid(), name: `Player ${i + 1}` });
@@ -92,7 +117,7 @@ const roster = (named: string[], size: number): Player[] => {
 const OVERS = [3, 4, 5, 6, 10];
 
 export default function Setup() {
-  const { go, add, put, fixture, cups, teams, saveTeam, lastSetup } = useStore();
+  const { go, add, put, fixture, cups, teams, matches, saveTeam, lastSetup } = useStore();
   const cup = fixture ? cups.find((c) => c.id === fixture.cupId) : undefined;
   const fx = cup?.fixtures.find((f) => f.id === fixture?.fixtureId);
   const last = cup ? null : lastSetup;
@@ -124,12 +149,14 @@ export default function Setup() {
   useEffect(() => { if (na.length) setSa(na.length); }, [na.length]);
   useEffect(() => { if (nb.length) setSb(nb.length); }, [nb.length]);
   const taken = new Set([...na, ...nb, common.trim()].map((n) => n.toLowerCase()));
-  const known = [...new Set(teams.flatMap((t) => t.players.map((p) => p.name)))].filter((n) => !taken.has(n.toLowerCase())).slice(0, 20);
-  function shuffle() {
-    const pool = [...na, ...nb];
-    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const half = Math.ceil(pool.length / 2);
-    setNa(pool.slice(0, half)); setNb(pool.slice(half)); setSa(half); setSb(pool.length - half);
+  const pool = playerPool(matches, teams).filter((n) => n.toLowerCase() !== common.trim().toLowerCase());
+  const known = pool.filter((n) => !taken.has(n.toLowerCase())).slice(0, 30);
+  const [picking, setPicking] = useState(false);
+  function shuffle(names = [...na, ...nb]) {
+    const list = [...names];
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    const half = Math.ceil(list.length / 2);
+    setNa(list.slice(0, half)); setNb(list.slice(half)); setSa(Math.max(1, half)); setSb(Math.max(1, list.length - half));
   }
 
   function flip() {
@@ -168,8 +195,10 @@ export default function Setup() {
         <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={sa} setSize={setSa} locked={!!cup} other={b} known={known} />
         <div className="flex items-center justify-center gap-3">
           <span className="text-xs font-extrabold tracking-[0.3em] text-mute">VS</span>
-          {!cup && na.length + nb.length >= 2 && <button onClick={shuffle} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>}
+          {!cup && na.length + nb.length >= 2 && <button onClick={() => shuffle()} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>}
         </div>
+        {!cup && pool.length >= 2 && <button onClick={() => setPicking(true)} className="press min-h-12 w-full rounded-2xl border-2 border-dashed border-sun bg-sun-soft font-semibold text-fg">
+          Pick today's players from {pool.length} saved</button>}
         <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={sb} setSize={setSb} locked={!!cup} other={a} known={known} />
 
         <Card>
@@ -235,6 +264,8 @@ export default function Setup() {
           </div>
         </Sheet>
       )}
+      {picking && <PickPlayers names={[...new Set([...na, ...nb, ...pool])]} chosen={[...na, ...nb]} onClose={() => setPicking(false)}
+        onSplit={(list) => { shuffle(list); setPicking(false); }} />}
       {pending && <OpenersSheet match={pending} onClose={() => setPending(null)}
         onStart={(m) => {
           if (!m.cup) useStore.setState({ lastSetup: { a, b, na, nb, size: Math.max(sa, sb), sa, sb, rules, common } });

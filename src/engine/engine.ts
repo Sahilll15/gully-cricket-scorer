@@ -39,6 +39,15 @@ export function playerName(m: Match, id: string | null): string {
   return "Unknown";
 }
 
+/** How a batter's innings ended, as a scorecard shows it. */
+export function howOut(m: Match, b: BatStat): string {
+  const o = b.out;
+  if (b.retired) return "retired not out";
+  if (!o) return "not out";
+  if (o.kind === "run out" || o.kind === "wall out") return o.kind;
+  return o.kind === "bowled" ? `b ${playerName(m, o.bowler)}` : `${o.kind}, b ${playerName(m, o.bowler)}`;
+}
+
 /** Common players are on both teams under the same id: they bat for both and bowl for either. */
 export const isCommon = (m: Match, id: string) => m.teams.every((t) => t.players.some((p) => p.id === id));
 

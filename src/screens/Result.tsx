@@ -71,8 +71,11 @@ export default function Result() {
           <Card><p className="text-xs font-semibold text-mute">Best bowling</p><p className="font-bold text-fg">{aw.bestBowler?.name ?? "-"}</p><p className="text-teal font-semibold">{aw.bestBowler?.line ?? ""}</p></Card>
         </div>
         {preview && <img src={preview} alt="Scorecard to share" className="w-full rounded-3xl shadow-[0_10px_30px_-14px_rgba(0,0,0,.4)]" />}
-        <PrimaryButton onClick={() => shareImage(m)}>Send scorecard on WhatsApp</PrimaryButton>
-        <button onClick={() => shareText(m)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Send as text</button>
+        <PrimaryButton onClick={() => shareImage(m, "full")}>Send full scorecard on WhatsApp</PrimaryButton>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => shareImage(m, "card")} className="press min-h-12 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Send highlights</button>
+          <button onClick={() => shareText(m)} className="press min-h-12 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Send as text</button>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => go("scorecard")} className="press min-h-12 rounded-2xl bg-panel font-semibold text-teal">Full scorecard</button>
           <button onClick={() => undo(m.id)} className="press min-h-12 rounded-2xl bg-panel font-semibold text-mute">↶ Undo last ball</button>

@@ -3,14 +3,14 @@ import * as E from "../engine/engine";
 import type { Ball } from "../engine/types";
 import { useMatch, useStore } from "../store";
 import { EditBallSheet } from "../sheets";
+import { shareImage } from "../share";
 import { economy, strikeRate } from "../stats";
-import { Badge, BallChip, Card, cx, Header, LivePill, Segmented } from "../ui";
+import { Badge, BallChip, Card, cx, Header, LivePill, PrimaryButton, Segmented } from "../ui";
 
 export default function Scorecard() {
   const m = useMatch();
   const { go, put } = useStore();
   const [idx, setIdx] = useState(() => Math.max(0, (m?.innings.length ?? 1) - 1));
-  const [tab, setTab] = useState<"bat" | "bowl">("bat");
   const [edit, setEdit] = useState<number | null>(null);
   if (!m || !m.innings.length) return null;
 
@@ -21,8 +21,6 @@ export default function Scorecard() {
     return i < 0 ? null : { st: E.replay(m, i) };
   };
   const short = (s: string) => s.split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
-  const howOut = (o: { kind: string; bowler: string } | null) =>
-    !o ? "not out" : o.kind === "run out" || o.kind === "wall out" ? o.kind : o.kind === "bowled" ? `b ${name(o.bowler)}` : `${o.kind}, b ${name(o.bowler)}`;
   let evCursor = 0;
 
   return (
@@ -50,48 +48,23 @@ export default function Scorecard() {
           return { v: i, label: `${x.superOver ? "SO " : ""}${short(m.teams[x.bat].name)} ${s.runs}/${s.wickets}(${E.oversText(s.legal)})` };
         })} />
 
-        <div className="mt-4 flex justify-center gap-6 border-b-2 border-line">
-          {(["bat", "bowl"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={cx("-mb-0.5 min-h-12 whitespace-nowrap border-b-2 px-1 text-[15px] font-semibold", tab === t ? "border-sun text-sun" : "border-transparent text-mute")}>
-              {t === "bat" ? "Batting Summary" : "Bowling Summary"}
-            </button>
-          ))}
-        </div>
-
-        <Card className="mt-3 !p-0 overflow-hidden">
-          {tab === "bat" ? (
-            <table className="w-full text-sm">
-              <thead><tr className="bg-key text-left text-xs text-fg">
-                <th className="px-3 py-2.5 font-semibold">Name</th>{["R", "B", "4s", "6s", "SR"].map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
-              </tr></thead>
-              <tbody>{st.order.map((id) => { const b = st.bat.get(id)!; return (
-                <tr key={id} className="border-t border-line">
-                  <td className="px-3 py-2.5"><p className="font-semibold text-fg">{name(id)}{(id === st.striker || id === st.nonStriker) && !b.out && live && idx === m.innings.length - 1 ? " *" : ""}</p>
-                    <p className="text-xs text-mute">{b.retired ? "retired not out" : howOut(b.out)}</p></td>
-                  <td className="px-1.5 text-right font-bold text-fg tabular-nums">{b.runs}</td>
-                  <td className="px-1.5 text-right tabular-nums">{b.balls}</td>
-                  <td className="px-1.5 text-right tabular-nums">{b.fours}</td>
-                  <td className="px-1.5 text-right tabular-nums">{b.sixes}</td>
-                  <td className="px-1.5 pr-3 text-right tabular-nums">{strikeRate(b.runs, b.balls).toFixed(0)}</td>
-                </tr>); })}</tbody>
-            </table>
-          ) : (
-            <table className="w-full text-sm">
-              <thead><tr className="bg-key text-left text-xs text-fg">
-                <th className="px-3 py-2.5 font-semibold">Bowler</th>{["O", "M", "R", "W", "Econ"].map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
-              </tr></thead>
-              <tbody>{st.bowlOrder.map((id) => { const b = st.bowl.get(id)!; return (
-                <tr key={id} className="border-t border-line">
-                  <td className="px-3 py-3 font-semibold text-fg">{name(id)}</td>
-                  <td className="px-1.5 text-right tabular-nums">{E.oversText(b.legal)}</td>
-                  <td className="px-1.5 text-right tabular-nums">{b.maidens}</td>
-                  <td className="px-1.5 text-right tabular-nums">{b.runs}</td>
-                  <td className="px-1.5 text-right font-bold text-fg tabular-nums">{b.wickets}</td>
-                  <td className="px-1.5 pr-3 text-right tabular-nums">{economy(b.runs, b.legal).toFixed(1)}</td>
-                </tr>); })}</tbody>
-            </table>
-          )}
+        <p className="mt-5 mb-2 text-sm font-semibold text-teal">Batting, {m.teams[inn.bat].name}</p>
+        <Card className="!p-0 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-key text-left text-xs text-fg">
+              <th className="px-3 py-2.5 font-semibold">Name</th>{["R", "B", "4s", "6s", "SR"].map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
+            </tr></thead>
+            <tbody>{st.order.map((id) => { const b = st.bat.get(id)!; return (
+              <tr key={id} className="border-t border-line">
+                <td className="px-3 py-2.5"><p className="font-semibold text-fg">{name(id)}{(id === st.striker || id === st.nonStriker) && !b.out && live && idx === m.innings.length - 1 ? " *" : ""}</p>
+                  <p className="text-xs text-mute">{E.howOut(m, b)}</p></td>
+                <td className="px-1.5 text-right font-bold text-fg tabular-nums">{b.runs}</td>
+                <td className="px-1.5 text-right tabular-nums">{b.balls}</td>
+                <td className="px-1.5 text-right tabular-nums">{b.fours}</td>
+                <td className="px-1.5 text-right tabular-nums">{b.sixes}</td>
+                <td className="px-1.5 pr-3 text-right tabular-nums">{strikeRate(b.runs, b.balls).toFixed(0)}</td>
+              </tr>); })}</tbody>
+          </table>
         </Card>
 
         <Card className="mt-3 text-sm">
@@ -102,6 +75,25 @@ export default function Scorecard() {
             <p className="mt-3 font-semibold text-teal">Fall of wickets</p>
             <p className="mt-1 text-fg/80">{st.fow.map((f) => `${f.score}-${f.wicket} (${name(f.id)}, ${f.over})`).join(", ")}</p>
           </>}
+        </Card>
+
+        <p className="mt-5 mb-2 text-sm font-semibold text-teal">Bowling, {m.teams[E.otherSide(inn.bat)].name}</p>
+        <Card className="!p-0 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-key text-left text-xs text-fg">
+              <th className="px-3 py-2.5 font-semibold">Bowler</th>{["O", "M", "R", "W", "Econ"].map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
+            </tr></thead>
+            <tbody>{st.bowlOrder.map((id) => { const b = st.bowl.get(id)!; return (
+              <tr key={id} className="border-t border-line">
+                <td className="px-3 py-3 font-semibold text-fg">{name(id)}</td>
+                <td className="px-1.5 text-right tabular-nums">{E.oversText(b.legal)}</td>
+                <td className="px-1.5 text-right tabular-nums">{b.maidens}</td>
+                <td className="px-1.5 text-right tabular-nums">{b.runs}</td>
+                <td className="px-1.5 text-right font-bold text-fg tabular-nums">{b.wickets}</td>
+                <td className="px-1.5 pr-3 text-right tabular-nums">{economy(b.runs, b.legal).toFixed(1)}</td>
+              </tr>); })}</tbody>
+          </table>
+          {!st.bowlOrder.length && <p className="px-3 py-3 text-sm text-mute">No balls yet.</p>}
         </Card>
 
         <Card className="mt-3">
@@ -119,6 +111,7 @@ export default function Scorecard() {
           ))}
           {!st.overs.length && <p className="text-sm text-mute">No balls yet.</p>}
         </Card>
+        <div className="mt-4"><PrimaryButton onClick={() => shareImage(m, "full")}>Send this scorecard on WhatsApp</PrimaryButton></div>
       </main>
       {edit !== null && inn.events[edit]?.t === "ball" && (
         <EditBallSheet ball={inn.events[edit] as Ball} onClose={() => setEdit(null)}
