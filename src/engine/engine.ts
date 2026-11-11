@@ -1,6 +1,6 @@
 import type { Ball, BallInput, Ev, Innings, Match, Player, Rules, Side, Team } from "./types";
 
-export interface BatStat { id: string; runs: number; balls: number; fours: number; sixes: number; out: { kind: string; bowler: string } | null; retired?: boolean }
+export interface BatStat { id: string; runs: number; balls: number; fours: number; sixes: number; out: { kind: string; bowler: string; fielder?: string } | null; retired?: boolean }
 export interface BowlStat { id: string; legal: number; runs: number; wickets: number; maidens: number; wides: number; noBalls: number }
 export interface Fow { score: number; wicket: number; over: string; id: string }
 
@@ -44,8 +44,14 @@ export function howOut(m: Match, b: BatStat): string {
   const o = b.out;
   if (b.retired) return "retired not out";
   if (!o) return "not out";
-  if (o.kind === "run out" || o.kind === "wall out") return o.kind;
-  return o.kind === "bowled" ? `b ${playerName(m, o.bowler)}` : `${o.kind}, b ${playerName(m, o.bowler)}`;
+  const by = o.fielder ? playerName(m, o.fielder) : null, bw = playerName(m, o.bowler);
+  if (o.kind === "run out") return by ? `run out (${by})` : "run out";
+  if (o.kind === "wall out") return o.kind;
+  if (o.kind === "bowled") return `b ${bw}`;
+  if (by && o.kind === "caught") return o.fielder === o.bowler ? `c & b ${bw}` : `c ${by} b ${bw}`;
+  if (by && o.kind === "stumped") return `st ${by} b ${bw}`;
+  if (by) return `${o.kind} (${by}), b ${bw}`;
+  return `${o.kind}, b ${bw}`;
 }
 
 /** Common players are on both teams under the same id: they bat for both and bowl for either. */
@@ -106,7 +112,7 @@ export function replay(m: Match, idx: number): State {
     // The scorer picks the run-out batter by name before the run is counted, so read it before they cross.
     const namedOut = e.wicket?.outId ?? null;
     // Batters cross on odd runs actually run; boundaries are even anyway.
-    if (e.runs % 2 === 1 && st.nonStriker) [st.striker, st.nonStriker] = [st.nonStriker, st.striker];
+    if (e.runs % 2 === 1 && !e.stay && st.nonStriker) [st.striker, st.nonStriker] = [st.nonStriker, st.striker];
 
     if (e.wicket) {
       const w = e.wicket;
@@ -115,7 +121,7 @@ export function replay(m: Match, idx: number): State {
       if (w.kind !== "run out") bw.wickets++;
       if (outId) {
         const b = bat.get(outId);
-        if (b) b.out = { kind: w.kind, bowler: e.bowler };
+        if (b) b.out = { kind: w.kind, bowler: e.bowler, ...(w.fielderId && { fielder: w.fielderId }) };
         st.fow.push({ score: st.runs, wicket: st.wickets, over: oversText(st.legal), id: outId });
       }
       addBat(w.newId);
@@ -215,6 +221,14 @@ export function addBall(m: Match, input: BallInput): Match {
   return settle(n);
 }
 
+/** Marks whether the batters crossed on the last ball's odd runs. */
+export function setCrossed(m: Match, crossed: boolean): Match {
+  const n = clone(m), evs = n.innings[n.innings.length - 1]?.events ?? [], ev = evs[evs.length - 1];
+  if (!ev || ev.t !== "ball" || ev.runs % 2 === 0) return m;
+  if (crossed) delete ev.stay; else ev.stay = true;
+  return settle(n);
+}
+
 export function swapStrike(m: Match): Match {
   const n = clone(m);
   n.innings[n.innings.length - 1].events.push({ t: "swap" });
@@ -275,7 +289,7 @@ export function undo(m: Match): { match: Match; popped: Ev | null; droppedInning
 
 export function redo(m: Match, ev: Ev): Match {
   const n = clone(m), inn = n.innings[n.innings.length - 1];
-  if (ev.t === "ball") { inn.bowler = ev.bowler; return addBall(n, { runs: ev.runs, extra: ev.extra, wicket: ev.wicket }); }
+  if (ev.t === "ball") { inn.bowler = ev.bowler; return addBall(n, { runs: ev.runs, extra: ev.extra, wicket: ev.wicket, ...(ev.stay && { stay: true as const }) }); }
   if (ev.t === "retire") return retire(n, ev.out, ev.newId);
   return swapStrike(n);
 }

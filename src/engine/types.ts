@@ -21,6 +21,7 @@ export interface Rules {
 export interface Wicket {
   kind: WicketKind; out: "s" | "ns"; newId: string | null;
   outId?: string;   // who is out, by id. Older balls only have \`out\`, read after the batters cross.
+  fielderId?: string;   // who took the catch, made the stumping or hit the stumps
 }
 
 export interface Ball {
@@ -28,6 +29,7 @@ export interface Ball {
   runs: number;             // off the bat, or byes/leg-byes/wides run
   extra?: Extra;
   wicket?: Wicket;
+  stay?: true;              // odd runs but the batters did not cross (a short run, a misfield)
   bowler: string;
 }
 export interface Swap { t: "swap" }
@@ -65,4 +67,4 @@ export interface Match {
   liveFp?: string;   // fingerprint of that key, put in the share link
 }
 
-export interface BallInput { runs: number; extra?: Extra; wicket?: Wicket }
+export interface BallInput { runs: number; extra?: Extra; wicket?: Wicket; stay?: true }

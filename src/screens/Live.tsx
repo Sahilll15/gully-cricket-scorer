@@ -85,6 +85,9 @@ export default function Live() {
   const bowler = st.bowl.get(inn.bowler);
   const need = tgt !== null ? tgt - st.runs : 0, left = inn.overs * 6 - st.legal;
   const label = inn.superOver ? "Super over" : idx === 0 ? "1st innings" : "2nd innings";
+  const last = inn.events[inn.events.length - 1];
+  // Odd runs usually swap ends, but a short run or a misfield can leave them where they were.
+  const oddRuns = m.status === "live" && last?.t === "ball" && last.runs % 2 === 1 && !last.wicket && !!st.nonStriker ? last : null;
 
   return (
     <div className="min-h-screen pb-10">
@@ -149,6 +152,17 @@ export default function Live() {
               </div>
             </Card>
 
+            {oddRuns && !armed && (
+              <div className="mt-3 flex min-h-12 items-center gap-2 rounded-full bg-panel pl-4 pr-1">
+                <p className="flex-1 text-[13px] font-medium leading-tight text-mute">
+                  {oddRuns.stay ? "Didn't cross: " : "Batters crossed: "}<b className="font-semibold text-fg">{name(st.striker)}</b> on strike
+                </p>
+                <button onClick={() => put(E.setCrossed(m, !!oddRuns.stay))}
+                  className="press min-h-10 shrink-0 rounded-full border-2 border-sun/80 px-3 text-sm font-semibold text-fg">
+                  {oddRuns.stay ? "They crossed" : "Didn't cross"}
+                </button>
+              </div>
+            )}
             {armed ? (
               <div className="mt-4 flex min-h-12 items-center gap-2 rounded-full border-2 border-sun bg-sun-soft pl-4 pr-1">
                 <p className="flex-1 text-[13px] font-semibold leading-tight text-fg">{{ wd: "Wide", nb: "No ball", b: "Byes", lb: "Leg byes" }[armed]}: {armed === "wd" || armed === "nb" ? "tap runs taken, 0 if none" : "tap runs they ran"}</p>

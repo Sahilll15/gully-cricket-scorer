@@ -115,13 +115,16 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
   const lastManAlone = m.rules.lastManStands && remaining.length === 0;
   const needNew = !lastWicket && !lastManAlone;
   const [newId, setNewId] = useState<string | null>(null);
+  const [fielder, setFielder] = useState<string | null>(null);
+  const fieldSide = E.otherSide(inn.bat);
+  const byLabel = kind === "caught" || kind === "one-tip catch" ? "Caught by" : kind === "stumped" ? "Stumped by" : kind === "run out" ? "Run out by" : null;
   const ready = kind && (!needNew || newId);
   const name = (id: string | null) => E.playerName(m, id);
 
   return (
     <Sheet title={st.freeHit ? "Free hit: only a run out" : extra === "nb" ? "No ball: only a run out" : extra === "wd" ? "Out on a wide" : extra ? "Out on a bye: only a run out" : "How out?"} onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!ready}
-        onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: needNew ? newId : null } })}>
+        onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: needNew ? newId : null, ...(byLabel && fielder && { fielderId: fielder }) } })}>
         Confirm wicket
       </PrimaryButton>}>
       <div className="grid grid-cols-2 gap-2">
@@ -136,6 +139,13 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
           </div>
           <p className="mb-2 mt-5 text-sm font-semibold text-teal">Runs completed before the run out{extra === "nb" ? " (plus the no-ball run)" : extra === "wd" ? " (plus the wide)" : ""}</p>
           <div className="grid grid-cols-4 gap-2">{[0, 1, 2, 3].map((r) => <Pill key={r} active={runs === r} onClick={() => setRuns(r)}>{r}</Pill>)}</div>
+        </>
+      )}
+      {byLabel && (
+        <>
+          <p className="mb-2 mt-5 text-sm font-semibold text-teal">{byLabel} <span className="font-normal text-mute">(optional)</span></p>
+          <PlayerPick players={m.teams[fieldSide].players} value={fielder} set={(id) => setFielder((f) => (f === id ? null : id))} />
+          <AddName label="Fielder's name" onAdd={(n) => { const r = addPlayer(m, fieldSide, n); setM(r.match); setFielder(r.id); }} />
         </>
       )}
       {needNew ? (

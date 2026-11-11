@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addBall, awards, canBowl, closeInnings, editBall, minOvers, needsBowler, newMatch, redo, replay, result, retire, setBowler,
+  addBall, awards, canBowl, howOut, setCrossed, closeInnings, editBall, minOvers, needsBowler, newMatch, redo, replay, result, retire, setBowler,
   setOvers, startInnings, swapStrike, undo, yetToBat,
 } from "./engine";
 import type { BallInput, Match, Rules, Team } from "./types";
@@ -384,5 +384,46 @@ describe("run outs by name", () => {
     expect(m.innings[0].wicketLimit).toBe(2);
     const done = closeInnings(m);
     expect(startInnings(done, "B1", "B2", "A1").innings[1].wicketLimit).toBe(4);
+  });
+});
+
+describe("strike on odd runs", () => {
+  it("keeps the striker when the batters did not cross", () => {
+    const st = replay(play(setup(), { runs: 1, stay: true }), 0);
+    expect(st.striker).toBe("A1");
+    expect(st.bat.get("A1")!.runs).toBe(1);
+  });
+
+  it("setCrossed flips the last ball either way, and redo keeps it", () => {
+    const m = setCrossed(play(setup(), r(3)), false);
+    expect(replay(m, 0).striker).toBe("A1");
+    expect(replay(setCrossed(m, true), 0).striker).toBe("A2");
+    const u = undo(m);
+    expect(replay(redo(u.match, u.popped!), 0).striker).toBe("A1");
+  });
+
+  it("ignores even runs and still changes ends at the over", () => {
+    const even = play(setup(), r(2));
+    expect(setCrossed(even, false)).toBe(even);
+    const m = setCrossed(play(setup(), r(0), r(0), r(0), r(0), r(0), r(1)), false);
+    expect(replay(m, 0).striker).toBe("A2");
+  });
+});
+
+describe("fielders", () => {
+  const out = (kind: "caught" | "stumped" | "run out", fielderId?: string) =>
+    play(setup(), { runs: 0, wicket: { kind, out: "s", newId: "A3", ...(fielderId && { fielderId }) } });
+  const text = (m: Match) => howOut(m, replay(m, 0).bat.get("A1")!);
+
+  it("names the catcher, the keeper and the run-out fielder", () => {
+    expect(text(out("caught", "B2"))).toBe("c B2 b B1");
+    expect(text(out("caught", "B1"))).toBe("c & b B1");
+    expect(text(out("stumped", "B3"))).toBe("st B3 b B1");
+    expect(text(out("run out", "B4"))).toBe("run out (B4)");
+  });
+
+  it("falls back to the old text without a fielder", () => {
+    expect(text(out("caught"))).toBe("caught, b B1");
+    expect(text(out("run out"))).toBe("run out");
   });
 });
