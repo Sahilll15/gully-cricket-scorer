@@ -294,7 +294,8 @@ function Locked({ match: m }: { match: Match }) {
     <Card className="mt-4">
       {waiting ? (<>
         <p className="font-bold text-fg">Moving scoring to another phone</p>
-        <p className="mt-1 text-sm text-mute">Scoring is paused here. Send this link to the new scorer. When they open it, scoring moves to their phone and this one follows along. The link works once.</p>
+        <p className="mt-1 text-sm text-mute">Scoring is paused here. Send this link to the new scorer. When they open it, scoring moves to their phone and this one follows along.</p>
+        <p className="mt-3 rounded-2xl bg-sun-soft p-3 text-sm text-fg">Send it only to the new scorer, not to the group. The app opens it once, but the link holds this match's scoring key.</p>
         <div className="mt-4 grid gap-2">
           <PrimaryButton onClick={() => window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank")}>Send on WhatsApp</PrimaryButton>
           <button onClick={() => { void navigator.clipboard?.writeText(link).then(() => setCopied(true)); }}
