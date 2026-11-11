@@ -65,6 +65,7 @@ export interface Match {
   live?: string;   // share code while viewers can follow this match
   liveKey?: JsonWebKey;   // scorer-only signing key; stripped before broadcast
   liveFp?: string;   // fingerprint of that key, put in the share link
+  editedAt?: number;   // last change; orders updates when two phones score the same match
 }
 
 export interface BallInput { runs: number; extra?: Extra; wicket?: Wicket; stay?: true }

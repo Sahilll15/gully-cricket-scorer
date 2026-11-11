@@ -18,6 +18,12 @@ export function newCode() {
 }
 export const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
 export const watchLink = (code: string, fp?: string) => `${location.origin}${import.meta.env.BASE_URL}?watch=${code}${fp ? `&k=${fp}` : ""}`;
+// The signing key rides in the #fragment, which browsers never send to a server.
+export const scoreLink = (code: string, key: JsonWebKey) => `${location.origin}${import.meta.env.BASE_URL}?score=${code}#k=${key.d}.${key.x}.${key.y}`;
+export function parseScoreKey(hash: string): JsonWebKey | null {
+  const k = /k=([\w-]{40,48})\.([\w-]{40,48})\.([\w-]{40,48})/.exec(hash);
+  return k ? { kty: "EC", crv: "P-256", d: k[1], x: k[2], y: k[3], ext: true, key_ops: ["sign"] } : null;
+}
 
 const ALG = { name: "ECDSA", namedCurve: "P-256" } as const;
 const SIGN = { name: "ECDSA", hash: "SHA-256" } as const;
@@ -41,7 +47,7 @@ export interface LiveState { match: Match; at: number }
 interface Wire { body: string; pub: JsonWebKey; sig: string }
 
 /** Scorer side: answers every viewer's hello with the current match, and pushes on each change. */
-export function publish(code: string, current: () => Match | undefined) {
+export function publish(code: string, current: () => Match | undefined, onRemote?: (m: Match) => void) {
   const ch: RealtimeChannel = db().channel(channelName(code), { config: { broadcast: { self: false, ack: false } } });
   let signer: Promise<CryptoKey> | null = null;
   const send = async () => {
@@ -54,7 +60,16 @@ export function publish(code: string, current: () => Match | undefined) {
     const pub: JsonWebKey = { kty: liveKey.kty, crv: liveKey.crv, x: liveKey.x, y: liveKey.y };
     void ch.send({ type: "broadcast", event: "state", payload: { body, pub, sig } satisfies Wire });
   };
-  ch.on("broadcast", { event: "hello" }, () => void send()).subscribe((s) => { if (s === "SUBSCRIBED") void send(); });
+  // Another phone holding the same key scored a ball: take its copy when it's newer.
+  const take = async (w: Wire) => {
+    const m = current();
+    if (!onRemote || !m?.liveKey || w.pub.x !== m.liveKey.x || w.pub.y !== m.liveKey.y) return;
+    const state = await verified(w);
+    if (state && state.match.id === m.id && (state.match.editedAt ?? 0) > (m.editedAt ?? 0)) onRemote(state.match);
+  };
+  ch.on("broadcast", { event: "hello" }, () => void send())
+    .on("broadcast", { event: "state" }, ({ payload }) => void take(payload as Wire))
+    .subscribe((s) => { if (s === "SUBSCRIBED") void send(); });
   const beat = setInterval(() => void send(), 15000);
   return { push: () => void send(), stop: () => { clearInterval(beat); void db().removeChannel(ch); } };
 }
@@ -63,6 +78,15 @@ function looksLikeMatch(x: unknown): x is LiveState {
   const s = x as LiveState;
   return !!s && typeof s.at === "number" && !!s.match && Array.isArray(s.match.teams) && s.match.teams.length === 2
     && Array.isArray(s.match.innings) && typeof s.match.rules === "object" && typeof s.match.status === "string";
+}
+
+async function verified(w: Wire): Promise<LiveState | null> {
+  try {
+    const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: w.pub.x, y: w.pub.y }, ALG, false, ["verify"]);
+    if (!(await crypto.subtle.verify(SIGN, key, unb64(w.sig), new TextEncoder().encode(w.body)))) return null;
+    const state: unknown = JSON.parse(w.body);
+    return looksLikeMatch(state) ? state : null;
+  } catch { return null; }
 }
 
 /** Viewer side: follows updates signed by the key in the link, or by the first valid key when joined by code alone. */
@@ -76,12 +100,12 @@ export function watch(code: string, fp: string | null, onState: (s: LiveState) =
       const id = `${w.pub.x}.${w.pub.y}`;
       if (pinned && id !== pinned) return;
       if (fp && (await fingerprint(w.pub.x, w.pub.y)) !== fp) return;
-      const key = await crypto.subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: w.pub.x, y: w.pub.y }, ALG, false, ["verify"]);
-      if (!(await crypto.subtle.verify(SIGN, key, unb64(w.sig), new TextEncoder().encode(w.body)))) return;
-      const state: unknown = JSON.parse(w.body);
-      if (!looksLikeMatch(state) || state.at < last) return;
+      const state = await verified(w);
+      // Two phones may score this match, so order by the last edit, not by who sent last.
+      const rev = state ? state.match.editedAt ?? state.at : 0;
+      if (!state || rev < last) return;
       pinned ??= id;
-      last = state.at;
+      last = rev;
       onState(state);
     } catch { /* malformed message: ignore */ }
   };

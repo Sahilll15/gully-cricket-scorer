@@ -8,7 +8,10 @@ import { track } from "./track";
 /** What the last match was set up with, so the next one starts filled in. */
 export interface LastSetup { a: string; b: string; na: string[]; nb: string[]; size: number; sa?: number; sb?: number; rules: Rules; common: string }
 
-export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch";
+export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch" | "join";
+
+/** Never goes backwards, so a phone with a slow clock still wins once it adopts the newer copy. */
+export const stamp = (m: Match, prev?: Match): Match => ({ ...m, editedAt: Math.max(Date.now(), (prev?.editedAt ?? 0) + 1) });
 
 interface Store {
   matches: Match[];
@@ -37,13 +40,17 @@ interface Store {
   watchCode: string | null;
   watchKey: string | null;
   watchMatch: (code: string, key?: string | null) => void;
+  adopt: (m: Match) => void;
+  joinCode: string | null;
+  joinKey: JsonWebKey | null;
+  joinScoring: (code: string, key: JsonWebKey) => void;
   lastSetup: LastSetup | null;
 }
 
 export const useStore = create<Store>()(
   persist(
     (set, get) => {
-      const put = (m: Match) => set({ matches: get().matches.map((x) => (x.id === m.id ? m : x)) });
+      const put = (m: Match) => set({ matches: get().matches.map((x) => (x.id === m.id ? stamp(m, x) : x)) });
       const find = (id: string) => get().matches.find((m) => m.id === id)!;
       return {
         matches: [],
@@ -93,6 +100,13 @@ export const useStore = create<Store>()(
         watchKey: null,
         lastSetup: null,
         watchMatch: (code, key = null) => { track("watch_live", { via: key ? "link" : "code" }); set({ watchCode: code, watchKey: key, screen: "watch" }); window.scrollTo(0, 0); },
+        adopt: (m) => set({
+          matches: get().matches.some((x) => x.id === m.id) ? get().matches.map((x) => (x.id === m.id ? m : x)) : [m, ...get().matches],
+          redo: get().viewId === m.id ? [] : get().redo,
+        }),
+        joinCode: null,
+        joinKey: null,
+        joinScoring: (code, key) => { set({ joinCode: code, joinKey: key, screen: "join" }); window.scrollTo(0, 0); },
         playFixture: (cupId, fixtureId) => { set({ fixture: { cupId, fixtureId }, screen: "setup" }); window.scrollTo(0, 0); },
         ball: (id, input) => { put(E.addBall(find(id), input)); set({ redo: [] }); },
         undo: (id) => {
@@ -110,7 +124,7 @@ export const useStore = create<Store>()(
     },
     {
       name: "gully-scorer", version: 3,
-      partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup }),
+      partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" || s.screen === "join" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup }),
       // v1 had no saved teams or tournaments, v2 no remembered setup.
       migrate: (old) => ({ teams: [], cups: [], cupId: null, player: null, lastSetup: null, ...(old as object) }) as never,
     },

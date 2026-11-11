@@ -1,6 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import * as E from "../engine/engine";
-import { watch, type LiveState } from "../live";
+import { fingerprint, watch, type LiveState } from "../live";
+import { track } from "../track";
 import { useStore } from "../store";
 import { Badge, BallChip, Card, Header, LivePill, PrimaryButton } from "../ui";
 
@@ -40,6 +41,48 @@ export default function Watch() {
         )}
         {!watchKey && <p className="text-center text-xs text-mute">Joined by code. Open the scorer's link to be sure it's really them.</p>}
         <PrimaryButton tone="navy" onClick={() => go("home")}>Stop watching</PrimaryButton>
+      </main>
+    </div>
+  );
+}
+
+/** Opened from a hand-over link: waits for the scorer's phone, then carries on scoring here. */
+export function JoinScoring() {
+  const { joinCode, joinKey, go } = useStore();
+  const [status, setStatus] = useState("CONNECTING");
+  useEffect(() => {
+    if (!joinCode || !joinKey) return;
+    let stop = () => {}, got = false, gone = false;
+    void fingerprint(joinKey.x, joinKey.y).then((fp) => {
+      if (gone) return;
+      stop = watch(joinCode, fp, ({ match }) => {
+        if (got) return;
+        got = true;
+        const s = useStore.getState(), mine = s.matches.find((x) => x.id === match.id);
+        const keep = mine && (mine.editedAt ?? 0) > (match.editedAt ?? 0) ? mine : match;
+        s.adopt({ ...keep, live: joinCode, liveKey: joinKey, liveFp: fp });
+        useStore.setState({ redo: [] });
+        track("take_over_scoring");
+        go("live", match.id);
+      }, setStatus);
+    });
+    return () => { gone = true; stop(); };
+  }, [joinCode, joinKey, go]);
+  if (!joinCode) return null;
+  return (
+    <div className="min-h-screen pb-10">
+      <Header title="Score on this phone" back={() => go("home")}>
+        <div className="stadium mt-3 rounded-3xl px-5 py-6 text-center text-white">
+          <p className="text-sm font-semibold text-white/80">Match code</p>
+          <p className="mt-1 text-4xl font-extrabold tracking-[0.2em]">{joinCode}</p>
+          <p className="mt-3 text-sm text-white/80">
+            {status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
+          </p>
+        </div>
+      </Header>
+      <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
+        <p className="text-center text-sm text-mute">Once it loads you can score here. Both phones stay in sync, so score on one at a time.</p>
+        <PrimaryButton tone="navy" onClick={() => go("home")}>Cancel</PrimaryButton>
       </main>
     </div>
   );

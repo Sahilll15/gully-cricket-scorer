@@ -5,7 +5,7 @@ import { useMatch, useStore } from "../store";
 import { BowlerSheet, EditBallSheet, OpenersSheet, OversSheet, RetireSheet, WicketSheet } from "../sheets";
 import { Badge, BallChip, Card, ConfirmSheet, cx, Header, LivePill, PrimaryButton, Sheet } from "../ui";
 import { listen, parse, voiceSupported } from "../voice";
-import { liveSupported, newCode, newLiveKey, watchLink } from "../live";
+import { liveSupported, newCode, newLiveKey, scoreLink, watchLink } from "../live";
 import { track } from "../track";
 
 const buzz = (p: number | number[]) => { if (navigator.vibrate) navigator.vibrate(p); };
@@ -240,12 +240,33 @@ export default function Live() {
 function ShareSheet({ match: m, onClose }: { match: Match; onClose: () => void }) {
   const { put } = useStore();
   const [copied, setCopied] = useState(false);
+  const [handover, setHandover] = useState(false);
+  const goLive = (hand: boolean) => void newLiveKey().then((k) => { track("go_live"); put({ ...m, live: newCode(), ...k }); setHandover(hand); });
   if (!m.live) return (
     <Sheet title="Share this match live" onClose={onClose}>
       <p className="text-sm text-mute">Anyone with the code or link can follow every ball as you score it. Keep this app open while you score.</p>
-      <div className="mt-4"><PrimaryButton onClick={() => void newLiveKey().then((k) => { track("go_live"); put({ ...m, live: newCode(), ...k }); })}>Start live sharing</PrimaryButton></div>
+      <div className="mt-4 grid gap-2">
+        <PrimaryButton onClick={() => goLive(false)}>Start live sharing</PrimaryButton>
+        <button onClick={() => goLive(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Let another phone score</button>
+      </div>
     </Sheet>
   );
+  if (handover && m.liveKey) {
+    const hand = scoreLink(m.live, m.liveKey);
+    const text = `Carry on scoring ${m.teams[0].name} vs ${m.teams[1].name} on your phone: ${hand}`;
+    return (
+      <Sheet title="Let another phone score" onClose={onClose}>
+        <p className="text-sm text-mute">Send this link to the other scorer. They open it and carry on from this ball, and every ball shows on both phones. Score on one phone at a time.</p>
+        <p className="mt-3 rounded-2xl bg-sun-soft p-3 text-sm text-fg">Anyone with this link can change the score. Send it only to the person who will score, not to the group.</p>
+        <div className="mt-4 grid gap-2">
+          <PrimaryButton onClick={() => { track("hand_over"); window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank"); }}>Send on WhatsApp</PrimaryButton>
+          <button onClick={() => { track("hand_over"); void navigator.clipboard?.writeText(hand).then(() => setCopied(true)); }}
+            className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">{copied ? "Copied" : "Copy link"}</button>
+          <button onClick={() => { setHandover(false); setCopied(false); }} className="press min-h-12 w-full rounded-2xl font-semibold text-teal">Back to watch link</button>
+        </div>
+      </Sheet>
+    );
+  }
   const link = watchLink(m.live, m.liveFp);
   const msg = `Watch ${m.teams[0].name} vs ${m.teams[1].name} live, ball by ball: ${link}`;
   return (
@@ -259,6 +280,7 @@ function ShareSheet({ match: m, onClose }: { match: Match; onClose: () => void }
         <PrimaryButton onClick={() => window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank")}>Send link on WhatsApp</PrimaryButton>
         <button onClick={() => { void navigator.clipboard?.writeText(link).then(() => setCopied(true)); }}
           className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">{copied ? "Copied" : "Copy link"}</button>
+        {m.liveKey && <button onClick={() => { setHandover(true); setCopied(false); }} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Let another phone score</button>}
         <button onClick={() => { put({ ...m, live: undefined, liveKey: undefined, liveFp: undefined }); onClose(); }} className="press min-h-12 w-full rounded-2xl font-semibold text-out">Stop sharing</button>
       </div>
     </Sheet>

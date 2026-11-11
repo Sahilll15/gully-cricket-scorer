@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "./store";
 import { startAccountSync } from "./account";
-import { cleanCode, liveSupported, publish } from "./live";
+import { cleanCode, liveSupported, parseScoreKey, publish } from "./live";
 import { track } from "./track";
-import Watch from "./screens/Watch";
+import Watch, { JoinScoring } from "./screens/Watch";
 import Home from "./screens/Home";
 import Setup from "./screens/Setup";
 import Live from "./screens/Live";
@@ -23,7 +23,13 @@ function LivePublisher() {
     for (const [code, id] of want) {
       const p = pubs.current.get(code);
       if (p) p.push();
-      else pubs.current.set(code, publish(code, () => useStore.getState().matches.find((m) => m.id === id)));
+      else {
+        const find = () => useStore.getState().matches.find((m) => m.id === id);
+        pubs.current.set(code, publish(code, find, (remote) => {
+          const cur = find();
+          if (cur) useStore.getState().adopt({ ...remote, live: cur.live, liveKey: cur.liveKey, liveFp: cur.liveFp });
+        }));
+      }
     }
   }, [matches]);
   useEffect(() => () => { for (const p of pubs.current.values()) p.stop(); pubs.current.clear(); }, []);
@@ -42,6 +48,8 @@ export default function App() {
   useEffect(() => {
     const q = new URLSearchParams(location.search), code = cleanCode(q.get("watch") ?? "");
     if (code.length === 6) { useStore.getState().watchMatch(code, q.get("k")); history.replaceState(null, "", import.meta.env.BASE_URL); }
+    const score = cleanCode(q.get("score") ?? ""), key = parseScoreKey(location.hash);
+    if (score.length === 6 && key) { useStore.getState().joinScoring(score, key); history.replaceState(null, "", import.meta.env.BASE_URL); }
   }, []);
   return (
     <div className="mx-auto max-w-[480px]">
@@ -58,6 +66,7 @@ export default function App() {
       {screen === "teams" && <Teams />}
       {screen === "player" && <PlayerProfile />}
       {screen === "watch" && <Watch />}
+      {screen === "join" && <JoinScoring />}
       {liveSupported && <LivePublisher />}
     </div>
   );
