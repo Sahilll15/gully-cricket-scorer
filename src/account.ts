@@ -15,8 +15,9 @@ let uid: string | null = null;
 let merged = false;
 
 // The number is the login name only. No SMS is sent, so it maps to an address nobody receives mail at.
-const loginFor = (phone: string) => `${phone}@phone.gully-scorer.app`;
-const phoneOf = (email?: string) => email?.split("@")[0] ?? null;
+// Non-Indian numbers get an "intl" prefix so they can never collide with a 10-digit Indian login.
+const loginFor = (phone: string) => `${phone.startsWith("+") ? `intl${phone.slice(1)}` : phone}@phone.gully-scorer.app`;
+const phoneOf = (email?: string) => { const n = email?.split("@")[0]; return n?.startsWith("intl") ? `+${n.slice(4)}` : n ?? null; };
 
 type Sync = "idle" | "saving" | "saved" | "error";
 interface Account { phone: string | null; sync: Sync; savedAt: number | null }

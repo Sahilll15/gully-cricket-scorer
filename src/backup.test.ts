@@ -14,6 +14,11 @@ describe("phone and passcode", () => {
   it.each([["98765 43210", "9876543210"], ["+91 98765-43210", "9876543210"], ["09876543210", "9876543210"]])("%s cleans to %s", (raw, want) =>
     expect(cleanPhone(raw)).toBe(want));
   it.each(["12345", "5876543210", "98765432101"])("%s is not a mobile number", (raw) => expect(cleanPhone(raw)).toBeNull());
+  it.each([
+    ["7700 900123", "44", "+447700900123"], ["07700 900123", "44", "+447700900123"], ["415 555 0132", "1", "+14155550132"],
+    ["+971 50 123 4567", "91", "+971501234567"], ["+91 98765 43210", "44", "9876543210"], ["9123 4567", "65", "+6591234567"],
+  ])("%s with +%s cleans to %s", (raw, cc, want) => expect(cleanPhone(raw, cc)).toBe(want));
+  it("rejects numbers too short to be real abroad", () => expect(cleanPhone("123", "44")).toBeNull());
   it("passcode is exactly 6 digits", () => {
     expect(validPasscode("123456")).toBe(true);
     expect(validPasscode("12345")).toBe(false);

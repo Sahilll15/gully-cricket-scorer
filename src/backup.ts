@@ -3,13 +3,24 @@ import type { SavedTeam, Tournament } from "./engine/tournament";
 
 export interface Backup { v: 1; matches: Match[]; teams: SavedTeam[]; cups: Tournament[] }
 
-/** Indian numbers in any common shape ("+91 98765 43210", "098765...") down to 10 digits; null if it isn't one. */
-export function cleanPhone(raw: string): string | null {
-  let d = raw.replace(/\D/g, "");
+/**
+ * Login name for a mobile number. Indian numbers stay 10 digits, which existing accounts already use;
+ * any other country becomes "+<code><number>". Null if it can't be a phone number.
+ */
+export function cleanPhone(raw: string, country = "91"): string | null {
+  const typed = raw.trim(), d = typed.replace(/\D/g, ""), cc = country.replace(/\D/g, "") || "91";
+  if (/^(\+|00)/.test(typed)) {
+    const full = d.replace(/^00/, "");
+    return full.startsWith("91") ? indian(full.slice(2)) : intl(full);
+  }
+  return cc === "91" ? indian(d) : intl(cc + d.replace(/^0+/, ""));
+}
+function indian(d: string) {
   if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
   if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
   return /^[6-9]\d{9}$/.test(d) ? d : null;
 }
+const intl = (d: string) => (/^[1-9]\d{7,14}$/.test(d) ? `+${d}` : null);
 
 export const validPasscode = (p: string) => /^\d{6}$/.test(p);
 

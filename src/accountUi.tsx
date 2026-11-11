@@ -3,7 +3,7 @@ import { accountsSupported, retrySync, signIn, signOut, useAccount } from "./acc
 import { cleanPhone, validPasscode } from "./backup";
 import { cx, PrimaryButton, Sheet } from "./ui";
 
-const pretty = (p: string) => `+91 ${p.slice(0, 5)} ${p.slice(5)}`;
+const pretty = (p: string) => (p.startsWith("+") ? p : `+91 ${p.slice(0, 5)} ${p.slice(5)}`);
 const ago = (t: number | null) => { if (!t) return ""; const s = Math.round((Date.now() - t) / 1000); return s < 60 ? "just now" : `${Math.round(s / 60)} min ago`; };
 
 function Digits({ value, set, label, auto }: { value: string; set: (v: string) => void; label: string; auto?: string }) {
@@ -19,9 +19,9 @@ function Digits({ value, set, label, auto }: { value: string; set: (v: string) =
 export function AccountSheet({ onClose }: { onClose: () => void }) {
   const { phone, sync, savedAt } = useAccount();
   const [isNew, setIsNew] = useState(false);
-  const [num, setNum] = useState(""), [pass, setPass] = useState(""), [again, setAgain] = useState("");
+  const [cc, setCc] = useState("91"), [num, setNum] = useState(""), [pass, setPass] = useState(""), [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState("");
-  const clean = cleanPhone(num);
+  const clean = cleanPhone(num, cc), india = cc === "91" && !num.trim().startsWith("+");
   const ok = clean && validPasscode(pass) && (!isNew || pass === again);
 
   if (phone) return (
@@ -63,11 +63,15 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
         <label className="block">
           <span className="mb-1.5 block text-sm font-semibold text-teal">Mobile number</span>
           <div className="flex min-h-14 items-center rounded-2xl border-2 border-line bg-panel focus-within:border-sun">
-            <span className="pl-4 text-lg font-bold text-mute">+91</span>
-            <input value={num} onChange={(e) => setNum(e.target.value.replace(/[^\d ]/g, "").slice(0, 14))} inputMode="tel" autoComplete="tel-national"
-              placeholder="98765 43210" className="min-h-12 flex-1 bg-transparent px-3 text-lg font-bold text-fg outline-none" />
+            <span className="pl-4 text-lg font-bold text-mute">+</span>
+            <input value={cc} onChange={(e) => setCc(e.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" aria-label="Country code"
+              className="min-h-12 w-12 bg-transparent text-lg font-bold text-fg outline-none" />
+            <span className="h-7 w-px bg-line" />
+            <input value={num} onChange={(e) => setNum(e.target.value.replace(/[^\d +]/g, "").slice(0, 18))} inputMode="tel" autoComplete="tel-national"
+              placeholder={india ? "98765 43210" : "Mobile number"} className="min-h-12 min-w-0 flex-1 bg-transparent px-3 text-lg font-bold text-fg outline-none" />
           </div>
-          {num.replace(/\D/g, "").length >= 10 && !clean && <span className="mt-1 block text-xs text-out">That doesn't look like a mobile number.</span>}
+          <span className="mt-1 block text-xs text-mute">Country code first. 91 is India.</span>
+          {num.replace(/\D/g, "").length >= (india ? 10 : 8) && !clean && <span className="mt-1 block text-xs text-out">That doesn't look like a mobile number.</span>}
         </label>
         <Digits label={isNew ? "Pick a 6-digit passcode" : "Passcode"} value={pass} set={setPass} auto={isNew ? "new-password" : "current-password"} />
         {isNew && <Digits label="Type it again" value={again} set={setAgain} auto="new-password" />}
