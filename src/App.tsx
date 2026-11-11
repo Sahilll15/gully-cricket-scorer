@@ -27,7 +27,7 @@ function LivePublisher() {
         const find = () => useStore.getState().matches.find((m) => m.id === id);
         pubs.current.set(code, publish(code, find, (remote) => {
           const cur = find();
-          if (cur) useStore.getState().adopt({ ...remote, live: cur.live, liveKey: cur.liveKey, liveFp: cur.liveFp });
+          if (cur) useStore.getState().adopt({ ...remote, id: cur.id, cup: cur.cup, live: cur.live, liveKey: cur.liveKey, liveFp: cur.liveFp });
         }));
       }
     }
@@ -48,8 +48,11 @@ export default function App() {
   useEffect(() => {
     const q = new URLSearchParams(location.search), code = cleanCode(q.get("watch") ?? "");
     if (code.length === 6) { useStore.getState().watchMatch(code, q.get("k")); history.replaceState(null, "", import.meta.env.BASE_URL); }
-    const score = cleanCode(q.get("score") ?? ""), key = parseScoreKey(location.hash);
-    if (score.length === 6 && key) { useStore.getState().joinScoring(score, key); history.replaceState(null, "", import.meta.env.BASE_URL); }
+    let stash = location.hash;
+    try { stash = sessionStorage.getItem("gully-handover") ?? stash; sessionStorage.removeItem("gully-handover"); } catch { /* private mode */ }
+    const score = cleanCode(q.get("score") ?? ""), key = parseScoreKey(stash);
+    if (score.length === 6 && key) useStore.getState().joinScoring(score, key);
+    if (q.has("score") || location.hash) history.replaceState(null, "", import.meta.env.BASE_URL);
   }, []);
   return (
     <div className="mx-auto max-w-[480px]">

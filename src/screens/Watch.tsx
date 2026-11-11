@@ -1,5 +1,6 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import * as E from "../engine/engine";
+import type { Match } from "../engine/types";
 import { fingerprint, watch, type LiveState } from "../live";
 import { track } from "../track";
 import { useStore } from "../store";
@@ -58,12 +59,15 @@ export function JoinScoring() {
       stop = watch(joinCode, fp, ({ match }) => {
         if (got) return;
         got = true;
+        if (!replays(match)) { setStatus("BAD"); return; }
         const s = useStore.getState(), mine = s.matches.find((x) => x.id === match.id);
-        const keep = mine && (mine.editedAt ?? 0) > (match.editedAt ?? 0) ? mine : match;
+        // Only a phone already scoring with this same key may have its copy replaced; anything else lands as a new match.
+        const same = mine && mine.liveKey?.x === joinKey.x && mine.liveKey?.y === joinKey.y;
+        const keep: Match = same ? ((mine.editedAt ?? 0) > (match.editedAt ?? 0) ? mine : match) : { ...match, id: mine ? E.uid() : match.id, cup: undefined };
         s.adopt({ ...keep, live: joinCode, liveKey: joinKey, liveFp: fp });
         useStore.setState({ redo: [] });
         track("take_over_scoring");
-        go("live", match.id);
+        go("live", keep.id);
       }, setStatus);
     });
     return () => { gone = true; stop(); };
@@ -76,7 +80,7 @@ export function JoinScoring() {
           <p className="text-sm font-semibold text-white/80">Match code</p>
           <p className="mt-1 text-4xl font-extrabold tracking-[0.2em]">{joinCode}</p>
           <p className="mt-3 text-sm text-white/80">
-            {status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
+            {status === "BAD" ? "That match couldn't be read. Ask for a fresh link." : status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
           </p>
         </div>
       </Header>
@@ -86,6 +90,10 @@ export function JoinScoring() {
       </main>
     </div>
   );
+}
+
+function replays(m: Match) {
+  try { m.innings.forEach((_, i) => E.replay(m, i)); return typeof m.id === "string" && m.id.length > 0; } catch { return false; }
 }
 
 // A bad update must not blank the viewer's screen; the next good one renders again.

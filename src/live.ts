@@ -65,7 +65,7 @@ export function publish(code: string, current: () => Match | undefined, onRemote
     const m = current();
     if (!onRemote || !m?.liveKey || w.pub.x !== m.liveKey.x || w.pub.y !== m.liveKey.y) return;
     const state = await verified(w);
-    if (state && state.match.id === m.id && (state.match.editedAt ?? 0) > (m.editedAt ?? 0)) onRemote(state.match);
+    if (state && (state.match.editedAt ?? 0) > (m.editedAt ?? 0)) onRemote(state.match);
   };
   ch.on("broadcast", { event: "hello" }, () => void send())
     .on("broadcast", { event: "state" }, ({ payload }) => void take(payload as Wire))
