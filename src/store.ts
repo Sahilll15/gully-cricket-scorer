@@ -43,7 +43,8 @@ interface Store {
   adopt: (m: Match) => void;
   joinCode: string | null;
   joinKey: JsonWebKey | null;
-  joinScoring: (code: string, key: JsonWebKey) => void;
+  joinToken: string | null;
+  joinScoring: (code: string, key: JsonWebKey, token: string | null) => void;
   lastSetup: LastSetup | null;
 }
 
@@ -106,7 +107,8 @@ export const useStore = create<Store>()(
         }),
         joinCode: null,
         joinKey: null,
-        joinScoring: (code, key) => { set({ joinCode: code, joinKey: key, screen: "join" }); window.scrollTo(0, 0); },
+        joinToken: null,
+        joinScoring: (code, key, token) => { set({ joinCode: code, joinKey: key, joinToken: token, screen: "join" }); window.scrollTo(0, 0); },
         playFixture: (cupId, fixtureId) => { set({ fixture: { cupId, fixtureId }, screen: "setup" }); window.scrollTo(0, 0); },
         ball: (id, input) => { put(E.addBall(find(id), input)); set({ redo: [] }); },
         undo: (id) => {

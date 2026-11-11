@@ -3,6 +3,7 @@ import * as E from "../engine/engine";
 import type { Ball } from "../engine/types";
 import { useMatch, useStore } from "../store";
 import { EditBallSheet } from "../sheets";
+import { canScore } from "../device";
 import { shareImage } from "../share";
 import { economy, strikeRate } from "../stats";
 import { Badge, BallChip, Card, cx, Header, LivePill, PrimaryButton, Segmented } from "../ui";
@@ -104,7 +105,7 @@ export default function Scorecard() {
               <div className="flex flex-wrap gap-1.5">{balls.map((b: Ball, i) => {
                 while (inn.events[evCursor] && inn.events[evCursor].t !== "ball") evCursor++;
                 const at = evCursor++;
-                return <BallChip key={i} b={b} size={32} onClick={() => setEdit(at)} />;
+                return <BallChip key={i} b={b} size={32} onClick={canScore(m) ? () => setEdit(at) : undefined} />;
               })}</div>
               <span className="ml-auto text-sm font-bold text-fg tabular-nums">{balls.reduce((s, b) => s + E.ballTotal(b, m.rules), 0)}</span>
             </div>

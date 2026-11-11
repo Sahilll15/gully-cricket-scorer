@@ -31,3 +31,25 @@ describe("edit order across phones", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("one phone scores at a time", async () => {
+  const { canScore, movedAway } = await import("./device");
+  const { parseMoveToken, newMoveToken } = await import("./live");
+  const m = { id: "m1" } as Match;
+  it("lets an unshared match be scored anywhere", () => expect(canScore(m, "a")).toBe(true));
+  it("lets only the phone holding the pen score", () => {
+    expect(canScore({ ...m, scorer: "a" }, "a")).toBe(true);
+    expect(canScore({ ...m, scorer: "a" }, "b")).toBe(false);
+    expect(movedAway({ ...m, scorer: "a" }, "b")).toBe(true);
+  });
+  it("pauses the sender while a move link is waiting", () => {
+    expect(canScore({ ...m, scorer: "a", handover: "X" }, "a")).toBe(false);
+    expect(movedAway({ ...m, scorer: "a", handover: "X" }, "a")).toBe(false);
+  });
+  it("reads the one-time token from the link", () => {
+    const t = newMoveToken();
+    expect(t).toHaveLength(12);
+    expect(parseMoveToken(`#k=a.b.c&h=${t}`)).toBe(t);
+    expect(parseMoveToken("#k=a.b.c")).toBeNull();
+  });
+});

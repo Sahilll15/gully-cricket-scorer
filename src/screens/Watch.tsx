@@ -3,7 +3,8 @@ import * as E from "../engine/engine";
 import type { Match } from "../engine/types";
 import { fingerprint, watch, type LiveState } from "../live";
 import { track } from "../track";
-import { useStore } from "../store";
+import { stamp, useStore } from "../store";
+import { deviceId } from "../device";
 import { Badge, BallChip, Card, Header, LivePill, PrimaryButton } from "../ui";
 
 export default function Watch() {
@@ -49,43 +50,50 @@ export default function Watch() {
 
 /** Opened from a hand-over link: waits for the scorer's phone, then carries on scoring here. */
 export function JoinScoring() {
-  const { joinCode, joinKey, go } = useStore();
+  const { joinCode, joinKey, joinToken, go, watchMatch } = useStore();
   const [status, setStatus] = useState("CONNECTING");
+  const [fpShown, setFp] = useState<string | null>(null);
   useEffect(() => {
     if (!joinCode || !joinKey) return;
     let stop = () => {}, got = false, gone = false;
     void fingerprint(joinKey.x, joinKey.y).then((fp) => {
       if (gone) return;
+      setFp(fp);
       stop = watch(joinCode, fp, ({ match }) => {
         if (got) return;
         got = true;
         if (!replays(match)) { setStatus("BAD"); return; }
+        // The link works once: the sender's phone holds the same token until it's used or cancelled.
+        if (!joinToken || match.handover !== joinToken) { setStatus("USED"); return; }
         const s = useStore.getState(), mine = s.matches.find((x) => x.id === match.id);
         // Only a phone already scoring with this same key may have its copy replaced; anything else lands as a new match.
         const same = mine && mine.liveKey?.x === joinKey.x && mine.liveKey?.y === joinKey.y;
         const keep: Match = same ? ((mine.editedAt ?? 0) > (match.editedAt ?? 0) ? mine : match) : { ...match, id: mine ? E.uid() : match.id, cup: undefined };
-        s.adopt({ ...keep, live: joinCode, liveKey: joinKey, liveFp: fp });
+        s.adopt(stamp({ ...keep, live: joinCode, liveKey: joinKey, liveFp: fp, scorer: deviceId, handover: undefined }, keep));
         useStore.setState({ redo: [] });
-        track("take_over_scoring");
+        track("move_scoring_in");
         go("live", keep.id);
       }, setStatus);
     });
     return () => { gone = true; stop(); };
-  }, [joinCode, joinKey, go]);
+  }, [joinCode, joinKey, joinToken, go]);
   if (!joinCode) return null;
   return (
     <div className="min-h-screen pb-10">
-      <Header title="Score on this phone" back={() => go("home")}>
+      <Header title="Move scoring here" back={() => go("home")}>
         <div className="stadium mt-3 rounded-3xl px-5 py-6 text-center text-white">
           <p className="text-sm font-semibold text-white/80">Match code</p>
           <p className="mt-1 text-4xl font-extrabold tracking-[0.2em]">{joinCode}</p>
           <p className="mt-3 text-sm text-white/80">
-            {status === "BAD" ? "That match couldn't be read. Ask for a fresh link." : status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
+            {status === "BAD" ? "That match couldn't be read. Ask for a fresh link."
+              : status === "USED" ? "This link was already used or cancelled. Ask the scorer for a new one."
+              : status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
           </p>
         </div>
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <p className="text-center text-sm text-mute">Once it loads you can score here. Both phones stay in sync, so score on one at a time.</p>
+        <p className="text-center text-sm text-mute">Once it loads, scoring moves to this phone and the other phone just follows along.</p>
+        {status === "USED" && fpShown && <PrimaryButton onClick={() => watchMatch(joinCode, fpShown)}>Just watch the match</PrimaryButton>}
         <PrimaryButton tone="navy" onClick={() => go("home")}>Cancel</PrimaryButton>
       </main>
     </div>

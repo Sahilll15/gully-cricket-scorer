@@ -65,6 +65,8 @@ export interface Match {
   live?: string;   // share code while viewers can follow this match
   liveKey?: JsonWebKey;   // scorer-only signing key; stripped before broadcast
   liveFp?: string;   // fingerprint of that key, put in the share link
+  scorer?: string;   // the one phone allowed to score while the match is shared
+  handover?: string;   // one-time token in a move link that hasn't been opened yet
   editedAt?: number;   // last change; orders updates when two phones score the same match
 }
 

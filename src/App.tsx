@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "./store";
 import { startAccountSync } from "./account";
-import { cleanCode, liveSupported, parseScoreKey, publish } from "./live";
+import { cleanCode, liveSupported, parseMoveToken, parseScoreKey, publish } from "./live";
 import { track } from "./track";
 import Watch, { JoinScoring } from "./screens/Watch";
 import Home from "./screens/Home";
@@ -51,7 +51,7 @@ export default function App() {
     let stash = location.hash;
     try { stash = sessionStorage.getItem("gully-handover") ?? stash; sessionStorage.removeItem("gully-handover"); } catch { /* private mode */ }
     const score = cleanCode(q.get("score") ?? ""), key = parseScoreKey(stash);
-    if (score.length === 6 && key) useStore.getState().joinScoring(score, key);
+    if (score.length === 6 && key) useStore.getState().joinScoring(score, key, parseMoveToken(stash));
     if (q.has("score") || location.hash) history.replaceState(null, "", import.meta.env.BASE_URL);
   }, []);
   return (

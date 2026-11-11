@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { canScore } from "../device";
 import * as E from "../engine/engine";
 import { useMatch, useStore } from "../store";
 import { OpenersSheet } from "../sheets";
@@ -59,7 +60,7 @@ export default function Result() {
         </div>
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        {canSuper && <PrimaryButton tone="navy" onClick={() => setSuperOver(true)}>Play a super over</PrimaryButton>}
+        {canSuper && canScore(m) && <PrimaryButton tone="navy" onClick={() => setSuperOver(true)}>Play a super over</PrimaryButton>}
         {aw.potm && (
           <Card className="flex items-center gap-4 !bg-raised text-white">
             <Badge name={aw.potm.name} size={56} />
@@ -78,7 +79,7 @@ export default function Result() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => go("scorecard")} className="press min-h-12 rounded-2xl bg-panel font-semibold text-teal">Full scorecard</button>
-          <button onClick={() => undo(m.id)} className="press min-h-12 rounded-2xl bg-panel font-semibold text-mute">↶ Undo last ball</button>
+          {canScore(m) && <button onClick={() => undo(m.id)} className="press min-h-12 rounded-2xl bg-panel font-semibold text-mute">↶ Undo last ball</button>}
         </div>
         <a href="/cards/" className="press flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-line bg-panel font-semibold text-teal">Who played best? Make everyone's player card</a>
         {m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>

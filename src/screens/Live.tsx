@@ -5,7 +5,8 @@ import { useMatch, useStore } from "../store";
 import { BowlerSheet, EditBallSheet, OpenersSheet, OversSheet, RetireSheet, WicketSheet } from "../sheets";
 import { Badge, BallChip, Card, ConfirmSheet, cx, Header, LivePill, PrimaryButton, Sheet } from "../ui";
 import { listen, parse, voiceSupported } from "../voice";
-import { liveSupported, newCode, newLiveKey, scoreLink, watchLink } from "../live";
+import { liveSupported, newCode, newLiveKey, newMoveToken, scoreLink, watchLink } from "../live";
+import { canScore, deviceId, movedAway } from "../device";
 import { track } from "../track";
 
 const buzz = (p: number | number[]) => { if (navigator.vibrate) navigator.vibrate(p); };
@@ -40,7 +41,9 @@ export default function Live() {
     return () => clearTimeout(t);
   }, [overDone]);
   const waiting = overDone && !bowlerDue;
+  const locked = !!m && !canScore(m);
   useEffect(() => () => stopRef.current(), []);
+  useEffect(() => { if (locked && mic) { stopRef.current(); setMic(false); } }, [locked, mic]);
   if (!m || !m.innings.length) return null;
 
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
@@ -107,7 +110,7 @@ export default function Live() {
               : <>Run rate {E.runRate(st.runs, st.legal).toFixed(2)}{m.toss && idx === 0 && st.legal === 0 ? ` · ${m.teams[m.toss.winner].name} won the toss, chose to ${m.toss.choice}` : ""}</>}
           </p>
           {m.live && <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold"><span className="live-dot text-out">●</span>Sharing live · {m.live}</p>}
-          {voiceSupported && (
+          {voiceSupported && !locked && (
             <button onClick={toggleMic} aria-label="Score by voice"
               className={cx("press absolute right-4 top-12 grid h-14 w-14 place-items-center rounded-full text-2xl shadow-lg", mic ? "bg-out text-white" : "bg-sun text-ink")}>
               {mic ? <span className="live-dot">●</span> : "🎙"}
@@ -120,7 +123,13 @@ export default function Live() {
         {heard && <p className="mt-3 text-center text-sm font-medium text-teal">{heard}</p>}
         {mic && !heard && <p className="mt-3 text-center text-sm font-medium text-teal">Listening. Say "four", "wide", "out" or "undo"</p>}
 
-        {m.status === "break" ? (
+        {locked ? (<>
+          <Card className="mt-4 !p-3">
+            <p className="text-sm text-mute">On strike: <b className="font-semibold text-fg">{name(st.striker)}</b> {bat(st.striker)?.runs ?? 0} ({bat(st.striker)?.balls ?? 0}) · Bowler: <b className="font-semibold text-fg">{name(inn.bowler)}</b></p>
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">{shownOver.map((b, i) => <BallChip key={i} b={b} />)}</div>
+          </Card>
+          <Locked match={m} />
+        </>) : m.status === "break" ? (
           <Card className="mt-4 text-center">
             <p className="text-sm font-semibold text-teal">{inn.superOver ? "Super over break" : "Innings break"}</p>
             <p className="mt-1 text-3xl font-extrabold text-fg">{batTeam.name} {st.runs}/{st.wickets}</p>
@@ -202,7 +211,7 @@ export default function Live() {
         <span className={cx("pop text-[110px] font-extrabold italic tracking-tighter drop-shadow-[0_6px_0_#000]", flash.tone)}>{flash.text}</span>
       </div>}
 
-      {m.status === "live" && (pickBowler || bowlerDue) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
+      {!locked && m.status === "live" && (pickBowler || bowlerDue) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
         onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)} onEnd={() => setEnding(true)} />}
       {ending && <ConfirmSheet title="End this innings?" yes="End innings" danger onClose={() => setEnding(false)}
         onYes={() => { put(E.closeInnings(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
@@ -240,33 +249,19 @@ export default function Live() {
 function ShareSheet({ match: m, onClose }: { match: Match; onClose: () => void }) {
   const { put } = useStore();
   const [copied, setCopied] = useState(false);
-  const [handover, setHandover] = useState(false);
-  const goLive = (hand: boolean) => void newLiveKey().then((k) => { track("go_live"); put({ ...m, live: newCode(), ...k }); setHandover(hand); });
+  const move = (extra: Partial<Match> = {}) => { track("move_scoring_out"); put({ ...m, ...extra, scorer: deviceId, handover: newMoveToken() }); onClose(); };
+  const moveButton = (onClick: () => void) => (
+    <button onClick={onClick} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Move scoring to another phone</button>
+  );
   if (!m.live) return (
     <Sheet title="Share this match live" onClose={onClose}>
       <p className="text-sm text-mute">Anyone with the code or link can follow every ball as you score it. Keep this app open while you score.</p>
       <div className="mt-4 grid gap-2">
-        <PrimaryButton onClick={() => goLive(false)}>Start live sharing</PrimaryButton>
-        <button onClick={() => goLive(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Let another phone score</button>
+        <PrimaryButton onClick={() => void newLiveKey().then((k) => { track("go_live"); put({ ...m, live: newCode(), ...k }); })}>Start live sharing</PrimaryButton>
+        {moveButton(() => void newLiveKey().then((k) => move({ live: newCode(), ...k })))}
       </div>
     </Sheet>
   );
-  if (handover && m.liveKey) {
-    const hand = scoreLink(m.live, m.liveKey);
-    const text = `Carry on scoring ${m.teams[0].name} vs ${m.teams[1].name} on your phone: ${hand}`;
-    return (
-      <Sheet title="Let another phone score" onClose={onClose}>
-        <p className="text-sm text-mute">Send this link to the other scorer. They open it and carry on from this ball, and every ball shows on both phones. Score on one phone at a time.</p>
-        <p className="mt-3 rounded-2xl bg-sun-soft p-3 text-sm text-fg">Anyone with this link can change the score. Send it only to the person who will score, not to the group.</p>
-        <div className="mt-4 grid gap-2">
-          <PrimaryButton onClick={() => { track("hand_over"); window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank"); }}>Send on WhatsApp</PrimaryButton>
-          <button onClick={() => { track("hand_over"); void navigator.clipboard?.writeText(hand).then(() => setCopied(true)); }}
-            className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">{copied ? "Copied" : "Copy link"}</button>
-          <button onClick={() => { setHandover(false); setCopied(false); }} className="press min-h-12 w-full rounded-2xl font-semibold text-teal">Back to watch link</button>
-        </div>
-      </Sheet>
-    );
-  }
   const link = watchLink(m.live, m.liveFp);
   const msg = `Watch ${m.teams[0].name} vs ${m.teams[1].name} live, ball by ball: ${link}`;
   return (
@@ -280,10 +275,44 @@ function ShareSheet({ match: m, onClose }: { match: Match; onClose: () => void }
         <PrimaryButton onClick={() => window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank")}>Send link on WhatsApp</PrimaryButton>
         <button onClick={() => { void navigator.clipboard?.writeText(link).then(() => setCopied(true)); }}
           className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">{copied ? "Copied" : "Copy link"}</button>
-        {m.liveKey && <button onClick={() => { setHandover(true); setCopied(false); }} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Let another phone score</button>}
-        <button onClick={() => { put({ ...m, live: undefined, liveKey: undefined, liveFp: undefined }); onClose(); }} className="press min-h-12 w-full rounded-2xl font-semibold text-out">Stop sharing</button>
+        {m.liveKey && moveButton(() => move())}
+        <button onClick={() => { put({ ...m, live: undefined, liveKey: undefined, liveFp: undefined, scorer: undefined, handover: undefined }); onClose(); }} className="press min-h-12 w-full rounded-2xl font-semibold text-out">Stop sharing</button>
       </div>
     </Sheet>
+  );
+}
+
+/** Shown instead of the keypad on a phone that doesn't hold the pen right now. */
+function Locked({ match: m }: { match: Match }) {
+  const { put, go } = useStore();
+  const [copied, setCopied] = useState(false);
+  const [takeBack, setTakeBack] = useState(false);
+  const waiting = !!m.handover && !movedAway(m);
+  const link = waiting && m.live && m.liveKey ? scoreLink(m.live, m.liveKey, m.handover!) : "";
+  const text = `Take over scoring ${m.teams[0].name} vs ${m.teams[1].name} on your phone: ${link}`;
+  return (
+    <Card className="mt-4">
+      {waiting ? (<>
+        <p className="font-bold text-fg">Moving scoring to another phone</p>
+        <p className="mt-1 text-sm text-mute">Scoring is paused here. Send this link to the new scorer. When they open it, scoring moves to their phone and this one follows along. The link works once.</p>
+        <div className="mt-4 grid gap-2">
+          <PrimaryButton onClick={() => window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank")}>Send on WhatsApp</PrimaryButton>
+          <button onClick={() => { void navigator.clipboard?.writeText(link).then(() => setCopied(true)); }}
+            className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">{copied ? "Copied" : "Copy link"}</button>
+          <button onClick={() => put({ ...m, handover: undefined })} className="press min-h-12 w-full rounded-2xl font-semibold text-teal">Cancel, keep scoring here</button>
+        </div>
+      </>) : (<>
+        <p className="font-bold text-fg">Scoring is on another phone</p>
+        <p className="mt-1 text-sm text-mute">This phone follows every ball. To score here again, ask that phone to move scoring back to you.</p>
+        <div className="mt-4 grid gap-2">
+          <PrimaryButton tone="navy" onClick={() => go("scorecard")}>Full scorecard</PrimaryButton>
+          <button onClick={() => setTakeBack(true)} className="press min-h-12 w-full rounded-2xl font-semibold text-mute">Take scoring back</button>
+        </div>
+      </>)}
+      {takeBack && <ConfirmSheet title="Take scoring back?" yes="Score on this phone" onClose={() => setTakeBack(false)}
+        onYes={() => { track("take_scoring_back"); put({ ...m, scorer: deviceId, handover: undefined }); setTakeBack(false); }}
+        body={<>Only do this if the other phone can't score any more, like a dead battery. That phone will stop scoring.</>} />}
+    </Card>
   );
 }
 

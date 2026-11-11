@@ -19,7 +19,9 @@ export function newCode() {
 export const cleanCode = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
 export const watchLink = (code: string, fp?: string) => `${location.origin}${import.meta.env.BASE_URL}?watch=${code}${fp ? `&k=${fp}` : ""}`;
 // The signing key rides in the #fragment, which browsers never send to a server.
-export const scoreLink = (code: string, key: JsonWebKey) => `${location.origin}${import.meta.env.BASE_URL}?score=${code}#k=${key.d}.${key.x}.${key.y}`;
+export const scoreLink = (code: string, key: JsonWebKey, token: string) => `${location.origin}${import.meta.env.BASE_URL}?score=${code}#k=${key.d}.${key.x}.${key.y}&h=${token}`;
+export const parseMoveToken = (hash: string) => /[#&]h=([A-Z0-9]{12})/.exec(hash)?.[1] ?? null;
+export const newMoveToken = () => newCode() + newCode();
 export function parseScoreKey(hash: string): JsonWebKey | null {
   const k = /k=([\w-]{40,48})\.([\w-]{40,48})\.([\w-]{40,48})/.exec(hash);
   return k ? { kty: "EC", crv: "P-256", d: k[1], x: k[2], y: k[3], ext: true, key_ops: ["sign"] } : null;
