@@ -69,7 +69,7 @@ export function standings(t: Tournament, matches: Match[]): Standing[] {
     }
     for (let i = 0; i < Math.min(2, m.innings.length); i++) {
       const inn = m.innings[i], st = replay(m, i);
-      const balls = st.wickets >= inn.wicketLimit ? inn.overs * 6 : st.legal;
+      const balls = st.allOut ? inn.overs * 6 : st.legal;
       const bat = inn.bat === 0 ? f.a : f.b, bowl = inn.bat === 0 ? f.b : f.a;
       const rb = rows.get(bat)!, rw = rows.get(bowl)!;
       rb.runsFor += st.runs; rb.ballsFaced += balls;

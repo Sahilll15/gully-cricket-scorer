@@ -110,11 +110,13 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
   const [kind, setKind] = useState<WicketKind | null>(kinds.length === 1 ? kinds[0] : null);
   const [out, setOut] = useState<"s" | "ns">("s");
   const [runs, setRuns] = useState(0);
-  const remaining = E.yetToBat(m, idx);
+  const { fresh, back } = E.afterWicket(m, idx);
   const lastWicket = st.wickets + 1 >= inn.wicketLimit;
-  const lastManAlone = m.rules.lastManStands && remaining.length === 0;
-  const needNew = !lastWicket && !lastManAlone;
+  // Retired batters may have gone home, so with only them left nobody has to come in.
+  const needNew = fresh.length > 0 && !lastWicket;
+  const offer = needNew ? [...fresh, ...back] : back;
   const [newId, setNewId] = useState<string | null>(null);
+  const alone = m.rules.lastManStands && !!st.nonStriker;
   const [fielder, setFielder] = useState<string | null>(null);
   const fieldSide = E.otherSide(inn.bat);
   const byLabel = kind === "caught" || kind === "one-tip catch" ? "Caught by" : kind === "stumped" ? "Stumped by" : kind === "run out" ? "Run out by" : null;
@@ -124,7 +126,7 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
   return (
     <Sheet title={st.freeHit ? "Free hit: only a run out" : extra === "nb" ? "No ball: only a run out" : extra === "wd" ? "Out on a wide" : extra ? "Out on a bye: only a run out" : "How out?"} onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!ready}
-        onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: needNew ? newId : null, ...(byLabel && fielder && { fielderId: fielder }) } })}>
+        onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: offer.some((p) => p.id === newId) ? newId : null, ...(byLabel && fielder && { fielderId: fielder }) } })}>
         Confirm wicket
       </PrimaryButton>}>
       <div className="grid grid-cols-2 gap-2">
@@ -151,13 +153,25 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
       {needNew ? (
         <>
           <p className="mb-2 mt-5 text-sm font-semibold text-teal">New batter</p>
-          <PlayerPick players={remaining} value={newId} set={setNewId} />
+          <PlayerPick players={offer} value={newId} set={setNewId} note={(id) => (fresh.some((p) => p.id === id) ? "Yet to bat" : "Retired, comes back")} />
           <AddName label="New batter's name" onAdd={(n) => { const r = addPlayer(m, inn.bat, n); setM(r.match); setNewId(r.id); }} />
         </>
       ) : (
-        <p className="mt-5 rounded-2xl bg-sun-soft p-3 text-sm font-medium text-fg">
-          {lastWicket ? "That's the last wicket. The innings ends." : "Last man stands: the other batter carries on alone."}
-        </p>
+        <>
+          {offer.length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-sm font-semibold text-teal">Retired batter coming back? <span className="font-normal text-mute">(optional)</span></p>
+              <PlayerPick players={offer} value={newId} set={(id) => setNewId((v) => (v === id ? null : id))} />
+            </>
+          )}
+          {!newId && (
+            <p className="mt-5 rounded-2xl bg-sun-soft p-3 text-sm font-medium text-fg">
+              {lastWicket ? "That's the last wicket. The innings ends."
+                : alone ? "Last man stands: the other batter carries on alone."
+                : "Nobody left to bat. That's all out, the innings ends."}
+            </p>
+          )}
+        </>
       )}
     </Sheet>
   );

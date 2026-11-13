@@ -19,6 +19,7 @@ export interface State {
   freeHit: boolean;
   fow: Fow[];
   lastOverBowler: string | null;
+  allOut: boolean;
   ended: boolean;
 }
 
@@ -74,17 +75,18 @@ export function replay(m: Match, idx: number): State {
   const st: State = {
     runs: 0, wickets: 0, legal: 0, extras: { wd: 0, nb: 0, b: 0, lb: 0 },
     striker: inn.striker, nonStriker: inn.nonStriker, bat, bowl, order, bowlOrder,
-    overs: [], freeHit: false, fow: [], lastOverBowler: null, ended: false,
+    overs: [], freeHit: false, fow: [], lastOverBowler: null, allOut: false, ended: false,
   };
   addBat(st.striker); addBat(st.nonStriker);
-  let overConceded = 0;
+  let overConceded = 0, allOut = false;
+  const walkIn = (id: string | null) => { const back = id ? bat.get(id) : undefined; if (back) back.retired = false; addBat(id); };
 
   for (const e of inn.events) {
     if (e.t === "swap") { if (st.nonStriker) [st.striker, st.nonStriker] = [st.nonStriker, st.striker]; continue; }
     if (e.t === "retire") {
       const b = bat.get((e.out === "s" ? st.striker : st.nonStriker) ?? "");
       if (b) b.retired = true;
-      addBat(e.newId);
+      walkIn(e.newId);
       if (e.out === "s") st.striker = e.newId; else st.nonStriker = e.newId;
       if (!st.striker && st.nonStriker) { st.striker = st.nonStriker; st.nonStriker = null; }
       continue;
@@ -124,7 +126,9 @@ export function replay(m: Match, idx: number): State {
         if (b) b.out = { kind: w.kind, bowler: e.bowler, ...(w.fielderId && { fielder: w.fielderId }) };
         st.fow.push({ score: st.runs, wicket: st.wickets, over: oversText(st.legal), id: outId });
       }
-      addBat(w.newId);
+      walkIn(w.newId);
+      // Nobody walking in is all out, unless last man stands lets the partner bat on.
+      if (!w.newId && !r.lastManStands) allOut = true;
       if (st.striker === outId) st.striker = w.newId; else st.nonStriker = w.newId;
       if (!st.striker && st.nonStriker) { st.striker = st.nonStriker; st.nonStriker = null; }
     }
@@ -139,7 +143,8 @@ export function replay(m: Match, idx: number): State {
   }
 
   const tgt = target(m, idx);
-  st.ended = inn.closed || !st.striker || st.legal >= inn.overs * 6 || st.wickets >= inn.wicketLimit ||
+  st.allOut = allOut || st.wickets >= inn.wicketLimit;
+  st.ended = inn.closed || st.allOut || !st.striker || st.legal >= inn.overs * 6 ||
     (tgt !== null && st.runs >= tgt);
   return st;
 }
@@ -176,6 +181,16 @@ export function yetToBat(m: Match, idx: number): Player[] {
   // A common player who is bowling cannot walk in to bat, unless he is the only one left.
   const notBowling = left.filter((p) => p.id !== inn.bowler);
   return notBowling.length ? notBowling : left;
+}
+
+/** Who can walk in after the next wicket: new batters, else retired ones coming back. Empty on the last wicket. */
+export function afterWicket(m: Match, idx: number): { fresh: Player[]; back: Player[] } {
+  const st = replay(m, idx), inn = m.innings[idx];
+  if (st.wickets + 1 >= inn.wicketLimit) return { fresh: [], back: [] };
+  const team = m.teams[inn.bat].players;
+  const back = [...st.bat.values()].filter((b) => b.retired && b.id !== st.striker && b.id !== st.nonStriker)
+    .map((b) => team.find((p) => p.id === b.id)).filter((p): p is Player => !!p);
+  return { fresh: yetToBat(m, idx), back };
 }
 
 const clone = (m: Match): Match => JSON.parse(JSON.stringify(m));

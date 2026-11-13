@@ -68,7 +68,7 @@ describe("points table", () => {
 
   it("all out counts the full quota of overs for NRR", () => {
     const t = newTournament("Cup", ["A", "B"], rules, "league");
-    const m = game("A", "B", [r(6), out, out], [r(1), r(1), r(0), r(0), r(0), r(0)]);
+    const m = game("A", "B", [r(6), { ...out, wicket: { ...out.wicket!, newId: "A3" } }, out], [r(1), r(1), r(0), r(0), r(0), r(0)]);
     t.fixtures[0].a = "A"; t.fixtures[0].b = "B"; t.fixtures[0].matchId = m.id;
     const a = standings(t, [m]).find((x) => x.teamId === "A")!;
     expect(a.ballsFaced).toBe(6);

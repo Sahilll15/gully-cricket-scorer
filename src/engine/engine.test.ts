@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addBall, awards, canBowl, howOut, setCrossed, closeInnings, editBall, minOvers, needsBowler, newMatch, redo, replay, result, retire, setBowler,
-  setOvers, startInnings, swapStrike, undo, yetToBat,
+  setOvers, startInnings, swapStrike, undo, yetToBat, afterWicket,
 } from "./engine";
 import type { BallInput, Match, Rules, Team } from "./types";
 
@@ -425,5 +425,60 @@ describe("fielders", () => {
   it("falls back to the old text without a fielder", () => {
     expect(text(out("caught"))).toBe("caught, b B1");
     expect(text(out("run out"))).toBe("run out");
+  });
+});
+
+describe("last wicket after a retirement", () => {
+  // A 3-player chase where B2 retires: once B1 is out, nobody fresh is left to walk in.
+  const chase = (o: Partial<Rules> = {}) => {
+    const m0 = newMatch([team("A", 3), team("B", 3)], rules({ overs: 2, ...o }));
+    m0.toss = { winner: 0, choice: "bat" };
+    let m = play(startInnings(m0, "A1", "A2", "B1"), r(4), r(4), r(1));
+    m = startInnings(closeInnings(m), "B1", "B2", "A1");
+    return retire(play(m, r(1), r(1)), "ns", "B3");
+  };
+
+  it("offers the retired batter back when nobody fresh is left", () => {
+    const m = chase();
+    expect(afterWicket(m, 1)).toMatchObject({ fresh: [], back: [{ id: "B2" }] });
+  });
+
+  it("every dismissal with nobody coming in ends the chase as all out", () => {
+    for (const kind of ["bowled", "caught", "lbw", "stumped", "hit wicket", "run out"] as const) {
+      const m = addBall(chase(), { runs: 0, wicket: { kind, out: "s", outId: "B1", newId: null } });
+      expect(m.status, kind).toBe("done");
+      expect(replay(m, 1).ended, kind).toBe(true);
+      expect(result(m)!.text, kind).toBe("A won by 7 runs");
+    }
+  });
+
+  it("a retired batter who comes back can be out, and the scorecard says how", () => {
+    let m = addBall(chase(), { runs: 0, wicket: { kind: "bowled", out: "s", outId: "B1", newId: "B2" } });
+    expect(m.status).toBe("live");
+    expect(replay(m, 1).striker).toBe("B2");
+    expect(afterWicket(m, 1)).toMatchObject({ fresh: [], back: [] });
+    m = addBall(m, { runs: 0, wicket: { kind: "bowled", out: "s", outId: "B2", newId: null } });
+    expect(m.status).toBe("done");
+    expect(howOut(m, replay(m, 1).bat.get("B2")!)).toBe("b A1");
+  });
+
+  it("first innings ends the same way, as a break", () => {
+    const m0 = newMatch([team("A", 3), team("B", 3)], rules());
+    m0.toss = { winner: 0, choice: "bat" };
+    let m = retire(startInnings(m0, "A1", "A2", "B1"), "s", "A3");
+    m = addBall(m, { runs: 0, wicket: { kind: "bowled", out: "s", outId: "A3", newId: null } });
+    expect(m.status).toBe("break");
+  });
+
+  it("with last man stands the other batter still carries on alone", () => {
+    const m = addBall(chase({ lastManStands: true }), { runs: 0, wicket: { kind: "bowled", out: "s", outId: "B1", newId: null } });
+    expect(m.status).toBe("live");
+    expect(replay(m, 1).striker).toBe("B3");
+  });
+
+  it("no new batter is offered on the last wicket by count", () => {
+    const m = play(startInnings(closeInnings(setup()), "B1", "B2", "A1"),
+      { runs: 0, wicket: { kind: "bowled", out: "s", newId: "B3" } }, { runs: 0, wicket: { kind: "bowled", out: "s", newId: "B4" } });
+    expect(afterWicket(m, 1)).toEqual({ fresh: [], back: [] });
   });
 });
