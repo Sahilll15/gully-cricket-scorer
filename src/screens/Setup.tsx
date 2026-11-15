@@ -137,6 +137,7 @@ export default function Setup() {
   const [tossOpen, setTossOpen] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const r = <K extends keyof Rules>(k: K) => (v: Rules[K]) => setRules({ ...rules, [k]: v });
+  const test = !cup && rules.format === "test";
   useEffect(() => {
     if (!cup || !fx) return;
     const ta = teams.find((t) => t.id === fx.a), tb = teams.find((t) => t.id === fx.b);
@@ -171,11 +172,11 @@ export default function Setup() {
       { name: a.trim() || "Team A", players: side(na, sa) },
       { name: b.trim() || "Team B", players: side(nb, sb) },
     ];
-    const m = E.newMatch(pair, rules);
+    const m = E.newMatch(pair, test ? { ...rules, maxOversPerBowler: null } : { ...rules, format: undefined, matchOvers: undefined });
     m.toss = t;
     if (cup && fx) m.cup = { id: cup.id, fixtureId: fx.id };
     for (const t of pair) if (!/^team [ab]$/i.test(t.name)) saveTeam(t.name, t.players.filter((p) => p.id !== c?.id));
-    track("match_start", { overs: rules.overs, players: Math.max(sa, sb), cup: cup ? 1 : 0, common: c ? 1 : 0 });
+    track("match_start", { overs: test ? 0 : rules.overs, test: test ? 1 : 0, players: Math.max(sa, sb), cup: cup ? 1 : 0, common: c ? 1 : 0 });
     setTossOpen(false);
     setPending(m);
   }
@@ -201,14 +202,25 @@ export default function Setup() {
           Pick today's players from {pool.length} saved</button>}
         <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={sb} setSize={setSb} locked={!!cup} other={a} known={known} />
 
-        <Card>
+        {!cup && <Segmented value={test ? "test" : "limited"} set={(v) => setRules({ ...rules, format: v === "test" ? "test" : undefined })}
+          items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test match" }]} />}
+
+        {test ? <Card>
+          <p className="text-sm font-semibold text-teal">Test match</p>
+          <p className="mt-1 text-sm text-mute">Each team bats twice, with no over limit. An innings ends when the team is all out or declares. If the team batting first is ahead after both first innings, they can make the other team follow on.</p>
+          <div className="mt-1 border-t border-line">
+            <Toggle on={!!rules.matchOvers} set={(v) => r("matchOvers")(v ? 30 : null)} label="Stop after a set number of overs"
+              hint="Counts every innings. If nobody has won by then, it's a draw" />
+            {!!rules.matchOvers && <Stepper value={rules.matchOvers} set={r("matchOvers")} max={200} />}
+          </div>
+        </Card> : <Card>
           <p className="mb-2 text-sm font-semibold text-teal">Overs an innings</p>
           <div className="grid grid-cols-6 gap-2">
             {OVERS.map((o) => <Pill key={o} active={!custom && rules.overs === o} onClick={() => { setCustom(false); r("overs")(o); }}>{o}</Pill>)}
             <Pill active={custom} onClick={() => setCustom(true)}>…</Pill>
           </div>
           {custom && <div className="mt-2"><Stepper value={rules.overs} set={r("overs")} max={50} /></div>}
-        </Card>
+        </Card>}
 
         <Card className="!p-0 overflow-hidden">
           <button onClick={() => setShowRules(!showRules)} className="press flex w-full items-center gap-3 px-4 py-4 text-left">
@@ -227,10 +239,10 @@ export default function Setup() {
               <p className="mb-2 font-semibold text-fg">Ball hits the wall or roof</p>
               <Segmented value={rules.wall} set={r("wall")} items={[{ v: "none", label: "Normal" }, { v: "four", label: "4" }, { v: "six", label: "6" }, { v: "out", label: "Out" }]} />
             </div>
-            <div className="py-3">
+            {!test && <div className="py-3">
               <Toggle on={rules.maxOversPerBowler !== null} set={(v) => r("maxOversPerBowler")(v ? Math.max(1, Math.ceil(rules.overs / 5)) : null)} label="Limit overs per bowler" />
               {rules.maxOversPerBowler !== null && <Stepper value={rules.maxOversPerBowler} set={r("maxOversPerBowler")} max={rules.overs} />}
-            </div>
+            </div>}
             <div className="py-3">
               <p className="font-semibold text-fg">Common player</p>
               <p className="mt-0.5 text-xs text-mute">Odd number of players? One person plays for both teams. They bat in both innings and can bowl for either side, but not while batting.</p>

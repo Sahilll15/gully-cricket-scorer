@@ -61,7 +61,10 @@ export const isCommon = (m: Match, id: string) => m.teams.every((t) => t.players
 export const wicketLimit = (team: Team, rules: Rules, solo = false) =>
   Math.max(1, rules.lastManStands || solo ? team.players.length : team.players.length - 1);
 
-export function replay(m: Match, idx: number): State {
+export const isTest = (m: Match) => m.rules.format === "test";
+
+/** One innings on its own, ended only by itself (not by a target, an overs cap or a stopped Test). */
+function play(m: Match, idx: number): State {
   const inn = m.innings[idx], r = m.rules;
   const bat = new Map<string, BatStat>(), bowl = new Map<string, BowlStat>();
   const order: string[] = [], bowlOrder: string[] = [];
@@ -142,11 +145,37 @@ export function replay(m: Match, idx: number): State {
     st.freeHit = r.freeHit && (e.extra === "nb" || (e.extra === "wd" && st.freeHit));
   }
 
-  const tgt = target(m, idx);
   st.allOut = allOut || st.wickets >= inn.wicketLimit;
-  st.ended = inn.closed || st.allOut || !st.striker || st.legal >= inn.overs * 6 ||
-    (tgt !== null && st.runs >= tgt);
+  st.ended = inn.closed || st.allOut || !st.striker || (!isTest(m) && st.legal >= inn.overs * 6);
   return st;
+}
+
+export function replay(m: Match, idx: number): State {
+  const st = play(m, idx), tgt = target(m, idx);
+  if (tgt !== null && st.runs >= tgt) st.ended = true;
+  if (isTest(m) && (m.stopped || capReached(m, idx, st.legal))) st.ended = true;
+  return st;
+}
+
+/** Legal balls left before a Test's overs cap stops it, or null with no cap. */
+export function matchBallsLeft(m: Match): number | null {
+  const cap = isTest(m) ? m.rules.matchOvers : null;
+  if (!cap) return null;
+  return Math.max(0, cap * 6 - m.innings.reduce((n, _, i) => n + play(m, i).legal, 0));
+}
+
+function capReached(m: Match, idx: number, legal: number): boolean {
+  const cap = m.rules.matchOvers;
+  if (!cap) return false;
+  for (let j = 0; j < idx; j++) legal += play(m, j).legal;
+  return legal >= cap * 6;
+}
+
+/** Runs each side has scored in innings 0 to upto (inclusive). */
+function totals(m: Match, upto: number): [number, number] {
+  const t: [number, number] = [0, 0];
+  for (let j = 0; j <= upto && j < m.innings.length; j++) t[m.innings[j].bat] += play(m, j).runs;
+  return t;
 }
 
 function countBoundary(b: BatStat, runs: number) {
@@ -155,9 +184,58 @@ function countBoundary(b: BatStat, runs: number) {
 }
 
 export function target(m: Match, idx: number): number | null {
+  if (isTest(m)) {
+    if (idx !== 3) return null;
+    const t = totals(m, 2), chaser = m.innings[3].bat;
+    return t[otherSide(chaser)] - t[chaser] + 1;
+  }
   if (idx % 2 === 0) return null;
-  return replay(m, idx - 1).runs + 1;
+  return play(m, idx - 1).runs + 1;
 }
+
+/** Test: the side that batted first may make the other side bat again if it leads after two innings. */
+export function canFollowOn(m: Match): boolean {
+  if (!isTest(m) || m.innings.length !== 2 || m.status !== "break") return false;
+  const t = totals(m, 1);
+  return t[m.innings[0].bat] > t[m.innings[1].bat];
+}
+
+/** Test: the lead, or what the chasing side needs. Null in the first innings and once the match is over. */
+export function testStatus(m: Match): string | null {
+  if (!isTest(m) || !m.innings.length || m.status === "done") return null;
+  const idx = m.innings.length - 1, upcoming = m.status === "break" ? idx + 1 : idx;
+  if (upcoming === 0 || (idx === 0 && m.status === "live")) return null;
+  const t = totals(m, idx), name = (s: Side) => m.teams[s].name;
+  if (upcoming === 3) {
+    const chaser = m.status === "break" ? nextBattingSide(m) : m.innings[3].bat;
+    return `${name(chaser)} need ${t[otherSide(chaser)] - t[chaser] + 1} to win`;
+  }
+  if (t[0] === t[1]) return "Scores level";
+  const lead: Side = t[0] > t[1] ? 0 : 1;
+  return `${name(lead)} lead by ${Math.abs(t[0] - t[1])}`;
+}
+
+const ORD = ["1st", "2nd", "3rd", "4th"];
+export function inningsLabel(m: Match, idx: number): string {
+  const inn = m.innings[idx];
+  if (inn?.superOver) return "Super over";
+  if (isTest(m)) return `${ORD[idx] ?? `${idx + 1}th`} innings${inn?.followOn ? ", follow-on" : ""}`;
+  return idx === 0 ? "1st innings" : "2nd innings";
+}
+
+/** "5 overs", or "Test match" for a Test. */
+export const formatText = (m: Match) =>
+  isTest(m) ? `Test match${m.rules.matchOvers ? `, ${m.rules.matchOvers} overs max` : ""}` : `${m.rules.overs} overs`;
+
+/** Score of one innings, with "d" after a declaration. */
+export function inningsScore(m: Match, i: number): string {
+  const st = replay(m, i);
+  return `${st.runs}/${st.wickets}${m.innings[i].declared ? "d" : ""}`;
+}
+
+/** Test: every innings a side has batted, "120/10 & 85/3". */
+export const sideScore = (m: Match, side: Side): string | null =>
+  m.innings.map((inn, i) => (inn.bat === side ? inningsScore(m, i) : "")).filter(Boolean).join(" & ") || null;
 
 export function needsBowler(m: Match, idx: number): boolean {
   const st = replay(m, idx), inn = m.innings[idx];
@@ -195,12 +273,13 @@ export function afterWicket(m: Match, idx: number): { fresh: Player[]; back: Pla
 
 const clone = (m: Match): Match => JSON.parse(JSON.stringify(m));
 
-export function startInnings(m: Match, striker: string, nonStriker: string | null, bowler: string): Match {
-  const n = clone(m), idx = n.innings.length;
-  const superOver = idx >= 2;
-  const bat: Side = idx === 0 ? firstBatting(n) : idx === 2 ? n.innings[1].bat : otherSide(n.innings[idx - 1].bat);
+export function startInnings(m: Match, striker: string, nonStriker: string | null, bowler: string, opts?: { followOn?: boolean }): Match {
+  const n = clone(m), idx = n.innings.length, test = isTest(n);
+  const superOver = !test && idx >= 2, followOn = !!opts?.followOn && canFollowOn(n);
+  const bat = nextBattingSide(n, followOn);
   n.innings.push({
-    bat, overs: superOver ? 1 : n.rules.overs,
+    ...(followOn && { followOn: true as const }),
+    bat, overs: test ? 0 : superOver ? 1 : n.rules.overs,
     wicketLimit: superOver ? Math.min(2, wicketLimit(n.teams[bat], n.rules)) : wicketLimit(n.teams[bat], n.rules, !nonStriker),
     superOver, striker, nonStriker, solo: !nonStriker, bowler, bowlerSetAt: 0, events: [], closed: false,
   });
@@ -213,9 +292,11 @@ export function firstBatting(m: Match): Side {
   return m.toss.choice === "bat" ? m.toss.winner : otherSide(m.toss.winner);
 }
 
-export function nextBattingSide(m: Match): Side {
+/** Limited overs: the side that batted second opens the super over. Test: A, B, A, B, or A, B, B, A on the follow-on. */
+export function nextBattingSide(m: Match, followOn = false): Side {
   const idx = m.innings.length;
   if (idx === 0) return firstBatting(m);
+  if (isTest(m) && idx === 2) return followOn && canFollowOn(m) ? m.innings[1].bat : m.innings[0].bat;
   if (idx === 2) return m.innings[1].bat;
   return otherSide(m.innings[idx - 1].bat);
 }
@@ -225,8 +306,25 @@ function settle(n: Match): Match {
   if (idx < 0) return n;
   const st = replay(n, idx);
   if (!st.ended) n.status = "live";
+  else if (isTest(n)) n.status = testOver(n, idx) ? "done" : "break";
   else n.status = idx % 2 === 0 ? "break" : "done";
   return n;
+}
+
+/** After innings idx ends: stopped, capped, the 4th innings done, or the side batting 3rd still behind. */
+function testOver(m: Match, idx: number): boolean {
+  if (m.stopped || capReached(m, idx, play(m, idx).legal) || idx >= 3) return true;
+  if (idx < 2) return false;
+  const t = totals(m, 2), b = m.innings[2].bat;
+  return t[b] < t[otherSide(b)];
+}
+
+/** Test: call the match off before a result, like when it gets dark. Undo takes it back. */
+export function stopMatch(m: Match): Match {
+  if (!isTest(m) || !m.innings.length) return m;
+  const n = clone(m);
+  n.stopped = true;
+  return settle(n);
 }
 
 export function addBall(m: Match, input: BallInput): Match {
@@ -280,10 +378,14 @@ export function setBowler(m: Match, id: string): Match {
 }
 
 export function closeInnings(m: Match): Match {
-  const n = clone(m);
-  n.innings[n.innings.length - 1].closed = true;
+  const n = clone(m), inn = n.innings[n.innings.length - 1];
+  inn.closed = true;
+  if (isTest(n)) inn.declared = true;
   return settle(n);
 }
+
+/** Test: the batting side declares. Same as ending the innings by hand. */
+export const declare = closeInnings;
 
 /** Removes the last event, stepping back into the previous innings if this one is empty. */
 export function undo(m: Match): { match: Match; popped: Ev | null; droppedInnings: Innings | null } {
@@ -291,7 +393,8 @@ export function undo(m: Match): { match: Match; popped: Ev | null; droppedInning
   let dropped: Innings | null = null;
   const inn = n.innings[n.innings.length - 1];
   if (!inn) return { match: m, popped: null, droppedInnings: null };
-  if (inn.closed) { inn.closed = false; return { match: settle(n), popped: null, droppedInnings: null }; }
+  if (n.stopped) { delete n.stopped; return { match: settle(n), popped: null, droppedInnings: null }; }
+  if (inn.closed) { inn.closed = false; delete inn.declared; return { match: settle(n), popped: null, droppedInnings: null }; }
   if (!inn.events.length) {
     if (n.innings.length === 1) return { match: m, popped: null, droppedInnings: null };
     dropped = n.innings.pop()!;
@@ -318,10 +421,11 @@ export function editBall(m: Match, idx: number, evIdx: number, patch: { runs: nu
   return settle(n);
 }
 
-export interface Result { text: string; winner: Side | null; tie: boolean; superOver: boolean }
+export interface Result { text: string; winner: Side | null; tie: boolean; superOver: boolean; draw?: boolean }
 
 export function result(m: Match): Result | null {
   if (m.status !== "done") return null;
+  if (isTest(m)) return testResult(m);
   const base = m.innings.length >= 4 ? 2 : 0;
   const a = replay(m, base), b = replay(m, base + 1);
   const first = m.innings[base].bat, second = m.innings[base + 1].bat;
@@ -335,6 +439,24 @@ export function result(m: Match): Result | null {
     return { text: `${m.teams[first].name} won by ${by} run${by === 1 ? "" : "s"}${so}`, winner: first, tie: false, superOver: !!so };
   }
   return { text: base === 2 ? "Super over tied too. Shake hands." : "Match tied", winner: null, tie: true, superOver: !!so };
+}
+
+function testResult(m: Match): Result {
+  const n = m.innings.length, name = (s: Side) => m.teams[s].name;
+  const plural = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : "s"}`;
+  const win = (s: Side, by: string): Result => ({ text: `${name(s)} won by ${by}`, winner: s, tie: false, superOver: false });
+  const complete = (i: number) => { const st = play(m, i), t = target(m, i); return st.ended || (t !== null && st.runs >= t); };
+  if (n === 4 && complete(3)) {
+    const t = totals(m, 3), chaser = m.innings[3].bat, other = otherSide(chaser);
+    if (t[chaser] > t[other]) return win(chaser, plural(m.innings[3].wicketLimit - play(m, 3).wickets, "wicket"));
+    if (t[chaser] < t[other]) return win(other, plural(t[other] - t[chaser], "run"));
+    return { text: "Match tied", winner: null, tie: true, superOver: false };
+  }
+  if (n >= 3 && complete(2)) {
+    const t = totals(m, 2), b = m.innings[2].bat, other = otherSide(b);
+    if (t[b] < t[other]) return win(other, `an innings and ${plural(t[other] - t[b], "run")}`);
+  }
+  return { text: "Match drawn", winner: null, tie: false, superOver: false, draw: true };
 }
 
 export interface Award { id: string; name: string; line: string; points: number }

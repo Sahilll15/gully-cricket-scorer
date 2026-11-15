@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as E from "./engine/engine";
 import type { Ball, Extra, Match, Player, Side, Wicket, WicketKind } from "./engine/types";
-import { Badge, cx, Pill, PrimaryButton, Sheet, Stepper } from "./ui";
+import { Badge, cx, Pill, PrimaryButton, Segmented, Sheet, Stepper } from "./ui";
 
 export function addPlayer(m: Match, side: Side, name: string): { match: Match; id: string } {
   const n: Match = JSON.parse(JSON.stringify(m)), id = E.uid();
@@ -42,18 +42,34 @@ function AddName({ onAdd, label }: { onAdd: (name: string) => void; label: strin
 /** Pick openers and the first bowler. Pre-filled so one tap starts the innings. */
 export function OpenersSheet({ match, onStart, onClose }: { match: Match; onStart: (m: Match) => void; onClose?: () => void }) {
   const [m, setM] = useState(match);
-  const bat = E.nextBattingSide(m), field = E.otherSide(bat);
+  const [followOn, setFollowOn] = useState(false);
+  const bat = E.nextBattingSide(m, followOn), field = E.otherSide(bat);
   const batters = m.teams[bat].players, bowlers = m.teams[field].players;
   const [s, setS] = useState<string | null>(batters[0]?.id ?? null);
   const [ns, setNs] = useState<string | null>(batters[1]?.id ?? null);
   const [alone, setAlone] = useState(batters.length === 1);
   const [bw, setBw] = useState<string | null>(bowlers.find((p) => p.id !== s && p.id !== ns)?.id ?? null);
-  const superOver = m.innings.length >= 2;
+  const test = E.isTest(m), superOver = !test && m.innings.length >= 2;
   const atCrease = (id: string) => id === s || (!alone && id === ns);
   const ok = s && bw && !atCrease(bw) && (alone || (ns && s !== ns));
+  // Following on swaps who bats, so the picks start over for the new side.
+  function chooseFollowOn(f: boolean) {
+    const b = E.nextBattingSide(m, f), bt = m.teams[b].players, bl = m.teams[E.otherSide(b)].players;
+    setFollowOn(f); setS(bt[0]?.id ?? null); setNs(bt[1]?.id ?? null); setAlone(bt.length === 1); setBw(bl[0]?.id ?? null);
+  }
+  const first = m.innings[0] ? m.teams[m.innings[0].bat].name : "", second = m.innings[1] ? m.teams[m.innings[1].bat].name : "";
+  const title = superOver ? "Super over" : !m.innings.length ? "Openers"
+    : test ? `${["", "2nd", "3rd", "4th"][m.innings.length]} innings${followOn ? ", follow-on" : ""}` : "Second innings";
   return (
-    <Sheet title={superOver ? "Super over" : m.innings.length ? "Second innings" : "Openers"} onClose={onClose}
-      footer={<PrimaryButton disabled={!ok} onClick={() => onStart(E.startInnings(m, s!, alone ? null : ns, bw!))}>Start innings</PrimaryButton>}>
+    <Sheet title={title} onClose={onClose}
+      footer={<PrimaryButton disabled={!ok} onClick={() => onStart(E.startInnings(m, s!, alone ? null : ns, bw!, { followOn }))}>Start innings</PrimaryButton>}>
+      {E.canFollowOn(m) && (
+        <div className="mb-5 rounded-2xl bg-sun-soft p-3">
+          <p className="mb-2 text-sm text-fg"><b>{E.testStatus(m)}.</b> {first} can bat again, or make {second} follow on and bat again now.</p>
+          <Segmented value={followOn ? "yes" : "no"} set={(v) => chooseFollowOn(v === "yes")}
+            items={[{ v: "no", label: `${first} bat` }, { v: "yes", label: `${second} follow on` }]} />
+        </div>
+      )}
       <p className="mb-2 text-sm font-semibold text-teal">{m.teams[bat].name}: on strike</p>
       <PlayerPick players={batters} value={s} set={(id) => { if (id === ns) setNs(s); setS(id); }} />
       <div className="mb-2 mt-5 flex items-center justify-between gap-2">
@@ -70,14 +86,14 @@ export function OpenersSheet({ match, onStart, onClose }: { match: Match; onStar
       {alone
         ? <p className="rounded-2xl bg-sun-soft p-3 text-sm text-fg">One batter at a time. When they're out the next one walks in, and every player gets to bat.</p>
         : <PlayerPick players={batters} value={ns} set={(id) => { if (id === s) setS(ns); setNs(id); }} />}
-      <p className="mb-2 mt-5 text-sm font-semibold text-teal">{m.teams[field].name}: bowling first</p>
+      <p className="mb-2 mt-5 text-sm font-semibold text-teal">{m.teams[field].name}: {test ? "bowling" : "bowling first"}</p>
       <PlayerPick players={bowlers} value={bw} set={setBw} disabled={atCrease} />
       <AddName label={`Add a bowler to ${m.teams[field].name}`} onAdd={(name) => { const r = addPlayer(m, field, name); setM(r.match); setBw(r.id); }} />
     </Sheet>
   );
 }
 
-export function BowlerSheet({ match, onPick, onClose, onEnd }: { match: Match; onPick: (m: Match) => void; onClose?: () => void; onEnd?: () => void }) {
+export function BowlerSheet({ match, onPick, onClose, onEnd, endLabel = "End innings instead" }: { match: Match; onPick: (m: Match) => void; onClose?: () => void; onEnd?: () => void; endLabel?: string }) {
   const idx = match.innings.length - 1, field = E.otherSide(match.innings[idx].bat);
   const st = E.replay(match, idx);
   const fig = (id: string) => { const b = st.bowl.get(id); return b ? `${E.oversText(b.legal)}-${b.maidens}-${b.runs}-${b.wickets}` : "Yet to bowl"; };
@@ -87,7 +103,7 @@ export function BowlerSheet({ match, onPick, onClose, onEnd }: { match: Match; o
         disabled={(id) => !E.canBowl(match, idx, id)} set={(id) => onPick(E.setBowler(match, id))} />
       <AddName label="New bowler's name" onAdd={(name) => { const r = addPlayer(match, field, name); onPick(E.setBowler(r.match, r.id)); }} />
       <p className="mt-3 text-xs text-mute">Faded names bowled the last over, hit the overs limit, or are batting.</p>
-      {onEnd && <button onClick={onEnd} className="press mt-4 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-out">End innings instead</button>}
+      {onEnd && <button onClick={onEnd} className="press mt-4 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-out">{endLabel}</button>}
     </Sheet>
   );
 }

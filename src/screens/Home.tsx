@@ -12,6 +12,7 @@ export function MatchCard({ m }: { m: Match }) {
   const { go } = useStore();
   const res = E.result(m), live = m.status === "live" || m.status === "break";
   const line = (side: 0 | 1) => {
+    if (E.isTest(m)) return E.sideScore(m, side) ?? "Yet to bat";
     const i = m.innings.findIndex((inn) => inn.bat === side && !inn.superOver);
     if (i < 0) return "Yet to bat";
     const st = E.replay(m, i);
@@ -21,7 +22,7 @@ export function MatchCard({ m }: { m: Match }) {
     <button onClick={() => go(live ? "live" : m.status === "done" ? "result" : "home", m.id)} className="press block w-full text-left">
       <Card>
         <div className="mb-3 flex items-center justify-between text-xs font-medium text-mute">
-          <span>{new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {m.rules.overs} overs</span>
+          <span>{new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {E.formatText(m)}</span>
           {live ? <LivePill /> : <span className="rounded-full bg-sun-soft px-2.5 py-1 font-semibold text-fg">Completed</span>}
         </div>
         {([0, 1] as const).map((s) => (

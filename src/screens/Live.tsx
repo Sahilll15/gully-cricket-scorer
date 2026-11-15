@@ -24,6 +24,7 @@ export default function Live() {
   const [oversOpen, setOversOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [flash, setFlash] = useState<{ text: string; tone: string; key: number } | null>(null);
   const [mic, setMic] = useState(false);
   const [heard, setHeard] = useState("");
@@ -87,7 +88,11 @@ export default function Live() {
   const bat = (id: string | null) => (id ? st.bat.get(id) : undefined);
   const bowler = st.bowl.get(inn.bowler);
   const need = tgt !== null ? tgt - st.runs : 0, left = inn.overs * 6 - st.legal;
-  const label = inn.superOver ? "Super over" : idx === 0 ? "1st innings" : "2nd innings";
+  const label = E.inningsLabel(m, idx);
+  const test = E.isTest(m), status = E.testStatus(m), ballsLeft = E.matchBallsLeft(m);
+  // A Test's 4th innings has nothing to declare for: it ends in a result or a draw.
+  const canDeclare = test && idx < 3;
+  const capText = ballsLeft !== null ? ` · ${E.oversText(ballsLeft)} overs left in the match` : "";
   const last = inn.events[inn.events.length - 1];
   // Odd runs usually swap ends, but a short run or a misfield can leave them where they were.
   const oddRuns = m.status === "live" && last?.t === "ball" && last.runs % 2 === 1 && !last.wicket && !!st.nonStriker ? last : null;
@@ -102,10 +107,12 @@ export default function Live() {
           </div>
           <p className={cx("mt-2 flex items-baseline gap-2", voiceSupported && "pr-[68px]")}>
             <span key={st.runs + "-" + st.wickets} className="roll text-[52px] min-[360px]:text-[64px] font-extrabold leading-none tracking-tight tabular-nums">{st.runs}/{st.wickets}</span>
-            <span className="text-xl font-semibold text-white/85 tabular-nums">({E.oversText(st.legal)}/{inn.overs})</span>
+            <span className="text-xl font-semibold text-white/85 tabular-nums">({E.oversText(st.legal)}{test ? "" : `/${inn.overs}`})</span>
           </p>
           <p className="mt-2 text-[13px] text-white/85">
-            {tgt !== null
+            {test
+              ? <>{status ? <b className="text-sun">{status}</b> : <>Run rate {E.runRate(st.runs, st.legal).toFixed(2)}</>}{capText}</>
+              : tgt !== null
               ? <>Need <b className="text-sun">{Math.max(0, need)}</b> off <b className="text-sun">{left}</b> ball{left === 1 ? "" : "s"} · Target {tgt} · RRR {left ? ((need * 6) / left).toFixed(2) : "-"}</>
               : <>Run rate {E.runRate(st.runs, st.legal).toFixed(2)}{m.toss && idx === 0 && st.legal === 0 ? ` · ${m.teams[m.toss.winner].name} won the toss, chose to ${m.toss.choice}` : ""}</>}
           </p>
@@ -129,7 +136,17 @@ export default function Live() {
             <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">{shownOver.map((b, i) => <BallChip key={i} b={b} />)}</div>
           </Card>
           <Locked match={m} />
-        </>) : m.status === "break" ? (
+        </>) : m.status === "break" && test ? (
+          <Card className="mt-4 text-center">
+            <p className="text-sm font-semibold text-teal">{inn.declared ? "Declared" : "Innings over"}</p>
+            <p className="mt-1 text-3xl font-extrabold text-fg">{batTeam.name} {E.inningsScore(m, idx)}</p>
+            <p className="mt-1 font-semibold text-sun">{status}</p>
+            {capText && <p className="mt-1 text-sm text-mute">{capText.slice(3)}</p>}
+            <div className="mt-5"><PrimaryButton onClick={() => setOpeners(true)}>Start the {["", "2nd", "3rd", "4th"][idx + 1]} innings</PrimaryButton></div>
+            <button onClick={() => setStopping(true)} className="press mt-3 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-fg">Stop the match, call it a draw</button>
+            <button onClick={() => undo(m.id)} className="press mt-3 min-h-12 w-full rounded-2xl font-semibold text-mute">↶ Undo last ball</button>
+          </Card>
+        ) : m.status === "break" ? (
           <Card className="mt-4 text-center">
             <p className="text-sm font-semibold text-teal">{inn.superOver ? "Super over break" : "Innings break"}</p>
             <p className="mt-1 text-3xl font-extrabold text-fg">{batTeam.name} {st.runs}/{st.wickets}</p>
@@ -203,6 +220,8 @@ export default function Live() {
               {liveSupported && <Tool onClick={() => setShare(true)} icon="📡" label={m.live ? "Live on" : "Go live"} />}
               <Tool onClick={() => setMore(true)} icon="⋯" label="More" />
             </div>
+            {canDeclare && <button onClick={() => setEnding(true)} disabled={waiting}
+              className="press mt-3 min-h-12 w-full rounded-2xl border-2 border-sun/80 bg-panel font-semibold text-fg">Declare {batTeam.name}'s innings</button>}
           </>
         )}
       </main>
@@ -212,10 +231,16 @@ export default function Live() {
       </div>}
 
       {!locked && m.status === "live" && (pickBowler || bowlerDue) && <BowlerSheet match={m} onPick={(n) => { put(n); setPickBowler(false); }}
-        onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)} onEnd={() => setEnding(true)} />}
-      {ending && <ConfirmSheet title="End this innings?" yes="End innings" danger onClose={() => setEnding(false)}
+        onClose={E.needsBowler(m, idx) ? undefined : () => setPickBowler(false)}
+        onEnd={!test ? () => setEnding(true) : canDeclare ? () => setEnding(true) : undefined} endLabel={test ? "Declare instead" : undefined} />}
+      {ending && <ConfirmSheet title={test ? "Declare?" : "End this innings?"} yes={test ? "Declare" : "End innings"} danger onClose={() => setEnding(false)}
         onYes={() => { put(E.closeInnings(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
-        body={<>{batTeam.name} finish on <b>{st.runs}/{st.wickets}</b> in {E.oversText(st.legal)} overs.{tgt !== null ? " That ends the match." : ""} You can undo it.</>} />}
+        body={test
+          ? <>{batTeam.name} declare on <b>{st.runs}/{st.wickets}</b>. {fieldTeam.name} bat next. You can undo it.</>
+          : <>{batTeam.name} finish on <b>{st.runs}/{st.wickets}</b> in {E.oversText(st.legal)} overs.{tgt !== null ? " That ends the match." : ""} You can undo it.</>} />}
+      {stopping && <ConfirmSheet title="Stop the match?" yes="Call it a draw" danger onClose={() => setStopping(false)}
+        onYes={() => { put(E.stopMatch(m)); setStopping(false); setPickBowler(false); useStore.setState({ redo: [] }); }}
+        body={<>Nobody has won yet, so the match ends as a draw. You can undo it.</>} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
       {retireOpen && <RetireSheet match={m} onClose={() => setRetireOpen(false)} onSave={(n) => { put(n); setRetireOpen(false); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} onDone={confirmWicket} onClose={() => setWicket(false)} />}
@@ -229,12 +254,14 @@ export default function Live() {
         <Sheet title="Quick options" onClose={() => setMore(false)}>
           <div className="grid gap-2">
             <PrimaryButton tone="navy" onClick={() => { setMore(false); setPickBowler(true); }}>Change bowler</PrimaryButton>
-            {!inn.superOver && <PrimaryButton tone="navy" onClick={() => { setMore(false); setOversOpen(true); }}>Change overs ({inn.overs})</PrimaryButton>}
+            {!inn.superOver && !test && <PrimaryButton tone="navy" onClick={() => { setMore(false); setOversOpen(true); }}>Change overs ({inn.overs})</PrimaryButton>}
             <PrimaryButton tone="navy" onClick={() => { setMore(false); setRetireOpen(true); }}>Retire a batter</PrimaryButton>
-            <PrimaryButton onClick={() => { setMore(false); setEnding(true); }}>End innings</PrimaryButton>
+            {!test && <PrimaryButton onClick={() => { setMore(false); setEnding(true); }}>End innings</PrimaryButton>}
+            {canDeclare && <PrimaryButton onClick={() => { setMore(false); setEnding(true); }}>Declare innings</PrimaryButton>}
+            {test && <PrimaryButton tone="navy" onClick={() => { setMore(false); setStopping(true); }}>Stop the match, call it a draw</PrimaryButton>}
           </div>
           <div className="mt-4 rounded-2xl bg-sun-soft p-3 text-sm text-fg">
-            <b>Rules this match:</b> {m.rules.overs} overs
+            <b>Rules this match:</b> {E.formatText(m)}
             {m.rules.extraRun ? " · wide/no-ball +1" : ""}{m.rules.rebowl ? " · re-bowl" : ""}{m.rules.freeHit ? " · free hit" : ""}
             {m.rules.lastManStands ? " · last man stands" : ""}{m.rules.oneTipCatch ? " · one-tip catch" : ""}
             {m.rules.wall !== "none" ? ` · wall = ${m.rules.wall}` : ""}{m.rules.tipAndRun ? " · tip and run" : ""}

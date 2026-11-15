@@ -16,7 +16,7 @@ export default function Scorecard() {
   if (!m || !m.innings.length) return null;
 
   const inn = m.innings[idx], st = E.replay(m, idx), name = (id: string) => E.playerName(m, id);
-  const live = m.status === "live" || m.status === "break";
+  const live = m.status === "live" || m.status === "break", test = E.isTest(m);
   const head = (side: 0 | 1) => {
     const i = m.innings.findIndex((x) => x.bat === side && !x.superOver);
     return i < 0 ? null : { st: E.replay(m, i) };
@@ -34,22 +34,24 @@ export default function Scorecard() {
               <div key={s} className={cx("flex flex-col items-center", s === 1 && "col-start-3")}>
                 <Badge name={m.teams[s].name} size={56} />
                 <p className="mt-2 font-bold text-teal">{m.teams[s].name}</p>
-                <p className="text-sm font-medium text-fg tabular-nums">{h ? `${h.st.runs}/${h.st.wickets} (${E.oversText(h.st.legal)} Over)` : "Yet to bat"}</p>
-                {h && <p className="text-[11px] text-fg/70">Wide: {h.st.extras.wd} | No Ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</p>}
+                <p className="text-sm font-medium text-fg tabular-nums">{test ? E.sideScore(m, s) ?? "Yet to bat" : h ? `${h.st.runs}/${h.st.wickets} (${E.oversText(h.st.legal)} Over)` : "Yet to bat"}</p>
+                {h && !test && <p className="text-[11px] text-fg/70">Wide: {h.st.extras.wd} | No Ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</p>}
               </div>
             );
           }).flatMap((el, i) => i === 0 ? [el, <span key="vs" className="col-start-2 row-start-1 mt-3 text-3xl font-extrabold italic text-teal">VS</span>] : [el])}
         </div>
         {m.toss && <p className="mt-3 text-center text-sm text-fg/70">Toss won by: {m.teams[m.toss.winner].name}, elected to {m.toss.choice}</p>}
+        {test && <p className="mt-2 text-center font-bold text-sun">{E.result(m)?.text ?? E.testStatus(m) ?? "Test match"}</p>}
       </Header>
 
       <main className="mx-auto max-w-[480px] px-4 pt-4">
         <Segmented value={idx} set={setIdx} items={m.innings.map((x, i) => {
           const s = E.replay(m, i);
+          if (test) return { v: i, label: `${short(m.teams[x.bat].name)} ${E.inningsScore(m, i)}` };
           return { v: i, label: `${x.superOver ? "SO " : ""}${short(m.teams[x.bat].name)} ${s.runs}/${s.wickets}(${E.oversText(s.legal)})` };
         })} />
 
-        <p className="mt-5 mb-2 text-sm font-semibold text-teal">Batting, {m.teams[inn.bat].name}</p>
+        <p className="mt-5 mb-2 text-sm font-semibold text-teal">Batting, {m.teams[inn.bat].name}{test ? `, ${E.inningsLabel(m, idx)}` : ""}</p>
         <Card className="!p-0 overflow-hidden">
           <table className="w-full text-sm">
             <thead><tr className="bg-key text-left text-xs text-fg">

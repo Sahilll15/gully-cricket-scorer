@@ -116,8 +116,8 @@ function Board({ m }: { m: NonNullable<LiveState["match"]> }) {
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const tgt = E.target(m, idx), batTeam = m.teams[inn.bat];
   const need = tgt !== null ? tgt - st.runs : 0, left = inn.overs * 6 - st.legal;
-  const res = E.result(m);
-  const label = inn.superOver ? "Super over" : idx === 0 ? "1st innings" : "2nd innings";
+  const res = E.result(m), test = E.isTest(m), status = E.testStatus(m);
+  const label = E.inningsLabel(m, idx);
   return (
     <div className="stadium mt-3 overflow-hidden rounded-3xl px-5 pb-5 pt-4 text-white">
       <div className="flex items-center gap-2 text-[13px] font-medium text-white/85">
@@ -125,10 +125,11 @@ function Board({ m }: { m: NonNullable<LiveState["match"]> }) {
       </div>
       <p className="mt-2 flex items-baseline gap-2">
         <span key={st.runs + "-" + st.wickets} className="roll text-[64px] font-extrabold leading-none tracking-tight tabular-nums">{st.runs}/{st.wickets}</span>
-        <span className="text-xl font-semibold text-white/85 tabular-nums">({E.oversText(st.legal)}/{inn.overs})</span>
+        <span className="text-xl font-semibold text-white/85 tabular-nums">({E.oversText(st.legal)}{test ? "" : `/${inn.overs}`})</span>
       </p>
       <p className="mt-2 text-[13px] text-white/85">
         {res ? <b className="text-sun">{res.text}</b>
+          : test ? <>{m.status === "break" ? "Innings break · " : ""}{status ?? `Run rate ${E.runRate(st.runs, st.legal).toFixed(2)}`}</>
           : m.status === "break" ? <>Innings break · {m.teams[E.otherSide(inn.bat)].name} need {st.runs + 1}</>
           : tgt !== null ? <>Need <b className="text-sun">{Math.max(0, need)}</b> off <b className="text-sun">{left}</b> ball{left === 1 ? "" : "s"} · Target {tgt}</>
           : <>Run rate {E.runRate(st.runs, st.legal).toFixed(2)}</>}
@@ -170,7 +171,7 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
         <Card key={i} className="flex items-center gap-3 !p-3">
           <Badge name={m.teams[x.bat].name} size={34} />
           <span className="flex-1 truncate font-semibold text-teal">{m.teams[x.bat].name}{x.superOver ? " (super over)" : ""}</span>
-          <span className="font-bold text-fg tabular-nums">{s.runs}/{s.wickets} ({E.oversText(s.legal)})</span>
+          <span className="font-bold text-fg tabular-nums">{E.inningsScore(m, i)} ({E.oversText(s.legal)})</span>
         </Card>
       ))}
       <Card className="!p-3">

@@ -16,6 +16,8 @@ export interface Rules {
   wall: "none" | "four" | "six" | "out";
   tipAndRun: boolean;
   maxOversPerBowler: number | null;
+  format?: "test";          // two innings a side, no over limit. Older matches have none: limited overs.
+  matchOvers?: number | null;   // Test only: total overs before the match stops as a draw
 }
 
 export interface Wicket {
@@ -49,6 +51,8 @@ export interface Innings {
   bowlerSetAt: number;      // legal-ball count when the bowler was last picked
   events: Ev[];
   closed: boolean;          // ended by hand
+  declared?: true;          // Test: closed by a declaration
+  followOn?: true;          // Test: 3rd innings by the side that batted second
 }
 
 export type Status = "setup" | "live" | "break" | "done";
@@ -67,7 +71,8 @@ export interface Match {
   liveFp?: string;   // fingerprint of that key, put in the share link
   scorer?: string;   // the one phone allowed to score while the match is shared
   handover?: string;   // one-time token in a move link that hasn't been opened yet
-  editedAt?: number;   // last change; orders updates when two phones score the same match
+  editedAt?: number;
+  stopped?: true;   // Test called off before a result: a draw   // last change; orders updates when two phones score the same match
 }
 
 export interface BallInput { runs: number; extra?: Extra; wicket?: Wicket; stay?: true }

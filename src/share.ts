@@ -4,7 +4,8 @@ import { track } from "./track";
 
 const innTitle = (m: Match, i: number) => {
   const inn = m.innings[i], st = E.replay(m, i);
-  return { team: `${m.teams[inn.bat].name}${inn.superOver ? " (super over)" : ""}`, score: `${st.runs}/${st.wickets} (${E.oversText(st.legal)} ov)`, st };
+  const tag = inn.superOver ? " (super over)" : E.isTest(m) ? `, ${E.inningsLabel(m, i)}` : "";
+  return { team: `${m.teams[inn.bat].name}${tag}`, score: `${E.inningsScore(m, i)} (${E.oversText(st.legal)} ov)`, st };
 };
 const extrasTotal = (st: E.State) => st.extras.wd + st.extras.nb + st.extras.b + st.extras.lb;
 
@@ -22,7 +23,7 @@ export function summaryText(m: Match): string {
     ];
   });
   return [
-    `Gully cricket, ${m.rules.overs} overs`,
+    `Gully cricket, ${E.formatText(m)}`,
     res ? res.text : "Match in progress",
     aw.potm ? `Player of the match: ${aw.potm.name}, ${aw.potm.line}` : "",
     ...innings,
@@ -51,7 +52,7 @@ export async function fullScorecardImage(m: Match): Promise<Blob> {
 
   g.fillStyle = "#ff8a3d"; g.font = F(800, 44); g.fillText("GULLY CRICKET", X, 100);
   g.fillStyle = "#9a9aa5"; g.font = F(500, 30);
-  g.fillText(`${new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} · ${m.rules.overs} overs`, X, 148);
+  g.fillText(`${new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} · ${E.formatText(m)}`, X, 148);
   const res = E.result(m), aw = E.awards(m);
   g.fillStyle = "#ff8a3d"; g.beginPath(); g.roundRect(X, 180, W - 140, 100, 28); g.fill();
   g.fillStyle = "#111111"; g.font = F(800, 40); g.fillText(clip(g, res?.text ?? "In progress", W - 200), X + 34, 244);
@@ -103,9 +104,14 @@ export async function scorecardImage(m: Match): Promise<Blob> {
 
   g.fillStyle = "#ff8a3d"; g.font = F(800, 44); g.fillText("GULLY CRICKET", 70, 100);
   g.fillStyle = "#9a9aa5"; g.font = F(500, 30);
-  g.fillText(`${new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} · ${m.rules.overs} overs`, 70, 148);
+  g.fillText(`${new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} · ${E.formatText(m)}`, 70, 148);
 
-  const main = m.innings.slice(0, 2);
+  if (E.isTest(m)) ([0, 1] as const).forEach((s) => {
+    const x = s === 0 ? 70 : 570;
+    g.fillStyle = "#f1ece4"; g.font = F(700, 36); g.fillText(clip(g, m.teams[s].name, 440), x, 250);
+    g.fillStyle = "#ffffff"; g.font = F(800, 64); g.fillText(clip(g, E.sideScore(m, s) ?? "Yet to bat", 440), x - 4, 350);
+  });
+  const main = E.isTest(m) ? [] : m.innings.slice(0, 2);
   main.forEach((inn, i) => {
     const st = E.replay(m, i), x = i === 0 ? 70 : 570;
     g.fillStyle = "#f1ece4"; g.font = F(700, 36); g.fillText(clip(g, m.teams[inn.bat].name, 440), x, 250);
