@@ -183,6 +183,24 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
           </div>
         ))}
       </Card>
+      <Card className="!p-0 overflow-hidden">
+        <p className="px-3 pt-3 pb-2 text-sm font-semibold text-teal">Bowling · {m.teams[E.otherSide(inn.bat)].name}</p>
+        <table className="w-full text-sm">
+          <thead><tr className="bg-key text-left text-xs text-fg">
+            <th className="px-3 py-2 font-semibold">Bowler</th>{["O", "M", "R", "W", "Wd", "Nb", "Econ"].map((h) => <th key={h} className="px-1 py-2 text-right font-semibold last:pr-3">{h}</th>)}
+          </tr></thead>
+          <tbody>{st.bowlOrder.map((id) => { const b = st.bowl.get(id)!, on = m.status === "live" && id === inn.bowler; return (
+            <tr key={id} className="border-t border-line">
+              <td className={on ? "px-3 py-2.5 font-semibold text-sun" : "px-3 py-2.5 font-semibold text-fg"}>{name(id)}{on ? " *" : ""}</td>
+              {[E.oversText(b.legal), b.maidens, b.runs].map((v, k) => <td key={k} className="px-1 text-right tabular-nums">{v}</td>)}
+              <td className="px-1 text-right font-bold text-fg tabular-nums">{b.wickets}</td>
+              <td className="px-1 text-right tabular-nums">{b.wides}</td>
+              <td className="px-1 text-right tabular-nums">{b.noBalls}</td>
+              <td className="px-1 pr-3 text-right tabular-nums">{E.runRate(b.runs, b.legal).toFixed(1)}</td>
+            </tr>); })}</tbody>
+        </table>
+        {!st.bowlOrder.length && <p className="px-3 py-3 text-sm text-mute">No balls yet.</p>}
+      </Card>
     </>
   );
 }
