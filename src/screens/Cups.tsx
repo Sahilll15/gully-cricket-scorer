@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as E from "../engine/engine";
-import { champion, newTournament, standings, withFinal, type Fixture, type Tournament } from "../engine/tournament";
+import { advance, champion, fixtureCount, newTournament, stageLabel, standings, type CupFormat, type Fixture, type Tournament } from "../engine/tournament";
+import { SeriesList } from "./Series";
 import type { Match, Rules } from "../engine/types";
 import { useStore } from "../store";
 import { leaders, strikeRate } from "../stats";
@@ -11,13 +12,25 @@ export const CUP_RULES: Rules = {
   wall: "none", tipAndRun: false, maxOversPerBowler: null,
 };
 
+export const FORMATS: { v: CupFormat; label: string; hint: string; min: number }[] = [
+  { v: "league-final", label: "Top 2 play the final", hint: "League, then 1st v 2nd", min: 3 },
+  { v: "ipl", label: "IPL style, top 4", hint: "Qualifier 1 (1v2), Eliminator (3v4), Qualifier 2, Final", min: 4 },
+  { v: "semis", label: "Semi-finals", hint: "League, then 1v4 and 2v3, winners in the final", min: 4 },
+  { v: "knockout", label: "Knockout", hint: "No league. Lose once and you're out", min: 2 },
+  { v: "league", label: "League only", hint: "Top of the table wins", min: 2 },
+];
+const formatLabel = (f: CupFormat) => FORMATS.find((x) => x.v === f)?.label ?? f;
+
 export function Cups() {
-  const { cups, go, matches, teams } = useStore();
+  const { cups, go, matches, teams, cupsTab: tab } = useStore();
+  const setTab = (v: "cups" | "series") => useStore.setState({ cupsTab: v });
   const name = (id: string) => teams.find((t) => t.id === id)?.name ?? "?";
   return (
     <div className="min-h-screen pb-28">
-      <Header title="Tournaments" />
+      <Header title={tab === "cups" ? "Tournaments" : "Series"} />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
+        <Segmented value={tab} set={setTab} items={[{ v: "cups", label: "Tournaments" }, { v: "series", label: "Series" }]} />
+        {tab === "series" ? <SeriesList /> : <>
         <PrimaryButton onClick={() => go("newcup")}>+ Create tournament</PrimaryButton>
         {cups.map((c) => {
           const done = c.fixtures.filter((f) => matches.some((m) => m.id === f.matchId && m.status === "done")).length;
@@ -30,7 +43,7 @@ export function Cups() {
                   {champ ? <span className="rounded-full bg-sun px-3 py-1 text-xs font-bold text-ink">🏆 {name(champ)}</span>
                     : <span className="text-xs font-semibold text-mute">{done}/{c.fixtures.length} played</span>}
                 </div>
-                <p className="mt-1 text-sm text-mute">{c.teamIds.length} teams · {c.rules.overs} overs · {c.format === "league" ? "League" : "League + final"}</p>
+                <p className="mt-1 text-sm text-mute">{c.teamIds.length} teams · {c.rules.overs} overs · {formatLabel(c.format)}</p>
               </Card>
             </button>
           );
@@ -42,6 +55,7 @@ export function Cups() {
             <p className="text-sm text-mute">Pick your teams, and fixtures plus a points table with net run rate are made for you.</p>
           </Card>
         )}
+        </>}
       </main>
       <BottomNav />
     </div>
@@ -53,10 +67,11 @@ export function NewCup() {
   const [name, setName] = useState("Gully Premier League");
   const [pick, setPick] = useState<string[]>([]);
   const [overs, setOvers] = useState(5);
-  const [format, setFormat] = useState<Tournament["format"]>("league-final");
+  const [format, setFormat] = useState<CupFormat>("league-final");
   const [newTeam, setNewTeam] = useState("");
   const toggle = (id: string) => setPick(pick.includes(id) ? pick.filter((x) => x !== id) : [...pick, id]);
-  const fixtures = (pick.length * (pick.length - 1)) / 2 + (format === "league-final" && pick.length >= 3 ? 1 : 0);
+  const min = FORMATS.find((f) => f.v === format)!.min;
+  const fixtures = fixtureCount(format, pick.length);
 
   return (
     <div className="min-h-screen pb-10">
@@ -87,13 +102,24 @@ export function NewCup() {
         <Card>
           <p className="mb-2 text-sm font-semibold text-teal">Overs an innings</p>
           <Stepper value={overs} set={setOvers} max={50} />
-          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Format</p>
-          <Segmented value={format} set={setFormat} items={[{ v: "league-final", label: "League + final" }, { v: "league", label: "League only" }]} />
+          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Playoffs</p>
+          <div className="grid gap-2">
+            {FORMATS.map((f) => (
+              <button key={f.v} onClick={() => setFormat(f.v)} aria-pressed={format === f.v}
+                className={cx("press flex min-h-14 items-center gap-3 rounded-2xl border-2 px-4 py-2 text-left", format === f.v ? "border-sun bg-sun-soft" : "border-line bg-key")}>
+                <span className={cx("grid h-5 w-5 shrink-0 place-items-center rounded-full border-2", format === f.v ? "border-sun" : "border-mute")}>{format === f.v && <i className="h-2.5 w-2.5 rounded-full bg-sun" />}</span>
+                <span className="flex-1"><span className="block font-semibold text-fg">{f.label}</span><span className="block text-xs text-mute">{f.hint}{f.min > 2 ? ` · ${f.min}+ teams` : ""}</span></span>
+              </button>
+            ))}
+          </div>
+          {pick.length >= 2 && pick.length < min && <p className="mt-2 text-xs text-out">{min} teams needed for this. With {pick.length} it becomes {pick.length >= 3 ? "a top-2 final" : "a league"}.</p>}
+          {format !== "league" && format !== "knockout" && <p className="mt-2 text-xs text-mute">A tied playoff sends the team higher in the table through.</p>}
+          {format === "knockout" && <p className="mt-2 text-xs text-mute">Seeded in the order you picked the teams. A tie sends the higher seed through.</p>}
         </Card>
         <PrimaryButton disabled={pick.length < 2 || !name.trim()} onClick={() => {
           const t = newTournament(name.trim(), pick, { ...CUP_RULES, overs }, format);
           putCup(t); useStore.setState({ cupId: t.id }); go("cup");
-        }}>{pick.length < 2 ? "Pick at least 2 teams" : `Create · ${fixtures} matches`}</PrimaryButton>
+        }}>{pick.length < 2 ? "Pick at least 2 teams" : `Create · ${fixtures} match${fixtures === 1 ? "" : "es"}`}</PrimaryButton>
       </main>
     </div>
   );
@@ -112,9 +138,9 @@ function FixtureRow({ f, cup, matches, name }: { f: Fixture; cup: Tournament; ma
   };
   return (
     <button onClick={() => (m ? go(m.status === "done" ? "result" : "live", m.id) : playFixture(cup.id, f.id))} className="press block w-full text-left">
-      <Card className={cx(f.stage === "final" && "!border-sun")}>
+      <Card className={cx(f.stage === "final" ? "!border-sun" : f.stage !== "league" && "!border-sun/50")}>
         <div className="mb-2 flex items-center justify-between text-xs font-semibold text-mute">
-          <span>{f.stage === "final" ? "🏆 FINAL" : `Match ${cup.fixtures.indexOf(f) + 1} · Round ${f.round}`}</span>
+          <span>{f.stage === "final" ? "🏆 FINAL" : f.stage === "league" ? `Match ${cup.fixtures.indexOf(f) + 1} · Round ${f.round}` : <span className="text-sun">{stageLabel(cup, f).toUpperCase()}</span>}</span>
           <span className={cx(m && m.status !== "done" ? "text-out" : res ? "text-teal" : "text-sun")}>{!m ? "Tap to play" : m.status === "done" ? "Result" : "● Live"}</span>
         </div>
         {([[f.a, 0], [f.b, 1]] as const).map(([id, s]) => (
@@ -137,7 +163,8 @@ export function Cup() {
   const [askDel, setAskDel] = useState(false);
   useEffect(() => {
     if (!cup) return;
-    const next = withFinal(cup, matches);
+    let next = cup;
+    for (let i = 0; i < 4; i++) next = advance(next, matches);
     if (next !== cup) putCup(next);
   }, [cup, matches, putCup]);
   if (!cup) return null;
@@ -145,7 +172,9 @@ export function Cup() {
   const table = standings(cup, matches);
   const champ = champion(cup, matches);
   const cupMatches = matches.filter((m) => cup.fixtures.some((f) => f.matchId === m.id));
-  const top = leaders(cupMatches);
+  const top = leaders(cupMatches, "limited");
+  const ko = cup.format === "knockout";
+  const through = cup.format === "league" ? 1 : cup.teamIds.length >= 4 && (cup.format === "ipl" || cup.format === "semis") ? 4 : 2;
 
   return (
     <div className="min-h-screen pb-10">
@@ -153,7 +182,8 @@ export function Cup() {
         {champ && <div className="mt-3 rounded-2xl bg-sun px-4 py-3 text-center text-ink"><p className="text-xs font-bold">CHAMPIONS</p><p className="text-2xl font-extrabold">🏆 {name(champ)}</p></div>}
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <Segmented value={tab} set={setTab} items={[{ v: "fix", label: "Fixtures" }, { v: "table", label: "Points table" }, { v: "stats", label: "Stats" }]} />
+        <p className="text-center text-xs text-mute">{formatLabel(cup.format)} · {cup.rules.overs} overs</p>
+        <Segmented value={tab} set={setTab} items={ko ? [{ v: "fix", label: "Fixtures" }, { v: "stats", label: "Stats" }] : [{ v: "fix", label: "Fixtures" }, { v: "table", label: "Points table" }, { v: "stats", label: "Stats" }]} />
         {tab === "fix" && [...cup.fixtures].sort((a, b) => a.round - b.round).map((f) => <FixtureRow key={f.id} f={f} cup={cup} matches={matches} name={name} />)}
         {tab === "table" && (
           <Card className="!p-0 overflow-hidden">
@@ -163,13 +193,13 @@ export function Cup() {
               </tr></thead>
               <tbody>{table.map((r, i) => (
                 <tr key={r.teamId} className="border-t border-line">
-                  <td className="px-3 py-3"><span className={cx("mr-2 font-bold", i < 2 ? "text-sun" : "text-mute")}>{i + 1}</span><span className="font-semibold text-fg">{name(r.teamId)}</span></td>
+                  <td className="px-3 py-3"><span className={cx("mr-2 font-bold", i < through ? "text-sun" : "text-mute")}>{i + 1}</span><span className="font-semibold text-fg">{name(r.teamId)}</span></td>
                   {[r.p, r.w, r.l, r.t].map((v, k) => <td key={k} className="px-1.5 text-right tabular-nums">{v}</td>)}
                   <td className="px-1.5 text-right font-bold text-fg tabular-nums">{r.pts}</td>
                   <td className={cx("px-1.5 pr-3 text-right tabular-nums", r.nrr > 0 ? "text-sun" : r.nrr < 0 ? "text-mute" : "")}>{r.nrr > 0 ? "+" : ""}{r.nrr.toFixed(3)}</td>
                 </tr>))}</tbody>
             </table>
-            <p className="border-t border-line px-3 py-2.5 text-xs text-mute">Win 2 points, tie 1. Net run rate: runs per over scored minus runs per over conceded.{cup.format === "league-final" ? " Top two play the final." : ""}</p>
+            <p className="border-t border-line px-3 py-2.5 text-xs text-mute">Win 2 points, tie 1. Net run rate: runs per over scored minus runs per over conceded.{cup.format === "league" ? "" : ` ${FORMATS.find((f) => f.v === cup.format)?.hint ?? ""}.`}</p>
           </Card>
         )}
         {tab === "stats" && (

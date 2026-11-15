@@ -1,7 +1,10 @@
 import type { Match } from "./engine/types";
 import type { SavedTeam, Tournament } from "./engine/tournament";
+import type { Series } from "./engine/series";
+import type { PlayerInfo } from "./playerInfo";
 
-export interface Backup { v: 1; matches: Match[]; teams: SavedTeam[]; cups: Tournament[] }
+/** series and infos are newer, so older backups don't have them. */
+export interface Backup { v: 1; matches: Match[]; teams: SavedTeam[]; cups: Tournament[]; series?: Series[]; infos?: Record<string, PlayerInfo> }
 
 /**
  * Login name for a mobile number. Indian numbers stay 10 digits, which existing accounts already use;
@@ -41,5 +44,7 @@ export function merge(local: Backup, cloud: Backup | null): Backup {
   }));
   const played = (c: Tournament) => c.fixtures.filter((f) => f.matchId).length;
   const cups = byId(local.cups, cloud.cups ?? [], (x, y) => (played(y) > played(x) ? y : x)).sort((x, y) => y.createdAt - x.createdAt);
-  return { v: 1, matches, teams, cups };
+  const series = byId(local.series ?? [], cloud.series ?? [], (x) => x).sort((x, y) => y.createdAt - x.createdAt);
+  const infos = { ...cloud.infos, ...local.infos };
+  return { v: 1, matches, teams, cups, series, infos };
 }

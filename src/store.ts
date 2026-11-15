@@ -3,12 +3,16 @@ import { persist } from "zustand/middleware";
 import * as E from "./engine/engine";
 import type { BallInput, Ev, Match, Player, Rules } from "./engine/types";
 import type { SavedTeam, Tournament } from "./engine/tournament";
+import type { Series } from "./engine/series";
+import type { Fmt } from "./stats";
+import type { PlayerInfo } from "./playerInfo";
+import { migrate, STORE_VERSION } from "./persist";
 import { track } from "./track";
 
 /** What the last match was set up with, so the next one starts filled in. */
 export interface LastSetup { a: string; b: string; na: string[]; nb: string[]; size: number; sa?: number; sb?: number; rules: Rules; common: string }
 
-export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch" | "join";
+export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch" | "join" | "series" | "newseries";
 
 /** Never goes backwards, so a phone with a slow clock still wins once it adopts the newer copy. */
 export const stamp = (m: Match, prev?: Match): Match => ({ ...m, editedAt: Math.max(Date.now(), (prev?.editedAt ?? 0) + 1) });
@@ -46,6 +50,16 @@ interface Store {
   joinToken: string | null;
   joinScoring: (code: string, key: JsonWebKey, token: string | null) => void;
   lastSetup: LastSetup | null;
+  series: Series[];
+  seriesId: string | null;      // series being shown
+  seriesPlay: string | null;    // series whose next match is being set up
+  putSeries: (s: Series) => void;
+  removeSeries: (id: string) => void;
+  playSeries: (id: string) => void;
+  infos: Record<string, PlayerInfo>;
+  setInfo: (name: string, info: PlayerInfo) => void;
+  fmt: Fmt;                     // stats format shown on the leaderboard and player pages
+  cupsTab: "cups" | "series";
 }
 
 export const useStore = create<Store>()(
@@ -63,7 +77,7 @@ export const useStore = create<Store>()(
           window.scrollTo(0, 0);
         },
         add: (m) => {
-          set({ matches: [m, ...get().matches], viewId: m.id, redo: [], fixture: null });
+          set({ matches: [m, ...get().matches], viewId: m.id, redo: [], fixture: null, seriesPlay: null });
           if (m.cup) {
             const c = get().cups.find((x) => x.id === m.cup!.id);
             if (c) get().putCup({ ...c, fixtures: c.fixtures.map((f) => (f.id === m.cup!.fixtureId ? { ...f, matchId: m.id } : f)) });
@@ -109,7 +123,17 @@ export const useStore = create<Store>()(
         joinKey: null,
         joinToken: null,
         joinScoring: (code, key, token) => { set({ joinCode: code, joinKey: key, joinToken: token, screen: "join" }); window.scrollTo(0, 0); },
-        playFixture: (cupId, fixtureId) => { set({ fixture: { cupId, fixtureId }, screen: "setup" }); window.scrollTo(0, 0); },
+        series: [],
+        seriesId: null,
+        seriesPlay: null,
+        putSeries: (x) => set({ series: get().series.some((y) => y.id === x.id) ? get().series.map((y) => (y.id === x.id ? x : y)) : [x, ...get().series] }),
+        removeSeries: (id) => set({ series: get().series.filter((x) => x.id !== id) }),
+        playSeries: (id) => { set({ seriesPlay: id, fixture: null, screen: "setup" }); window.scrollTo(0, 0); },
+        infos: {},
+        setInfo: (name, info) => set({ infos: { ...get().infos, [name.trim().toLowerCase()]: info } }),
+        fmt: "limited",
+        cupsTab: "cups",
+        playFixture: (cupId, fixtureId) => { set({ fixture: { cupId, fixtureId }, seriesPlay: null, screen: "setup" }); window.scrollTo(0, 0); },
         ball: (id, input) => { put(E.addBall(find(id), input)); set({ redo: [] }); },
         undo: (id) => {
           const { match, popped } = E.undo(find(id));
@@ -125,10 +149,10 @@ export const useStore = create<Store>()(
       };
     },
     {
-      name: "gully-scorer", version: 3,
-      partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" || s.screen === "join" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup }),
-      // v1 had no saved teams or tournaments, v2 no remembered setup.
-      migrate: (old) => ({ teams: [], cups: [], cupId: null, player: null, lastSetup: null, ...(old as object) }) as never,
+      name: "gully-scorer", version: STORE_VERSION,
+      partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" || s.screen === "join" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup,
+        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab }),
+      migrate: (old) => migrate(old) as never,
     },
   ),
 );

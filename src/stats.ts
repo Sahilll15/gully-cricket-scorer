@@ -1,25 +1,46 @@
 import * as E from "./engine/engine";
 import type { Match } from "./engine/types";
 
-export interface Leader { name: string; matches: number; runs: number; balls: number; sixes: number; fours: number; wickets: number; conceded: number; legal: number }
+export interface Fielding { catches: number; runOuts: number; stumpings: number }
+export interface Leader extends Fielding { name: string; matches: number; runs: number; balls: number; sixes: number; fours: number; wickets: number; conceded: number; legal: number; maidens: number }
 
 const AUTO = /^player \d+$/i;
 
-/** Career numbers across every saved match, keyed by player name. */
-export function leaders(matches: Match[]): Leader[] {
+/** Test and limited overs are never added together. Matches saved before Test mode count as limited overs. */
+export type Fmt = "limited" | "test";
+export const fmtOf = (m: Match): Fmt => (E.isTest(m) ? "test" : "limited");
+
+/** Fielders credited in one innings: catches (c & b too), run outs and stumpings, by player id. */
+function fielding(st: E.State): Map<string, Fielding> {
+  const out = new Map<string, Fielding>();
+  for (const b of st.bat.values()) {
+    const f = b.out?.fielder, k = b.out?.kind;
+    if (!f) continue;
+    const r = out.get(f) ?? { catches: 0, runOuts: 0, stumpings: 0 };
+    if (k === "caught" || k === "one-tip catch") r.catches++;
+    else if (k === "run out") r.runOuts++;
+    else if (k === "stumped") r.stumpings++;
+    out.set(f, r);
+  }
+  return out;
+}
+
+/** Career numbers in one format across every saved match, keyed by player name. */
+export function leaders(matches: Match[], fmt: Fmt): Leader[] {
   const rows = new Map<string, Leader & { seen: Set<string> }>();
-  for (const m of matches) {
+  for (const m of matches.filter((x) => fmtOf(x) === fmt)) {
     m.innings.forEach((_, i) => {
       const st = E.replay(m, i);
       const get = (id: string) => {
         const name = E.playerName(m, id), key = name.toLowerCase();
-        if (!rows.has(key)) rows.set(key, { name, matches: 0, runs: 0, balls: 0, sixes: 0, fours: 0, wickets: 0, conceded: 0, legal: 0, seen: new Set() });
+        if (!rows.has(key)) rows.set(key, { name, matches: 0, runs: 0, balls: 0, sixes: 0, fours: 0, wickets: 0, conceded: 0, legal: 0, maidens: 0, catches: 0, runOuts: 0, stumpings: 0, seen: new Set() });
         const r = rows.get(key)!;
         if (!r.seen.has(m.id)) { r.seen.add(m.id); r.matches++; }
         return r;
       };
       for (const b of st.bat.values()) { const r = get(b.id); r.runs += b.runs; r.balls += b.balls; r.sixes += b.sixes; r.fours += b.fours; }
-      for (const w of st.bowl.values()) { const r = get(w.id); r.wickets += w.wickets; r.conceded += w.runs; r.legal += w.legal; }
+      for (const w of st.bowl.values()) { const r = get(w.id); r.wickets += w.wickets; r.conceded += w.runs; r.legal += w.legal; r.maidens += w.maidens; }
+      for (const [id, f] of fielding(st)) { const r = get(id); r.catches += f.catches; r.runOuts += f.runOuts; r.stumpings += f.stumpings; }
     });
   }
   return [...rows.values()].filter((r) => !AUTO.test(r.name)).map(({ seen: _seen, ...r }) => r);
@@ -28,36 +49,38 @@ export function leaders(matches: Match[]): Leader[] {
 export const strikeRate = (runs: number, balls: number) => (balls ? (runs * 100) / balls : 0);
 export const economy = (runs: number, legal: number) => (legal ? (runs * 6) / legal : 0);
 
-export interface Profile {
-  name: string; matches: number;
+export interface Profile extends Fielding {
+  name: string; matches: number; maidens: number; wides: number; noBalls: number;
   innings: number; notOuts: number; runs: number; balls: number; best: number; bestNotOut: boolean; fours: number; sixes: number; thirties: number; fifties: number;
   bowlInnings: number; legal: number; conceded: number; wickets: number; bestW: number; bestR: number;
   recent: { matchId: string; date: number; vs: string; bat: string; bowl: string }[];
 }
 
-/** One player's career across every saved match, matched by name. */
-export function profile(matches: Match[], name: string): Profile {
+/** One player's career in one format, matched by name. */
+export function profile(matches: Match[], name: string, fmt: Fmt): Profile {
   const key = name.toLowerCase();
   const p: Profile = { name, matches: 0, innings: 0, notOuts: 0, runs: 0, balls: 0, best: 0, bestNotOut: false, fours: 0, sixes: 0, thirties: 0, fifties: 0,
-    bowlInnings: 0, legal: 0, conceded: 0, wickets: 0, bestW: 0, bestR: Infinity, recent: [] };
-  for (const m of [...matches].sort((a, b) => b.createdAt - a.createdAt)) {
+    bowlInnings: 0, legal: 0, conceded: 0, wickets: 0, bestW: 0, bestR: Infinity, recent: [], maidens: 0, wides: 0, noBalls: 0, catches: 0, runOuts: 0, stumpings: 0 };
+  for (const m of matches.filter((x) => fmtOf(x) === fmt).sort((a, b) => b.createdAt - a.createdAt)) {
     const side = m.teams.findIndex((t) => t.players.some((x) => x.name.toLowerCase() === key));
     if (side < 0) continue;
     const id = m.teams[side].players.find((x) => x.name.toLowerCase() === key)!.id;
     let played = false, bat = "", bowl = "";
     m.innings.forEach((_, i) => {
-      const st = E.replay(m, i), b = st.bat.get(id), w = st.bowl.get(id);
+      const st = E.replay(m, i), b = st.bat.get(id), w = st.bowl.get(id), f = fielding(st).get(id);
+      if (f) { played = true; p.catches += f.catches; p.runOuts += f.runOuts; p.stumpings += f.stumpings; }
       if (b) {
         played = true; p.innings++; p.runs += b.runs; p.balls += b.balls; p.fours += b.fours; p.sixes += b.sixes;
         if (!b.out) p.notOuts++;
         if (b.runs > p.best || (b.runs === p.best && !b.out)) { p.best = b.runs; p.bestNotOut = !b.out; }
         if (b.runs >= 50) p.fifties++; else if (b.runs >= 30) p.thirties++;
-        bat = `${b.runs}${b.out ? "" : "*"} (${b.balls})`;
+        bat = `${bat ? `${bat} & ` : ""}${b.runs}${b.out ? "" : "*"} (${b.balls})`;
       }
       if (w) {
         played = true; p.bowlInnings++; p.legal += w.legal; p.conceded += w.runs; p.wickets += w.wickets;
+        p.maidens += w.maidens; p.wides += w.wides; p.noBalls += w.noBalls;
         if (w.wickets > p.bestW || (w.wickets === p.bestW && w.runs < p.bestR)) { p.bestW = w.wickets; p.bestR = w.runs; }
-        bowl = `${w.wickets}/${w.runs}`;
+        bowl = `${bowl ? `${bowl} & ` : ""}${w.wickets}/${w.runs}`;
       }
     });
     if (!played) continue;
@@ -67,6 +90,10 @@ export function profile(matches: Match[], name: string): Profile {
   }
   return p;
 }
+
+export const bowlAverage = (p: Profile) => (p.wickets ? p.conceded / p.wickets : null);
+/** Balls bowled per wicket. */
+export const bowlStrikeRate = (p: Profile) => (p.wickets ? p.legal / p.wickets : null);
 
 export const average = (p: Profile) => (p.innings - p.notOuts ? p.runs / (p.innings - p.notOuts) : p.runs);
 

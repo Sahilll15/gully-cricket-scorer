@@ -2,8 +2,9 @@ import { useState } from "react";
 import * as E from "../engine/engine";
 import type { SavedTeam } from "../engine/tournament";
 import { useStore } from "../store";
-import { average, economy, profile, strikeRate } from "../stats";
-import { Badge, BottomNav, Card, ConfirmSheet, Header, PrimaryButton, Sheet } from "../ui";
+import { average, bowlAverage, bowlStrikeRate, economy, profile, strikeRate, type Fmt } from "../stats";
+import { infoLine, ROLES, STYLES, type PlayerInfo } from "../playerInfo";
+import { Badge, BottomNav, Card, ConfirmSheet, cx, FmtSwitch, Header, PrimaryButton, Sheet } from "../ui";
 
 function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void }) {
   const { putTeam, removeTeam, openPlayer } = useStore();
@@ -67,10 +68,52 @@ export function Teams() {
   );
 }
 
+function Choice<T extends string>({ items, value, set }: { items: readonly (readonly [T, string])[]; value: T | undefined; set: (v: T | undefined) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map(([v, label]) => (
+        <button key={v} onClick={() => set(value === v ? undefined : v)} aria-pressed={value === v}
+          className={cx("press min-h-11 rounded-full border px-4 text-sm font-semibold", value === v ? "border-sun bg-sun text-ink" : "border-line bg-key text-fg")}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; onClose: () => void }) {
+  const { setInfo } = useStore();
+  const [i, setI] = useState(info);
+  const put = (patch: Partial<PlayerInfo>) => setI({ ...i, ...patch });
+  const label = (t: string) => <p className="mb-2 mt-4 text-sm font-semibold text-teal first:mt-0">{t}</p>;
+  return (
+    <Sheet title={`About ${name}`} onClose={onClose}
+      footer={<PrimaryButton onClick={() => { setInfo(name, i); onClose(); }}>Save</PrimaryButton>}>
+      {label("Role")}
+      <Choice items={ROLES} value={i.role} set={(role) => put({ role })} />
+      {label("Bats")}
+      <Choice items={[["R", "Right-handed"], ["L", "Left-handed"]] as const} value={i.hand} set={(hand) => put({ hand })} />
+      {label("Bowls with")}
+      <Choice items={[["R", "Right arm"], ["L", "Left arm"]] as const} value={i.arm} set={(arm) => put({ arm })} />
+      {label("Bowling type")}
+      <Choice items={[["pace", "Pace"], ["spin", "Spin"]] as const} value={i.bowl} set={(bowl) => put({ bowl, style: undefined })} />
+      {i.bowl && <>
+        {label("Kind (optional)")}
+        <Choice items={STYLES[i.bowl].map((x) => [x, x] as const)} value={i.style} set={(style) => put({ style })} />
+      </>}
+    </Sheet>
+  );
+}
+
 export function PlayerProfile() {
-  const { matches, player, go } = useStore();
+  const { matches, player, go, fmt, infos } = useStore();
+  const [editing, setEditing] = useState(false);
   if (!player) return null;
-  const p = profile(matches, player);
+  const other: Fmt = fmt === "test" ? "limited" : "test";
+  // Open on the format they've actually played, without mixing the two.
+  const shown = profile(matches, player, fmt).matches || !profile(matches, player, other).matches ? fmt : other;
+  const p = profile(matches, player, shown);
+  const info = infos[player.trim().toLowerCase()] ?? {};
+  const line = infoLine(info);
+  const num = (v: number | null, d = 1) => (v === null ? "-" : v.toFixed(d));
   const stat = (k: string, v: string | number) => (
     <div className="min-w-0 rounded-2xl bg-key px-1 py-3 text-center"><p className="text-xl font-extrabold text-fg tabular-nums">{v}</p><p className="text-[10px] font-medium leading-tight text-mute min-[360px]:text-[11px]">{k}</p></div>
   );
@@ -80,10 +123,13 @@ export function PlayerProfile() {
         <div className="mt-2 flex flex-col items-center">
           <Badge name={p.name} size={72} />
           <p className="mt-2 text-2xl font-extrabold text-fg">{p.name}</p>
-          <p className="text-sm text-mute">{p.matches} match{p.matches === 1 ? "" : "es"}</p>
+          <p className="text-center text-sm text-fg/80">{line || "Role and bowling style not set"}</p>
+          <button onClick={() => setEditing(true)} className="press mt-2 min-h-10 rounded-full border border-line bg-key px-4 text-sm font-semibold text-sun">✎ Edit player details</button>
         </div>
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
+        <FmtSwitch value={shown} set={(v) => useStore.setState({ fmt: v })} />
+        <p className="text-center text-sm text-mute">{p.matches ? `${p.matches} ${shown === "test" ? "Test" : "limited-overs"} match${p.matches === 1 ? "" : "es"}` : `No ${shown === "test" ? "Test" : "limited-overs"} matches yet`}</p>
         <Card>
           <p className="mb-3 text-sm font-semibold text-teal">Batting</p>
           <div className="grid grid-cols-4 gap-2">
@@ -95,8 +141,16 @@ export function PlayerProfile() {
         <Card>
           <p className="mb-3 text-sm font-semibold text-teal">Bowling</p>
           <div className="grid grid-cols-4 gap-2">
-            {stat("Wickets", p.wickets)}{stat("Best", p.bowlInnings ? `${p.bestW}/${p.bestR === Infinity ? 0 : p.bestR}` : "-")}{stat("Economy", economy(p.conceded, p.legal).toFixed(1))}{stat("Overs", E.oversText(p.legal))}
+            {stat("Overs", E.oversText(p.legal))}{stat("Runs", p.conceded)}{stat("Wickets", p.wickets)}{stat("Best", p.bowlInnings ? `${p.bestW}/${p.bestR === Infinity ? 0 : p.bestR}` : "-")}
+            {stat("Economy", economy(p.conceded, p.legal).toFixed(1))}{stat("Average", num(bowlAverage(p)))}{stat("Strike rate", num(bowlStrikeRate(p)))}{stat("Maidens", p.maidens)}
+            {stat("Wides", p.wides)}{stat("No-balls", p.noBalls)}
           </div>
+          <p className="mt-2 text-xs text-mute">Bowling strike rate is balls bowled per wicket.</p>
+        </Card>
+        <Card>
+          <p className="mb-3 text-sm font-semibold text-teal">Fielding</p>
+          <div className="grid grid-cols-3 gap-2">{stat("Catches", p.catches)}{stat("Run outs", p.runOuts)}{stat("Stumpings", p.stumpings)}</div>
+          <p className="mt-2 text-xs text-mute">Counted when you name the fielder on the wicket.</p>
         </Card>
         {p.recent.length > 0 && (
           <Card className="!p-0 overflow-hidden">
@@ -112,6 +166,7 @@ export function PlayerProfile() {
         )}
         <PrimaryButton tone="navy" onClick={() => go("stats")}>Back to leaderboard</PrimaryButton>
       </main>
+      {editing && <InfoEditor name={p.name} info={info} onClose={() => setEditing(false)} />}
     </div>
   );
 }

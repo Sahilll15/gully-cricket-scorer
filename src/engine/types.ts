@@ -66,6 +66,7 @@ export interface Match {
   innings: Innings[];
   status: Status;
   cup?: { id: string; fixtureId: string };
+  series?: { id: string };   // side 0 is the series' team a
   live?: string;   // share code while viewers can follow this match
   liveKey?: JsonWebKey;   // scorer-only signing key; stripped before broadcast
   liveFp?: string;   // fingerprint of that key, put in the share link

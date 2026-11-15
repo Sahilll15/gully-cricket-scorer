@@ -23,7 +23,7 @@ type Sync = "idle" | "saving" | "saved" | "error";
 interface Account { phone: string | null; sync: Sync; savedAt: number | null }
 export const useAccount = create<Account>(() => ({ phone: null, sync: "idle", savedAt: null }));
 
-const snapshot = (): Backup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups }; };
+const snapshot = (): Backup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos }; };
 
 async function pull(): Promise<Backup | null> {
   const { data, error } = await db().from("gully_backups").select("data").maybeSingle();
@@ -41,7 +41,7 @@ async function push() {
 /** Pulls the account's copy, merges it into this phone, and saves the result back. */
 async function syncNow() {
   const both = merge(snapshot(), await pull());
-  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups });
+  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {} });
   merged = true;
   await push();
 }
@@ -83,7 +83,7 @@ export function startAccountSync() {
     if (data.session && phone) void startSession(data.session.user.id, phone);
   });
   const unsub = useStore.subscribe((s, prev) => {
-    if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups)) return;
+    if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos)) return;
     clearTimeout(timer);
     timer = setTimeout(() => void push(), 3000);
   });

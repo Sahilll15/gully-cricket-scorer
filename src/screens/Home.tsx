@@ -6,6 +6,8 @@ import { AccountButton, BackupCard } from "../accountUi";
 import type { Match } from "../engine/types";
 import { useStore } from "../store";
 import { leaders } from "../stats";
+import { seriesScore } from "../engine/series";
+import { seriesNames, SeriesNext } from "./Series";
 import { Badge, BottomNav, Card, LivePill, PrimaryButton, Sheet } from "../ui";
 
 export function MatchCard({ m }: { m: Match }) {
@@ -39,12 +41,13 @@ export function MatchCard({ m }: { m: Match }) {
 }
 
 export default function Home() {
-  const { matches, go, watchMatch } = useStore();
+  const { matches, go, watchMatch, series } = useStore();
+  const going = series.filter((s) => { const sc = seriesScore(s, matches); return sc.current || sc.next !== null; }).slice(0, 2);
   const [ask, setAsk] = useState(false);
   const [code, setCode] = useState("");
   const live = matches.filter((m) => m.status === "live" || m.status === "break");
   const done = matches.filter((m) => m.status === "done").slice(0, 3);
-  const all = leaders(matches);
+  const all = [...leaders(matches, "limited"), ...leaders(matches, "test")];
   const total = (k: "runs" | "sixes" | "wickets") => all.reduce((s, r) => s + r[k], 0);
 
   return (
@@ -64,6 +67,15 @@ export default function Home() {
       </header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-5">
         <PrimaryButton onClick={() => go("setup")}>+ Start new match</PrimaryButton>
+        {going.map((s) => (
+          <Card key={s.id} className="!p-3">
+            <button onClick={() => { useStore.setState({ seriesId: s.id }); go("series"); }} className="press mb-2 flex w-full items-center justify-between px-1 text-left text-sm">
+              <span className="truncate font-semibold text-fg">{s.name}</span>
+              <span className="shrink-0 pl-2 text-mute">{seriesScore(s, matches).text(seriesNames(s))} ›</span>
+            </button>
+            <SeriesNext s={s} matches={matches} />
+          </Card>
+        ))}
         {liveSupported && <button onClick={() => setAsk(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">📡 Watch a live match</button>}
         {done.length > 0 && (
           // Same site as /cards/, so Gully Cards reads these matches straight from this phone.

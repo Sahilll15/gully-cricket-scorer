@@ -5,6 +5,7 @@ import { useMatch, useStore } from "../store";
 import { OpenersSheet } from "../sheets";
 import { scorecardImage, shareImage, shareText } from "../share";
 import { Badge, Card, Header, PrimaryButton } from "../ui";
+import { SeriesAfterMatch } from "./Series";
 
 function Confetti() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -61,6 +62,7 @@ export default function Result() {
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         {canSuper && canScore(m) && <PrimaryButton tone="navy" onClick={() => setSuperOver(true)}>Play a super over</PrimaryButton>}
+        {m.series && <SeriesAfterMatch m={m} />}
         {aw.potm && (
           <Card className="flex items-center gap-4 !bg-raised text-white">
             <Badge name={aw.potm.name} size={56} />
@@ -82,7 +84,7 @@ export default function Result() {
           {canScore(m) && <button onClick={() => undo(m.id)} className="press min-h-12 rounded-2xl bg-panel font-semibold text-mute">↶ Undo last ball</button>}
         </div>
         <a href="/cards/" className="press flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-line bg-panel font-semibold text-teal">Who played best? Make everyone's player card</a>
-        {m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>
+        {m.series ? null : m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>
           : <PrimaryButton tone="navy" onClick={() => go("setup")}>Play again, same teams</PrimaryButton>}
       </main>
       {superOver && <OpenersSheet match={m} onClose={() => setSuperOver(false)} onStart={(n) => { put(n); setSuperOver(false); go("live"); }} />}

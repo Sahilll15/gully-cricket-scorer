@@ -159,3 +159,8 @@ export function ConfirmSheet({ title, body, yes, danger, onYes, onClose }: {
     </Sheet>
   );
 }
+
+/** Test and limited-overs stats are kept apart; this picks which one a screen shows. */
+export function FmtSwitch({ value, set }: { value: "limited" | "test"; set: (v: "limited" | "test") => void }) {
+  return <Segmented value={value} set={set} items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test" }]} />;
+}

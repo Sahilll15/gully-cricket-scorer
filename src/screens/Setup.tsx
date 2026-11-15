@@ -3,6 +3,7 @@ import * as E from "../engine/engine";
 import type { Match, Player, Rules, Side, Team } from "../engine/types";
 import { useStore } from "../store";
 import { playerPool } from "../stats";
+import { seriesScore } from "../engine/series";
 import { track } from "../track";
 import { OpenersSheet } from "../sheets";
 import { Badge, Card, cx, Header, Pill, PrimaryButton, Segmented, Sheet, Stepper, Toggle } from "../ui";
@@ -15,9 +16,9 @@ const DEFAULT_RULES: Rules = {
 /** Splits "Rahul, Amit\nSam" into names, so a squad can be pasted in one go. */
 const splitNames = (v: string) => v.split(/[,\n]/).map((n) => n.trim()).filter(Boolean);
 
-function TeamCard({ label, name, setName, names, setNames, size, setSize, locked, other, known }: {
+function TeamCard({ label, name, setName, names, setNames, size, setSize, locked, lockName, other, known }: {
   label: string; name: string; setName: (s: string) => void; names: string[]; setNames: (n: string[]) => void;
-  size: number; setSize: (n: number) => void; locked?: boolean; other: string; known: string[];
+  size: number; setSize: (n: number) => void; locked?: boolean; lockName?: boolean; other: string; known: string[];
 }) {
   const saved = useStore((s) => s.teams).filter((t) => t.name !== other);
   const [v, setV] = useState("");
@@ -31,11 +32,11 @@ function TeamCard({ label, name, setName, names, setNames, size, setSize, locked
     <Card>
       <label className="flex items-center gap-3">
         <Badge name={name || label} />
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={label} maxLength={18} readOnly={locked} aria-label={`${label} name`}
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={label} maxLength={18} readOnly={locked || lockName} aria-label={`${label} name`}
           className="min-h-12 flex-1 rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none placeholder:text-mute focus:ring-2 focus:ring-sun" />
-        {!locked && <span className="text-mute" aria-hidden>✎</span>}
+        {!locked && !lockName && <span className="text-mute" aria-hidden>✎</span>}
       </label>
-      {!locked && saved.length > 0 && (
+      {!locked && !lockName && saved.length > 0 && (
         <div className="mt-3">
           <p className="mb-1.5 text-xs font-semibold text-mute">Your teams</p>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -117,10 +118,11 @@ const roster = (named: string[], size: number): Player[] => {
 const OVERS = [3, 4, 5, 6, 10];
 
 export default function Setup() {
-  const { go, add, put, fixture, cups, teams, matches, saveTeam, lastSetup } = useStore();
+  const { go, add, put, fixture, cups, teams, matches, saveTeam, lastSetup, seriesPlay, series: allSeries } = useStore();
   const cup = fixture ? cups.find((c) => c.id === fixture.cupId) : undefined;
   const fx = cup?.fixtures.find((f) => f.id === fixture?.fixtureId);
-  const last = cup ? null : lastSetup;
+  const series = !cup && seriesPlay ? allSeries.find((x) => x.id === seriesPlay) : undefined;
+  const last = cup || series ? null : lastSetup;
   const [a, setA] = useState(last?.a ?? "Team A"), [b, setB] = useState(last?.b ?? "Team B");
   const [na, setNa] = useState<string[]>(last?.na ?? []), [nb, setNb] = useState<string[]>(last?.nb ?? []);
   const [sa, setSa] = useState(last?.sa ?? last?.size ?? 6), [sb, setSb] = useState(last?.sb ?? last?.size ?? 6);
@@ -145,6 +147,16 @@ export default function Setup() {
     if (tb) { setB(tb.name); setNb(tb.players.map((p) => p.name)); }
     setRules(cup.rules);
   }, [cup, fx, teams]);
+  useEffect(() => {
+    if (!series) return;
+    const ta = teams.find((t) => t.id === series.a), tb = teams.find((t) => t.id === series.b);
+    if (ta) { setA(ta.name); setNa(ta.players.map((p) => p.name)); }
+    if (tb) { setB(tb.name); setNb(tb.players.map((p) => p.name)); }
+    setRules(series.rules);
+    // Only when the series changes: later edits to the players here are kept.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series?.id]);
+  const seriesNo = series ? seriesScore(series, matches) : null;
 
   // Naming players sets that team's size, so nobody gets "Player 5" padding they didn't ask for.
   useEffect(() => { if (na.length) setSa(na.length); }, [na.length]);
@@ -175,8 +187,9 @@ export default function Setup() {
     const m = E.newMatch(pair, test ? { ...rules, maxOversPerBowler: null } : { ...rules, format: undefined, matchOvers: undefined });
     m.toss = t;
     if (cup && fx) m.cup = { id: cup.id, fixtureId: fx.id };
+    if (series) m.series = { id: series.id };
     for (const t of pair) if (!/^team [ab]$/i.test(t.name)) saveTeam(t.name, t.players.filter((p) => p.id !== c?.id));
-    track("match_start", { overs: test ? 0 : rules.overs, test: test ? 1 : 0, players: Math.max(sa, sb), cup: cup ? 1 : 0, common: c ? 1 : 0 });
+    track("match_start", { overs: test ? 0 : rules.overs, test: test ? 1 : 0, players: Math.max(sa, sb), cup: cup ? 1 : 0, series: series ? 1 : 0, common: c ? 1 : 0 });
     setTossOpen(false);
     setPending(m);
   }
@@ -187,25 +200,29 @@ export default function Setup() {
 
   return (
     <div className="min-h-screen pb-36">
-      <Header title={cup ? cup.name : "New Match"} back={() => { useStore.setState({ fixture: null }); go(cup ? "cup" : "home"); }} />
+      <Header title={cup ? cup.name : series ? series.name : "New Match"} back={() => { useStore.setState({ fixture: null, seriesPlay: null }); go(cup ? "cup" : series ? "series" : "home"); }} />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         {last && <div className="flex items-center justify-between gap-3 rounded-2xl bg-sun-soft px-4 py-2 text-sm text-fg">
           <span>Filled in from your last match</span>
           <button onClick={clear} className="press min-h-10 shrink-0 font-semibold text-sun">Start fresh</button>
         </div>}
-        <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={sa} setSize={setSa} locked={!!cup} other={b} known={known} />
+        {series && seriesNo && <div className="rounded-2xl bg-sun-soft px-4 py-3 text-sm text-fg">
+          <p className="font-bold">Match {seriesNo.played + 1} of {series.games} · {series.rules.format === "test" ? "Test" : `${series.rules.overs} overs`}</p>
+          <p className="text-fg/80">{seriesNo.text([a, b])}. Teams and rules are filled in from the series.</p>
+        </div>}
+        <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={sa} setSize={setSa} locked={!!cup} lockName={!!series} other={b} known={known} />
         <div className="flex items-center justify-center gap-3">
           <span className="text-xs font-extrabold tracking-[0.3em] text-mute">VS</span>
-          {!cup && na.length + nb.length >= 2 && <button onClick={() => shuffle()} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>}
+          {!cup && !series && na.length + nb.length >= 2 && <button onClick={() => shuffle()} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>}
         </div>
-        {!cup && pool.length >= 2 && <button onClick={() => setPicking(true)} className="press min-h-12 w-full rounded-2xl border-2 border-dashed border-sun bg-sun-soft font-semibold text-fg">
+        {!cup && !series && pool.length >= 2 && <button onClick={() => setPicking(true)} className="press min-h-12 w-full rounded-2xl border-2 border-dashed border-sun bg-sun-soft font-semibold text-fg">
           Pick today's players from {pool.length} saved</button>}
-        <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={sb} setSize={setSb} locked={!!cup} other={a} known={known} />
+        <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={sb} setSize={setSb} locked={!!cup} lockName={!!series} other={a} known={known} />
 
-        {!cup && <Segmented value={test ? "test" : "limited"} set={(v) => setRules({ ...rules, format: v === "test" ? "test" : undefined })}
+        {!cup && !series && <Segmented value={test ? "test" : "limited"} set={(v) => setRules({ ...rules, format: v === "test" ? "test" : undefined })}
           items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test match" }]} />}
 
-        {test ? <Card>
+        {series ? null : test ? <Card>
           <p className="text-sm font-semibold text-teal">Test match</p>
           <p className="mt-1 text-sm text-mute">Each team bats twice, with no over limit. An innings ends when the team is all out or declares. If the team batting first is ahead after both first innings, they can make the other team follow on.</p>
           <div className="mt-1 border-t border-line">
@@ -280,7 +297,7 @@ export default function Setup() {
         onSplit={(list) => { shuffle(list); setPicking(false); }} />}
       {pending && <OpenersSheet match={pending} onClose={() => setPending(null)}
         onStart={(m) => {
-          if (!m.cup) useStore.setState({ lastSetup: { a, b, na, nb, size: Math.max(sa, sb), sa, sb, rules, common } });
+          if (!m.cup && !m.series) useStore.setState({ lastSetup: { a, b, na, nb, size: Math.max(sa, sb), sa, sb, rules, common } });
           add(m); put(m); go("live", m.id);
         }} />}
     </div>

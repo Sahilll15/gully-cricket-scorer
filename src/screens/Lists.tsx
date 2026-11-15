@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
-import { economy, leaders, strikeRate } from "../stats";
-import { Badge, BottomNav, Card, ConfirmSheet, Header, Segmented } from "../ui";
+import { economy, fmtOf, leaders, strikeRate } from "../stats";
+import { Badge, BottomNav, Card, ConfirmSheet, FmtSwitch, Header, Segmented } from "../ui";
 import type { Match } from "../engine/types";
 import { MatchCard } from "./Home";
 
@@ -37,23 +37,27 @@ export function History() {
   );
 }
 
-type Board = "runs" | "wickets" | "sr" | "sixes";
+type Board = "runs" | "wickets" | "sr" | "sixes" | "field";
 
 export function Stats() {
-  const { matches, openPlayer } = useStore();
+  const { matches, openPlayer, fmt } = useStore();
   const [b, setB] = useState<Board>("runs");
-  const all = leaders(matches);
+  const all = leaders(matches, fmt);
+  const dismissals = (r: (typeof all)[number]) => r.catches + r.runOuts + r.stumpings;
   const rows = {
-    runs: [...all].filter((r) => r.runs).sort((x, y) => y.runs - x.runs).map((r) => [r, `${r.runs}`, `${r.balls} balls · ${r.matches} matches`] as const),
+    runs: [...all].filter((r) => r.runs).sort((x, y) => y.runs - x.runs).map((r) => [r, `${r.runs}`, `${r.balls} balls · ${r.matches} match${r.matches === 1 ? "" : "es"}`] as const),
     wickets: [...all].filter((r) => r.wickets).sort((x, y) => y.wickets - x.wickets || x.conceded - y.conceded).map((r) => [r, `${r.wickets}`, `econ ${economy(r.conceded, r.legal).toFixed(1)}`] as const),
     sr: [...all].filter((r) => r.balls >= 10).sort((x, y) => strikeRate(y.runs, y.balls) - strikeRate(x.runs, x.balls)).map((r) => [r, strikeRate(r.runs, r.balls).toFixed(0), `${r.runs} off ${r.balls}`] as const),
     sixes: [...all].filter((r) => r.sixes).sort((x, y) => y.sixes - x.sixes).map((r) => [r, `${r.sixes}`, `${r.fours} fours too`] as const),
+    field: [...all].filter(dismissals).sort((x, y) => dismissals(y) - dismissals(x) || y.catches - x.catches)
+      .map((r) => [r, `${dismissals(r)}`, `${r.catches} caught · ${r.runOuts} run out · ${r.stumpings} stumped`] as const),
   }[b];
   return (
     <div className="min-h-screen pb-28">
       <Header title="Leaderboard" />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wickets" }, { v: "sr", label: "Strike rate" }, { v: "sixes", label: "Sixes" }]} />
+        <FmtSwitch value={fmt} set={(v) => useStore.setState({ fmt: v })} />
+        <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <p className="text-center text-xs text-mute">Players with at least 10 balls faced</p>}
         <Card className="!p-0 overflow-hidden">
           {rows.map(([r, big, sub], i) => (
@@ -64,7 +68,9 @@ export function Stats() {
               <span className="text-2xl font-extrabold text-fg tabular-nums">{big}</span>
             </button>
           ))}
-          {!rows.length && <p className="p-6 text-center text-sm text-mute">Name your players when setting up a match and they show up here.</p>}
+          {!rows.length && <p className="p-6 text-center text-sm text-mute">{matches.some((m) => fmtOf(m) === fmt)
+            ? b === "field" ? "Name the fielder when you record a catch, run out or stumping, and it counts here." : "Nothing here yet."
+            : fmt === "test" ? "No Test matches yet. Pick Test match when you set one up." : "Name your players when setting up a match and they show up here."}</p>}
         </Card>
       </main>
       <BottomNav />
