@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AdBox } from "../ad";
 import { canScore } from "../device";
 import * as E from "../engine/engine";
 import { useMatch, useStore } from "../store";
@@ -86,6 +87,7 @@ export default function Result() {
         <a href="/cards/" className="press flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-line bg-panel font-semibold text-teal">Who played best? Make everyone's player card</a>
         {m.series ? null : m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>
           : <PrimaryButton tone="navy" onClick={() => go("setup")}>Play again, same teams</PrimaryButton>}
+        <div className="pt-6"><AdBox /></div>
       </main>
       {superOver && <OpenersSheet match={m} onClose={() => setSuperOver(false)} onStart={(n) => { put(n); setSuperOver(false); go("live"); }} />}
     </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { economy, fmtOf, leaders, strikeRate } from "../stats";
+import { AdBox } from "../ad";
 import { Badge, BottomNav, Card, ConfirmSheet, FmtSwitch, Header, Segmented } from "../ui";
 import type { Match } from "../engine/types";
 import { MatchCard } from "./Home";
@@ -32,6 +33,7 @@ export function History() {
       </main>
       {ask && <ConfirmSheet title="Delete this match?" body={`${ask.teams[0].name} vs ${ask.teams[1].name}. Its runs and wickets come off everyone's stats.`}
         yes="Delete" danger onYes={() => remove(ask.id)} onClose={() => setAsk(null)} />}
+      <AdBox />
       <BottomNav />
     </div>
   );
@@ -73,6 +75,7 @@ export function Stats() {
             : fmt === "test" ? "No Test matches yet. Pick Test match when you set one up." : "Name your players when setting up a match and they show up here."}</p>}
         </Card>
       </main>
+      <AdBox />
       <BottomNav />
     </div>
   );

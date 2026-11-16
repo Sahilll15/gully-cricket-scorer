@@ -8,6 +8,7 @@ import { useStore } from "../store";
 import { leaders } from "../stats";
 import { seriesScore } from "../engine/series";
 import { seriesNames, SeriesNext } from "./Series";
+import { AdBox } from "../ad";
 import { Badge, BottomNav, Card, LivePill, PrimaryButton, Sheet } from "../ui";
 
 export function MatchCard({ m }: { m: Match }) {
@@ -105,6 +106,7 @@ export default function Home() {
           </form>
         </Sheet>
       )}
+      <AdBox />
       <BottomNav />
     </div>
   );
