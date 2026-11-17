@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addBall, afterWicket, newMatch, startInnings } from "./engine/engine";
+import { addBall, afterWicket, newMatch, result, startInnings, startSolo, startTurn } from "./engine/engine";
 import type { BallInput, Match, Rules, Team } from "./engine/types";
 import { bowlAverage, bowlStrikeRate, fmtOf, leaders, profile } from "./stats";
 
@@ -102,5 +102,40 @@ describe("fielding", () => {
     m = startInnings(m, "A1", "A2", "B1");
     m = out(m, "caught");
     expect(leaders([m], "limited").reduce((s, x) => s + x.catches, 0)).toBe(0);
+  });
+});
+
+describe("solo matches", () => {
+  /** Aarav makes 7 off 4 in two turns and bowls both of Bilal's; Chetan catches Bilal off Aarav in round 1. */
+  function soloMatch(): Match {
+    const dismissed = (fielderId?: string): BallInput => ({ runs: 0, wicket: { kind: "caught", out: "s", newId: null, ...(fielderId && { fielderId }) } });
+    let m = startSolo(["Aarav", "Bilal", "Chetan"].map((n) => ({ id: n.toLowerCase(), name: n })), { rounds: 2, ballsPerTurn: 2 });
+    m = play(m, r(6), r(1));
+    m = play(startTurn(m, "aarav"), r(4), dismissed("chetan"));
+    m = play(startTurn(m), dismissed());
+    m = play(startTurn(m, "chetan"), r(0), dismissed());
+    m = play(startTurn(m), dismissed());
+    return play(startTurn(m), dismissed());
+  }
+
+  it("count as limited overs, each turn as an innings", () => {
+    const m = soloMatch();
+    expect(m.status).toBe("done");
+    expect(fmtOf(m)).toBe("limited");
+    const p = profile([m, limited()], "Aarav", "limited");
+    expect([p.runs, p.balls, p.innings, p.notOuts, p.matches]).toEqual([7, 4, 2, 1, 1]);
+    expect(p.recent[0].vs).toBe("Solo with 2 others");
+    expect(profile([m], "Aarav", "test").matches).toBe(0);
+  });
+
+  it("credit bowling and fielding", () => {
+    const m = soloMatch();
+    expect(profile([m], "Aarav", "limited").wickets).toBe(2);
+    expect(profile([m], "Chetan", "limited").catches).toBe(1);
+    expect(leaders([m], "limited").find((x) => x.name === "Bilal")!.runs).toBe(4);
+  });
+
+  it("never give a side a win", () => {
+    expect(result(soloMatch())!.winner).toBeNull();
   });
 });

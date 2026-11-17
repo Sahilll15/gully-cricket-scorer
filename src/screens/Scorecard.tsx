@@ -4,8 +4,9 @@ import type { Ball } from "../engine/types";
 import { useMatch, useStore } from "../store";
 import { EditBallSheet } from "../sheets";
 import { canScore } from "../device";
-import { shareImage } from "../share";
-import { economy, strikeRate } from "../stats";
+import { printScoresheet, shareImage } from "../share";
+import { ChartsTab, MvpTab } from "../chartsView";
+import { strikeRate } from "../stats";
 import { Badge, BallChip, Card, cx, Header, LivePill, PrimaryButton, Segmented } from "../ui";
 
 export default function Scorecard() {
@@ -13,6 +14,7 @@ export default function Scorecard() {
   const { go, put } = useStore();
   const [idx, setIdx] = useState(() => Math.max(0, (m?.innings.length ?? 1) - 1));
   const [edit, setEdit] = useState<number | null>(null);
+  const [tab, setTab] = useState<"card" | "charts" | "mvp">("card");
   if (!m || !m.innings.length) return null;
 
   const inn = m.innings[idx], st = E.replay(m, idx), name = (id: string) => E.playerName(m, id);
@@ -23,6 +25,97 @@ export default function Scorecard() {
   };
   const short = (s: string) => s.split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
   let evCursor = 0;
+  const balls = (
+    <Card className="mt-3">
+      <p className="mb-2 font-semibold text-teal">Ball by ball{E.isSolo(m) ? `, ${E.inningsLabel(m, idx)}` : ""} <span className="text-xs font-normal text-mute">· tap a ball to correct it</span></p>
+      {st.overs.map((over, o) => (
+        <div key={o} className="flex items-center gap-2 border-t border-line py-2 first:border-0">
+          <span className="w-12 shrink-0 text-xs font-semibold text-mute">Ov {o + 1}</span>
+          <div className="flex flex-wrap gap-1.5">{over.map((b: Ball, i) => {
+            while (inn.events[evCursor] && inn.events[evCursor].t !== "ball") evCursor++;
+            const at = evCursor++;
+            return <BallChip key={i} b={b} size={32} onClick={canScore(m) ? () => setEdit(at) : undefined} />;
+          })}</div>
+          <span className="ml-auto text-sm font-bold text-fg tabular-nums">{over.reduce((n, b) => n + E.ballTotal(b, m.rules), 0)}</span>
+        </div>
+      ))}
+      {!st.overs.length && <p className="text-sm text-mute">No balls yet.</p>}
+    </Card>
+  );
+  const tabs = <Segmented value={tab} set={setTab} items={[{ v: "card", label: "Scorecard" }, { v: "charts", label: "Charts" }, { v: "mvp", label: "MVP" }]} />;
+  const actions = (
+    <div className="mt-4 space-y-2">
+      <PrimaryButton onClick={() => shareImage(m, "full")}>Send this scorecard on WhatsApp</PrimaryButton>
+      <button onClick={() => printScoresheet(m)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Save scoresheet as PDF</button>
+    </div>
+  );
+  const editSheet = edit !== null && inn.events[edit]?.t === "ball" && (
+    <EditBallSheet ball={inn.events[edit] as Ball} onClose={() => setEdit(null)}
+      onSave={(p) => { put(E.editBall(m, idx, edit, p)); setEdit(null); }} />
+  );
+
+  if (E.isSolo(m)) {
+    const rows = E.soloStandings(m), res = E.result(m), lead = rows[0];
+    const bowlers = rows.filter((r) => r.bowled > 0).sort((a, b) => b.wickets - a.wickets || a.conceded - b.conceded);
+    return (
+      <div className="min-h-screen pb-10">
+        <Header title="Match Score Board" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
+          <p className="mt-2 text-center text-sm text-mute">{E.formatText(m)}</p>
+          <p className="mt-1 text-center text-lg font-bold text-sun">{res?.text ?? (lead && lead.turns ? `${lead.name} leads with ${lead.runs}` : "First turn under way")}</p>
+        </Header>
+        <main className="mx-auto max-w-[480px] px-4 pt-4">
+          {tabs}
+          <div className="mt-4">{tab === "charts" ? <ChartsTab m={m} idx={idx} pick={setIdx} /> : tab === "mvp" ? <MvpTab m={m} /> : <>
+          <p className="mb-2 text-sm font-semibold text-teal">Batting, turn by turn <span className="text-xs font-normal text-mute">· tap a turn for its balls</span></p>
+          <Card className="!p-0 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-key text-left text-xs text-fg">
+                <th className="px-3 py-2.5 font-semibold">Turn</th>{["R", "B", "4s", "6s", "SR"].map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
+              </tr></thead>
+              <tbody>{m.innings.map((t, i) => {
+                const s = E.replay(m, i), b = s.bat.get(t.striker), ex = s.extras.wd + s.extras.nb + s.extras.b + s.extras.lb;
+                const lost = t.wicketLimit > 1 && s.wickets && s.wickets < t.wicketLimit ? `, lost ${s.wickets} of ${t.wicketLimit} lives` : "";
+                const now = live && i === m.innings.length - 1 && m.status === "live";
+                return (
+                  <tr key={i} onClick={() => setIdx(i)} className={cx("cursor-pointer border-t border-line", i === idx && "bg-sun-soft")}>
+                    <td className="px-3 py-2.5"><p className="font-semibold text-fg">{E.inningsLabel(m, i)}{now ? " *" : ""}</p>
+                      <p className="text-xs text-mute">{b ? E.howOut(m, b) : "not out"}{lost}{ex ? `, ${ex} extras` : ""}</p></td>
+                    <td className="px-1.5 text-right font-bold text-fg tabular-nums">{s.runs}</td>
+                    <td className="px-1.5 text-right tabular-nums">{b?.balls ?? 0}</td>
+                    <td className="px-1.5 text-right tabular-nums">{b?.fours ?? 0}</td>
+                    <td className="px-1.5 text-right tabular-nums">{b?.sixes ?? 0}</td>
+                    <td className="px-1.5 pr-3 text-right tabular-nums">{strikeRate(s.runs, b?.balls ?? 0).toFixed(0)}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </Card>
+
+          <p className="mt-5 mb-2 text-sm font-semibold text-teal">Bowling</p>
+          <Card className="!p-0 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-key text-left text-xs text-fg">
+                <th className="px-3 py-2.5 font-semibold">Bowler</th>{["O", "R", "W", "Econ"].map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
+              </tr></thead>
+              <tbody>{bowlers.map((r) => (
+                <tr key={r.id} className="border-t border-line">
+                  <td className="px-3 py-3 font-semibold text-fg">{r.name}</td>
+                  <td className="px-1.5 text-right tabular-nums">{E.oversText(r.bowled, E.ballsPerOver(m.rules))}</td>
+                  <td className="px-1.5 text-right tabular-nums">{r.conceded}</td>
+                  <td className="px-1.5 text-right font-bold text-fg tabular-nums">{r.wickets}</td>
+                  <td className="px-1.5 pr-3 text-right tabular-nums">{E.runRate(r.conceded, r.bowled, E.ballsPerOver(m.rules)).toFixed(1)}</td>
+                </tr>))}</tbody>
+            </table>
+            {!bowlers.length && <p className="px-3 py-3 text-sm text-mute">No balls yet.</p>}
+          </Card>
+          {balls}
+          </>}</div>
+          {actions}
+        </main>
+        {editSheet}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-10">
@@ -34,7 +127,7 @@ export default function Scorecard() {
               <div key={s} className={cx("flex flex-col items-center", s === 1 && "col-start-3")}>
                 <Badge name={m.teams[s].name} size={56} />
                 <p className="mt-2 font-bold text-teal">{m.teams[s].name}</p>
-                <p className="text-sm font-medium text-fg tabular-nums">{test ? E.sideScore(m, s) ?? "Yet to bat" : h ? `${h.st.runs}/${h.st.wickets} (${E.oversText(h.st.legal)} Over)` : "Yet to bat"}</p>
+                <p className="text-sm font-medium text-fg tabular-nums">{test ? E.sideScore(m, s) ?? "Yet to bat" : h ? `${h.st.runs}/${h.st.wickets} (${E.oversText(h.st.legal, h.st.bpo)} Over)` : "Yet to bat"}</p>
                 {h && !test && <p className="text-[11px] text-fg/70">Wide: {h.st.extras.wd} | No Ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</p>}
               </div>
             );
@@ -45,11 +138,14 @@ export default function Scorecard() {
       </Header>
 
       <main className="mx-auto max-w-[480px] px-4 pt-4">
-        <Segmented value={idx} set={setIdx} items={m.innings.map((x, i) => {
+        {tabs}
+        {tab !== "mvp" && <div className="mt-3"><Segmented value={idx} set={setIdx} items={m.innings.map((x, i) => {
           const s = E.replay(m, i);
           if (test) return { v: i, label: `${short(m.teams[x.bat].name)} ${E.inningsScore(m, i)}` };
-          return { v: i, label: `${x.superOver ? "SO " : ""}${short(m.teams[x.bat].name)} ${s.runs}/${s.wickets}(${E.oversText(s.legal)})` };
-        })} />
+          return { v: i, label: `${x.superOver ? "SO " : ""}${short(m.teams[x.bat].name)} ${s.runs}/${s.wickets}(${E.oversText(s.legal, s.bpo)})` };
+        })} /></div>}
+
+        {tab === "charts" ? <div className="mt-4"><ChartsTab m={m} idx={idx} pick={setIdx} /></div> : tab === "mvp" ? <div className="mt-4"><MvpTab m={m} /></div> : <>
 
         <p className="mt-5 mb-2 text-sm font-semibold text-teal">Batting, {m.teams[inn.bat].name}{test ? `, ${E.inningsLabel(m, idx)}` : ""}</p>
         <Card className="!p-0 overflow-hidden">
@@ -70,10 +166,22 @@ export default function Scorecard() {
           </table>
         </Card>
 
+        {E.isPairs(m) && <Card className="mt-3 !p-0 overflow-hidden">
+          <p className="px-4 pt-3 text-sm font-semibold text-teal">Pairs</p>
+          {E.pairStandings(m, idx).map((p) => (
+            <div key={p.names} className="flex items-center gap-3 border-t border-line px-4 py-2.5 first:border-0 text-sm">
+              <span className="flex-1 font-semibold text-fg">{p.names}</span>
+              <span className="text-mute tabular-nums">{p.outs} out · {E.oversText(p.balls, st.bpo)} ov</span>
+              <b className="w-10 text-right text-fg tabular-nums">{p.runs}</b>
+            </div>))}
+        </Card>}
+
         <Card className="mt-3 text-sm">
           <p className="text-fg"><b>Extras {st.extras.wd + st.extras.nb + st.extras.b + st.extras.lb}</b>
             <span className="text-mute"> (wd {st.extras.wd}, nb {st.extras.nb}, b {st.extras.b}, lb {st.extras.lb})</span></p>
-          <p className="mt-1 text-fg"><b>Total {st.runs}/{st.wickets}</b> <span className="text-mute">in {E.oversText(st.legal)} overs, run rate {E.runRate(st.runs, st.legal).toFixed(2)}</span></p>
+          {st.penalties !== 0 && <p className="mt-1 text-fg"><b>Penalty runs {st.penalties}</b></p>}
+          {st.deducted > 0 && <p className="mt-1 text-fg"><b>{st.deducted} off</b> <span className="text-mute">for dismissals</span></p>}
+          <p className="mt-1 text-fg"><b>Total {st.runs}/{st.wickets}</b> <span className="text-mute">in {E.oversText(st.legal, st.bpo)} overs, run rate {E.runRate(st.runs, st.legal, st.bpo).toFixed(2)}</span></p>
           {st.fow.length > 0 && <>
             <p className="mt-3 font-semibold text-teal">Fall of wickets</p>
             <p className="mt-1 text-fg/80">{st.fow.map((f) => `${f.score}-${f.wicket} (${name(f.id)}, ${f.over})`).join(", ")}</p>
@@ -89,37 +197,21 @@ export default function Scorecard() {
             <tbody>{st.bowlOrder.map((id) => { const b = st.bowl.get(id)!; return (
               <tr key={id} className="border-t border-line">
                 <td className="px-3 py-3 font-semibold text-fg">{name(id)}</td>
-                <td className="px-1.5 text-right tabular-nums">{E.oversText(b.legal)}</td>
+                <td className="px-1.5 text-right tabular-nums">{E.oversText(b.legal, st.bpo)}</td>
                 <td className="px-1.5 text-right tabular-nums">{b.maidens}</td>
                 <td className="px-1.5 text-right tabular-nums">{b.runs}</td>
                 <td className="px-1.5 text-right font-bold text-fg tabular-nums">{b.wickets}</td>
-                <td className="px-1.5 pr-3 text-right tabular-nums">{economy(b.runs, b.legal).toFixed(1)}</td>
+                <td className="px-1.5 pr-3 text-right tabular-nums">{E.runRate(b.runs, b.legal, st.bpo).toFixed(1)}</td>
               </tr>); })}</tbody>
           </table>
           {!st.bowlOrder.length && <p className="px-3 py-3 text-sm text-mute">No balls yet.</p>}
         </Card>
 
-        <Card className="mt-3">
-          <p className="mb-2 font-semibold text-teal">Ball by ball <span className="text-xs font-normal text-mute">· tap a ball to correct it</span></p>
-          {st.overs.map((balls, o) => (
-            <div key={o} className="flex items-center gap-2 border-t border-line py-2 first:border-0">
-              <span className="w-12 shrink-0 text-xs font-semibold text-mute">Ov {o + 1}</span>
-              <div className="flex flex-wrap gap-1.5">{balls.map((b: Ball, i) => {
-                while (inn.events[evCursor] && inn.events[evCursor].t !== "ball") evCursor++;
-                const at = evCursor++;
-                return <BallChip key={i} b={b} size={32} onClick={canScore(m) ? () => setEdit(at) : undefined} />;
-              })}</div>
-              <span className="ml-auto text-sm font-bold text-fg tabular-nums">{balls.reduce((s, b) => s + E.ballTotal(b, m.rules), 0)}</span>
-            </div>
-          ))}
-          {!st.overs.length && <p className="text-sm text-mute">No balls yet.</p>}
-        </Card>
-        <div className="mt-4"><PrimaryButton onClick={() => shareImage(m, "full")}>Send this scorecard on WhatsApp</PrimaryButton></div>
+        {balls}
+        </>}
+        {actions}
       </main>
-      {edit !== null && inn.events[edit]?.t === "ball" && (
-        <EditBallSheet ball={inn.events[edit] as Ball} onClose={() => setEdit(null)}
-          onSave={(p) => { put(E.editBall(m, idx, edit, p)); setEdit(null); }} />
-      )}
+      {editSheet}
     </div>
   );
 }

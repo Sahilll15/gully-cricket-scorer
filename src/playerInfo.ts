@@ -5,6 +5,7 @@ export interface PlayerInfo {
   arm?: "R" | "L";             // bowling arm
   bowl?: "pace" | "spin";
   style?: string;              // optional sub-type, e.g. "Off-spin"
+  upi?: string;                // UPI ID for the kitty QR; the app never moves money
 }
 
 export const ROLES = [["bat", "Batter"], ["bowl", "Bowler"], ["all", "All-rounder"], ["wk", "Wicketkeeper"]] as const;

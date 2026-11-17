@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as E from "../engine/engine";
 import type { Match, Player, Rules, Side, Team } from "../engine/types";
 import { useStore } from "../store";
 import { playerPool } from "../stats";
 import { seriesScore } from "../engine/series";
 import { track } from "../track";
-import { OpenersSheet } from "../sheets";
-import { Badge, Card, cx, Header, Pill, PrimaryButton, Segmented, Sheet, Stepper, Toggle } from "../ui";
-
-const DEFAULT_RULES: Rules = {
-  overs: 5, extraRun: true, rebowl: true, freeHit: false, lastManStands: false, oneTipCatch: false,
-  wall: "none", tipAndRun: false, maxOversPerBowler: null,
-};
+import { EV } from "../events";
+import { flag, matchStartParams, presetIdOf } from "../matchEvents";
+import { OpenersSheet, SoloTurnSheet } from "../sheets";
+import { Badge, Card, cx, Header, PrimaryButton, Segmented, Sheet } from "../ui";
+import { fairTeams, ratingsFor, type FairSplit } from "../records";
+import { applyPreset, type PresetId } from "../presets";
+import {
+  DEFAULT_RULES, buildTeams, draftMatch, forMatch, modeOf, pairsOf, protectIds, roster, ruleSummary, shows, shuffled, soloSettings, withMode, type Mode,
+} from "../setupOptions";
+import { ChaseCard, FairStrip, FrenchFirst, OversCard, PairsCard, PairsStartSheet, PresetRow, RulesCardView, RulesEditor } from "../setupParts";
 
 /** Splits "Rahul, Amit\nSam" into names, so a squad can be pasted in one go. */
 const splitNames = (v: string) => v.split(/[,\n]/).map((n) => n.trim()).filter(Boolean);
@@ -85,14 +88,19 @@ function TeamCard({ label, name, setName, names, setNames, size, setSize, locked
   );
 }
 
-/** Tick who turned up today from everyone saved, then split them into two teams at random. */
-function PickPlayers({ names, chosen, onClose, onSplit }: { names: string[]; chosen: string[]; onClose: () => void; onSplit: (names: string[]) => void }) {
+/** Tick who turned up today from everyone saved, then split them into two fair teams or at random. */
+function PickPlayers({ names, chosen, onClose, onSplit, onFair }: {
+  names: string[]; chosen: string[]; onClose: () => void; onSplit: (names: string[]) => void; onFair: (names: string[]) => void;
+}) {
   const [on, setOn] = useState(() => new Set(chosen.map((n) => n.toLowerCase())));
   const picked = names.filter((n) => on.has(n.toLowerCase()));
   const flip = (n: string) => { const next = new Set(on), k = n.toLowerCase(); if (!next.delete(k)) next.add(k); setOn(next); };
   return (
     <Sheet title="Who's playing today?" onClose={onClose}
-      footer={<PrimaryButton disabled={picked.length < 2} onClick={() => onSplit(picked)}>Split {picked.length} into 2 teams</PrimaryButton>}>
+      footer={<div className="grid grid-cols-2 gap-2">
+        <PrimaryButton disabled={picked.length < 2} onClick={() => onFair(picked)}>Fair teams</PrimaryButton>
+        <PrimaryButton tone="navy" disabled={picked.length < 2} onClick={() => onSplit(picked)}>Split {picked.length} at random</PrimaryButton>
+      </div>}>
       <div className="mb-3 flex items-center justify-between text-sm">
         <span className="text-mute">{picked.length} picked</span>
         <button onClick={() => setOn(new Set(picked.length === names.length ? [] : names.map((n) => n.toLowerCase())))} className="press min-h-10 font-semibold text-sun">
@@ -109,13 +117,93 @@ function PickPlayers({ names, chosen, onClose, onSplit }: { names: string[]; cho
   );
 }
 
-const roster = (named: string[], size: number): Player[] => {
-  const list = named.map((name) => ({ id: E.uid(), name }));
-  for (let i = list.length; i < size; i++) list.push({ id: E.uid(), name: `Player ${i + 1}` });
-  return list;
-};
+/** Solo: one list of everyone playing, in batting order. Saved teams and past names add in one tap. */
+function SoloPlayers({ names, setNames, known }: { names: string[]; setNames: (n: string[]) => void; known: string[] }) {
+  const saved = useStore((s) => s.teams);
+  const [v, setV] = useState("");
+  const add = (list: string[]) => {
+    const have = new Set(names.map((n) => n.toLowerCase()));
+    const fresh = list.filter((n) => !have.has(n.toLowerCase()) && have.add(n.toLowerCase()));
+    if (fresh.length) setNames([...names, ...fresh]);
+  };
+  return (
+    <Card>
+      <p className="font-semibold text-fg">Who's playing?</p>
+      <p className="text-xs text-mute">Everyone bats on their own. Most runs wins.</p>
+      {saved.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs font-semibold text-mute">Your teams, tap to add everyone</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {saved.map((t) => (
+              <button key={t.id} onClick={() => add(t.players.map((p) => p.name))} className="press shrink-0 rounded-full border border-line bg-key px-3 py-2 text-sm font-semibold text-fg">
+                {t.name} <span className="opacity-60">· {t.players.length}</span></button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {names.map((n) => (
+          <span key={n} className="flex min-h-10 items-center rounded-full bg-sun-soft pl-3 text-sm font-semibold text-fg">
+            {n}
+            <button onClick={() => setNames(names.filter((x) => x !== n))} aria-label={`Remove ${n}`} className="press grid h-10 w-9 place-items-center text-mute">✕</button>
+          </span>
+        ))}
+        {names.length < 2 && Array.from({ length: 2 - names.length }, (_, i) => (
+          <span key={i} className="flex min-h-10 items-center rounded-full border border-dashed border-line px-3 text-sm text-mute">Player {names.length + i + 1}</span>
+        ))}
+      </div>
+      <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(splitNames(v)); setV(""); }}>
+        <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Type names, comma between" maxLength={300} enterKeyHint="done" aria-label="Add players"
+          className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
+        <button className="press min-h-12 rounded-2xl bg-raised px-4 font-semibold text-white disabled:opacity-40" disabled={!v.trim()}>Add</button>
+      </form>
+      {known.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs font-semibold text-mute">Played before, tap to add</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {known.map((n) => <button key={n} onClick={() => add([n])} className="press shrink-0 rounded-full border border-line bg-key px-3 py-2 text-sm font-semibold text-fg">+ {n}</button>)}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
-const OVERS = [3, 4, 5, 6, 10];
+/** Solo: the batting order, with a shuffle and a nudge up for each name. */
+function BattingOrder({ names, setNames }: { names: string[]; setNames: (n: string[]) => void }) {
+  const up = (i: number) => { const l = [...names]; [l[i - 1], l[i]] = [l[i], l[i - 1]]; setNames(l); };
+  function shuffle() {
+    const l = [...names];
+    for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [l[i], l[j]] = [l[j], l[i]]; }
+    setNames(l);
+  }
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-teal">Who bats first</p>
+        <button onClick={shuffle} disabled={names.length < 2} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg disabled:opacity-40">🔀 Shuffle</button>
+      </div>
+      {names.length ? (
+        <ol className="mt-2 divide-y divide-line">
+          {names.map((n, i) => (
+            <li key={n} className="flex min-h-12 items-center gap-3">
+              <span className="w-6 text-sm font-bold text-mute tabular-nums">{i + 1}</span>
+              <span className="flex-1 truncate font-semibold text-fg">{n}</span>
+              {i > 0 && <button onClick={() => up(i)} aria-label={`Move ${n} up`} className="press grid h-10 w-10 place-items-center rounded-xl bg-key text-fg">↑</button>}
+            </li>
+          ))}
+        </ol>
+      ) : <p className="mt-2 text-sm text-mute">Add players and they line up here in batting order.</p>}
+    </Card>
+  );
+}
+
+const sameList = (x: string[], y: string[]) => x.length === y.length && x.every((n, i) => n.toLowerCase() === y[i].toLowerCase());
+
+/** Named players plus the "Player n" placeholders the team will be padded with, in batting order. */
+const padded = (names: string[], size: number) => [...names, ...Array.from({ length: Math.max(0, size - names.length) }, (_, i) => `Player ${names.length + i + 1}`)];
+
+interface Fair { pool: string[]; common: string | null; seed: number; split: FairSplit }
 
 export default function Setup() {
   const { go, add, put, fixture, cups, teams, matches, saveTeam, lastSetup, seriesPlay, series: allSeries } = useStore();
@@ -123,14 +211,24 @@ export default function Setup() {
   const fx = cup?.fixtures.find((f) => f.id === fixture?.fixtureId);
   const series = !cup && seriesPlay ? allSeries.find((x) => x.id === seriesPlay) : undefined;
   const last = cup || series ? null : lastSetup;
-  const [a, setA] = useState(last?.a ?? "Team A"), [b, setB] = useState(last?.b ?? "Team B");
-  const [na, setNa] = useState<string[]>(last?.na ?? []), [nb, setNb] = useState<string[]>(last?.nb ?? []);
-  const [sa, setSa] = useState(last?.sa ?? last?.size ?? 6), [sb, setSb] = useState(last?.sb ?? last?.size ?? 6);
-  const [common, setCommon] = useState(last?.common ?? "");
-  const [rules, setRules] = useState<Rules>(last ? { ...DEFAULT_RULES, ...last.rules } : DEFAULT_RULES);
-  const [custom, setCustom] = useState(!OVERS.includes(last?.rules.overs ?? DEFAULT_RULES.overs));
+  const lastSolo = last && (last.rules.format === "solo" || last.rules.format === "french") ? last : null, lastTeams = lastSolo ? null : last;
+  const [rules, setRules] = useState<Rules>(last ? { ...DEFAULT_RULES, ...last.rules, protectedPlayers: undefined } : DEFAULT_RULES);
+  const mode: Mode = cup || series ? "teams" : modeOf(rules);
+  const solo = mode === "solo" || mode === "french", test = !cup && rules.format === "test";
+  const [a, setA] = useState(lastTeams?.a ?? "Team A"), [b, setB] = useState(lastTeams?.b ?? "Team B");
+  const [na, setNa] = useState<string[]>(lastTeams?.na ?? []), [nb, setNb] = useState<string[]>(lastTeams?.nb ?? []);
+  const [sa, setSa] = useState(lastTeams?.sa ?? lastTeams?.size ?? 6), [sb, setSb] = useState(lastTeams?.sb ?? lastTeams?.size ?? 6);
+  const [common, setCommon] = useState(lastTeams?.common ?? "");
+  const [soloNames, setSoloNames] = useState<string[]>(lastSolo?.na ?? (lastTeams ? [...lastTeams.na, ...lastTeams.nb] : []));
+  const [frenchFirst, setFrenchFirst] = useState<string | null>(null);
+  const [prot, setProt] = useState<string[]>([]);
+  const [fair, setFair] = useState<Fair | null>(null);
+  const [chaseOn, setChaseOn] = useState(false), [chaseSide, setChaseSide] = useState<Side>(1);
+  const [target, setTarget] = useState(""), [down, setDown] = useState(0);
+  const [soloPending, setSoloPending] = useState<Match | null>(null);
   const clear = () => {
-    setA("Team A"); setB("Team B"); setNa([]); setNb([]); setSa(6); setSb(6); setCommon(""); setRules(DEFAULT_RULES); setCustom(false);
+    setA("Team A"); setB("Team B"); setNa([]); setNb([]); setSa(6); setSb(6); setCommon(""); setRules(DEFAULT_RULES);
+    setSoloNames([]); setFrenchFirst(null); setProt([]); setFair(null); setChaseOn(false);
     useStore.setState({ lastSetup: null });
   };
   const [toss, setToss] = useState<{ winner: Side; face: string } | null>(null);
@@ -138,8 +236,6 @@ export default function Setup() {
   const [pending, setPending] = useState<Match | null>(null);
   const [tossOpen, setTossOpen] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  const r = <K extends keyof Rules>(k: K) => (v: Rules[K]) => setRules({ ...rules, [k]: v });
-  const test = !cup && rules.format === "test";
   useEffect(() => {
     if (!cup || !fx) return;
     const ta = teams.find((t) => t.id === fx.a), tb = teams.find((t) => t.id === fx.b);
@@ -161,47 +257,109 @@ export default function Setup() {
   // Naming players sets that team's size, so nobody gets "Player 5" padding they didn't ask for.
   useEffect(() => { if (na.length) setSa(na.length); }, [na.length]);
   useEffect(() => { if (nb.length) setSb(nb.length); }, [nb.length]);
-  const taken = new Set([...na, ...nb, common.trim()].map((n) => n.toLowerCase()));
+  const taken = new Set((solo ? soloNames : [...na, ...nb, common.trim()]).map((n) => n.toLowerCase()));
   const pool = playerPool(matches, teams).filter((n) => n.toLowerCase() !== common.trim().toLowerCase());
   const known = pool.filter((n) => !taken.has(n.toLowerCase())).slice(0, 30);
   const [picking, setPicking] = useState(false);
+  const first = soloNames.find((n) => n === frenchFirst) ?? soloNames[0] ?? null;
   function shuffle(names = [...na, ...nb]) {
-    const list = [...names];
-    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
-    const half = Math.ceil(list.length / 2);
+    const list = shuffled(names), half = Math.ceil(list.length / 2);
     setNa(list.slice(0, half)); setNb(list.slice(half)); setSa(Math.max(1, half)); setSb(Math.max(1, list.length - half));
   }
+  function fairSplit(names: string[], given: string | null, seed: number) {
+    track(EV.fair_teams, { reshuffle: flag(seed > 0) });
+    const split = fairTeams(names, ratingsFor(matches, names, test ? "test" : "limited"), { common: given, seed });
+    setNa(split.a); setNb(split.b); setSa(Math.max(1, split.a.length)); setSb(Math.max(1, split.b.length));
+    if (split.common) setCommon(split.common);
+    setFair({ pool: names, common: given, seed, split });
+  }
+  const fairShown = fair && sameList(na, fair.split.a) && sameList(nb, fair.split.b) ? fair : null;
+  const pick = (id: PresetId) => { track(EV.preset_pick, { id }); setRules(applyPreset(id, rules)); };
+
+  const built = useMemo(() => buildTeams(a, b, na, nb, sa, sb, common), [a, b, na, nb, sa, sb, common]);
+  const soloPlayers = useMemo(() => soloNames.map((name) => ({ id: E.uid(), name })), [soloNames]);
+  const matchRules = (teams: Team[]): Rules => {
+    const out = forMatch(cup ? { ...rules, format: undefined } : rules, mode, test), ids = protectIds(teams, prot);
+    if (ids.length && shows("protected", mode, test)) out.protectedPlayers = ids; else delete out.protectedPlayers;
+    return out;
+  };
+  const card = useMemo(() => {
+    const m = draftMatch(rules, mode, test, built.teams, soloPlayers);
+    if (!solo) m.rules = matchRules(built.teams);
+    return E.rulesCard(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rules, mode, test, built, soloPlayers, prot]);
+  const chasing = chaseOn && !cup && !series && !test && !solo;
+  const targetRuns = Number(target) || 0;
+  const chaseLine = chasing && targetRuns > 0
+    ? `${(chaseSide === 0 ? a : b) || "Team"} need ${targetRuns} to win. ${chaseSide === 0 ? b || "Team B" : a || "Team A"} lost ${down} wicket${down === 1 ? "" : "s"}.` : null;
 
   function flip() {
     setFlipping(true); setToss(null);
     setTimeout(() => { setToss({ winner: Math.random() < 0.5 ? 0 : 1, face: Math.random() < 0.5 ? "HEADS" : "TAILS" }); setFlipping(false); }, 1300);
   }
+  function saveTeams(pair: Team[], c: Player | null) {
+    for (const t of pair) if (!/^team [ab]$/i.test(t.name)) saveTeam(t.name, t.players.filter((p) => p.id !== c?.id));
+  }
   function begin(t: Match["toss"]) {
-    const c = common.trim() ? { id: E.uid(), name: common.trim() } : null;
-    const others = (names: string[]) => names.filter((n) => n.toLowerCase() !== c?.name.toLowerCase());
-    const side = (names: string[], size: number) => [...roster(others(names), Math.max(size, others(names).length)), ...(c ? [c] : [])];
-    const pair: [Team, Team] = [
-      { name: a.trim() || "Team A", players: side(na, sa) },
-      { name: b.trim() || "Team B", players: side(nb, sb) },
-    ];
-    const m = E.newMatch(pair, test ? { ...rules, maxOversPerBowler: null } : { ...rules, format: undefined, matchOvers: undefined });
+    const { teams: pair, common: c } = buildTeams(a, b, na, nb, sa, sb, common);
+    const m = E.newMatch(pair, matchRules(pair));
     m.toss = t;
     if (cup && fx) m.cup = { id: cup.id, fixtureId: fx.id };
     if (series) m.series = { id: series.id };
-    for (const t of pair) if (!/^team [ab]$/i.test(t.name)) saveTeam(t.name, t.players.filter((p) => p.id !== c?.id));
-    track("match_start", { overs: test ? 0 : rules.overs, test: test ? 1 : 0, players: Math.max(sa, sb), cup: cup ? 1 : 0, series: series ? 1 : 0, common: c ? 1 : 0 });
+    saveTeams(pair, c);
     setTossOpen(false);
     setPending(m);
   }
+  function beginChase() {
+    const { teams: pair, common: c } = buildTeams(a, b, na, nb, sa, sb, common);
+    const ordered: [Team, Team] = chaseSide === 1 ? pair : [pair[1], pair[0]];
+    saveTeams(pair, c);
+    setPending(E.startChase(ordered, matchRules(ordered), targetRuns, down));
+  }
+  function beginSolo() {
+    setSoloPending(E.newSoloMatch(soloNames.map((name) => ({ id: E.uid(), name })), soloSettings(rules, "solo")));
+  }
+  function launch(m: Match, quick = false) {
+    const preset = quick ? presetIdOf(m.rules, modeOf(m.rules), m.rules.format === "test") : presetIdOf(rules, mode, test);
+    track(EV.match_start, matchStartParams(m, preset, quick));
+    add(m); put(m); go("live", m.id);
+  }
+  function beginFrench() {
+    const players = soloNames.map((name) => ({ id: E.uid(), name })), batter = players.find((p) => p.name === first) ?? players[0];
+    const m = E.startFrench(players, soloSettings(rules, "french"), batter.id);
+    useStore.setState({ lastSetup: { a: "", b: "", na: soloNames, nb: [], size: soloNames.length, rules: m.rules, common: "" } });
+    launch(m);
+  }
+  /** Placeholder teams and the last match's rules, straight to the first ball. */
+  function quickMatch() {
+    const r = lastSetup ? { ...DEFAULT_RULES, ...lastSetup.rules, protectedPlayers: undefined } : DEFAULT_RULES, qm = modeOf(r);
+    const n = Math.max(2, lastSetup ? (qm === "solo" || qm === "french" ? lastSetup.na.length : Math.max(lastSetup.sa ?? lastSetup.size, lastSetup.sb ?? lastSetup.size)) : 6);
+    if (qm === "solo" || qm === "french") {
+      const players = roster([], n), settings = soloSettings(r, qm);
+      return launch(qm === "french" ? E.startFrench(players, settings) : E.startSolo(players, settings), true);
+    }
+    const pair: [Team, Team] = [{ name: "Team A", players: roster([], n) }, { name: "Team B", players: roster([], n) }];
+    const m = E.newMatch(pair, forMatch(r, qm, r.format === "test"));
+    const [s, ns] = pair[0].players, ids = pair[0].players.map((p) => p.id);
+    launch(E.startInnings(m, s.id, ns.id, pair[1].players[0].id, qm === "pairs" ? { pairs: pairsOf(ids) } : undefined), true);
+  }
 
-  const on = [rules.extraRun && "Wide +1", rules.rebowl && "Re-bowl", rules.freeHit && "Free hit", rules.lastManStands && "Last man stands",
-    rules.oneTipCatch && "One-tip catch", rules.wall !== "none" && `Wall ${rules.wall}`, rules.maxOversPerBowler && `${rules.maxOversPerBowler} overs a bowler`,
-    common.trim() && `${common.trim()} plays both sides`].filter(Boolean).join(" · ");
+  const on = ruleSummary(rules, mode, test, common);
+  const protNames = [...new Set([...na, ...nb, common.trim()].filter(Boolean))];
+  const chaseReady = !chasing || targetRuns > 0;
+  const PendingSheet = mode === "pairs" ? PairsStartSheet : OpenersSheet;
 
   return (
     <div className="min-h-screen pb-36">
       <Header title={cup ? cup.name : series ? series.name : "New Match"} back={() => { useStore.setState({ fixture: null, seriesPlay: null }); go(cup ? "cup" : series ? "series" : "home"); }} />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
+        {!cup && !series && <button onClick={quickMatch} className="press flex w-full items-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3 text-left">
+          <span className="text-xl" aria-hidden>⚡</span>
+          <span className="flex-1"><span className="block font-semibold text-fg">Quick match</span>
+            <span className="block text-xs text-mute">Team A vs Team B, Player 1, 2, 3... {lastSetup ? "Your last rules" : "Standard rules"}. Straight to the first ball.</span></span>
+          <span className="text-mute" aria-hidden>→</span>
+        </button>}
         {last && <div className="flex items-center justify-between gap-3 rounded-2xl bg-sun-soft px-4 py-2 text-sm text-fg">
           <span>Filled in from your last match</span>
           <button onClick={clear} className="press min-h-10 shrink-0 font-semibold text-sun">Start fresh</button>
@@ -210,34 +368,36 @@ export default function Setup() {
           <p className="font-bold">Match {seriesNo.played + 1} of {series.games} · {series.rules.format === "test" ? "Test" : `${series.rules.overs} overs`}</p>
           <p className="text-fg/80">{seriesNo.text([a, b])}. Teams and rules are filled in from the series.</p>
         </div>}
+        {!cup && !series && <PresetRow rules={rules} mode={mode} test={test} onPick={pick} />}
+        {!cup && !series && <Segmented<Mode> value={mode} set={(v) => setRules(withMode(rules, v, v === "teams" && test))}
+          items={[{ v: "teams", label: "Teams" }, { v: "pairs", label: "Pairs" }, { v: "solo", label: "Solo" }, { v: "french", label: "French" }]} />}
+        {solo ? <>
+          <SoloPlayers names={soloNames} setNames={setSoloNames} known={known} />
+        </> : <>
         <TeamCard label="Team A" name={a} setName={setA} names={na} setNames={setNa} size={sa} setSize={setSa} locked={!!cup} lockName={!!series} other={b} known={known} />
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <span className="text-xs font-extrabold tracking-[0.3em] text-mute">VS</span>
-          {!cup && !series && na.length + nb.length >= 2 && <button onClick={() => shuffle()} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>}
+          {!cup && !series && na.length + nb.length >= 2 && <>
+            <button onClick={() => shuffle()} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">🔀 Shuffle teams</button>
+            <button onClick={() => fairSplit([...na, ...nb], common.trim() || null, 0)} className="press min-h-10 rounded-full border border-line bg-key px-3 text-sm font-semibold text-fg">⚖️ Fair teams</button>
+          </>}
         </div>
+        {fairShown && <FairStrip a={a || "Team A"} b={b || "Team B"} ratingA={fairShown.split.ratingA} ratingB={fairShown.split.ratingB}
+          onReshuffle={() => fairSplit(fairShown.pool, fairShown.common, fairShown.seed + 1)} />}
         {!cup && !series && pool.length >= 2 && <button onClick={() => setPicking(true)} className="press min-h-12 w-full rounded-2xl border-2 border-dashed border-sun bg-sun-soft font-semibold text-fg">
           Pick today's players from {pool.length} saved</button>}
         <TeamCard label="Team B" name={b} setName={setB} names={nb} setNames={setNb} size={sb} setSize={setSb} locked={!!cup} lockName={!!series} other={a} known={known} />
+        {mode === "pairs" && <>
+          <PairsCard team={a || "Team A"} names={padded(na, sa)} common={common} setNames={setNa} />
+          <PairsCard team={b || "Team B"} names={padded(nb, sb)} common={common} setNames={setNb} />
+        </>}
+        </>}
 
-        {!cup && !series && <Segmented value={test ? "test" : "limited"} set={(v) => setRules({ ...rules, format: v === "test" ? "test" : undefined })}
+        {!cup && !series && mode === "teams" && <Segmented value={test ? "test" : "limited"} set={(v) => setRules(withMode(rules, "teams", v === "test"))}
           items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test match" }]} />}
 
-        {series ? null : test ? <Card>
-          <p className="text-sm font-semibold text-teal">Test match</p>
-          <p className="mt-1 text-sm text-mute">Each team bats twice, with no over limit. An innings ends when the team is all out or declares. If the team batting first is ahead after both first innings, they can make the other team follow on.</p>
-          <div className="mt-1 border-t border-line">
-            <Toggle on={!!rules.matchOvers} set={(v) => r("matchOvers")(v ? 30 : null)} label="Stop after a set number of overs"
-              hint="Counts every innings. If nobody has won by then, it's a draw" />
-            {!!rules.matchOvers && <Stepper value={rules.matchOvers} set={r("matchOvers")} max={200} />}
-          </div>
-        </Card> : <Card>
-          <p className="mb-2 text-sm font-semibold text-teal">Overs an innings</p>
-          <div className="grid grid-cols-6 gap-2">
-            {OVERS.map((o) => <Pill key={o} active={!custom && rules.overs === o} onClick={() => { setCustom(false); r("overs")(o); }}>{o}</Pill>)}
-            <Pill active={custom} onClick={() => setCustom(true)}>…</Pill>
-          </div>
-          {custom && <div className="mt-2"><Stepper value={rules.overs} set={r("overs")} max={50} /></div>}
-        </Card>}
+        {!series && <OversCard key={`${mode}-${test}`} rules={rules} setRules={setRules} mode={mode} test={test}
+          pairsCount={Math.max(1, Math.ceil((Math.max(sa, sb) + (common.trim() ? 1 : 0)) / 2))} />}
 
         <Card className="!p-0 overflow-hidden">
           <button onClick={() => setShowRules(!showRules)} className="press flex w-full items-center gap-3 px-4 py-4 text-left">
@@ -245,33 +405,26 @@ export default function Setup() {
               <span className="block text-xs text-mute">{on || "Standard cricket"}</span></span>
             <span className={cx("text-mute transition-transform", showRules && "rotate-180")}>⌄</span>
           </button>
-          {showRules && <div className="divide-y divide-line border-t border-line px-4">
-            <Toggle on={rules.extraRun} set={r("extraRun")} label="Wide and no-ball give 1 run" />
-            <Toggle on={rules.rebowl} set={r("rebowl")} label="Wide and no-ball bowled again" />
-            <Toggle on={rules.freeHit} set={r("freeHit")} label="Free hit after a no-ball" hint="Only run out on the next ball" />
-            <Toggle on={rules.lastManStands} set={r("lastManStands")} label="Last man stands" hint="The last batter bats alone" />
-            <Toggle on={rules.oneTipCatch} set={r("oneTipCatch")} label="One-tip one-hand catch is out" />
-            <Toggle on={rules.tipAndRun} set={r("tipAndRun")} label="Tip and run" hint="A reminder for everyone, scoring is the same" />
-            <div className="py-3">
-              <p className="mb-2 font-semibold text-fg">Ball hits the wall or roof</p>
-              <Segmented value={rules.wall} set={r("wall")} items={[{ v: "none", label: "Normal" }, { v: "four", label: "4" }, { v: "six", label: "6" }, { v: "out", label: "Out" }]} />
-            </div>
-            {!test && <div className="py-3">
-              <Toggle on={rules.maxOversPerBowler !== null} set={(v) => r("maxOversPerBowler")(v ? Math.max(1, Math.ceil(rules.overs / 5)) : null)} label="Limit overs per bowler" />
-              {rules.maxOversPerBowler !== null && <Stepper value={rules.maxOversPerBowler} set={r("maxOversPerBowler")} max={rules.overs} />}
-            </div>}
-            <div className="py-3">
-              <p className="font-semibold text-fg">Common player</p>
-              <p className="mt-0.5 text-xs text-mute">Odd number of players? One person plays for both teams. They bat in both innings and can bowl for either side, but not while batting.</p>
-              <input value={common} onChange={(e) => setCommon(e.target.value)} placeholder="Name (optional)" maxLength={20}
-                className="mt-2 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 text-base outline-none focus:border-sun" />
-            </div>
+          {showRules && <div className="border-t border-line">
+            <RulesEditor rules={rules} setRules={setRules} mode={mode} test={test} common={common} setCommon={setCommon}
+              names={protNames} prot={prot} setProt={setProt} />
           </div>}
         </Card>
+        {mode === "solo" && <BattingOrder names={soloNames} setNames={setSoloNames} />}
+        {mode === "french" && <FrenchFirst names={soloNames} first={first} setFirst={setFrenchFirst} />}
+        {!cup && !series && !test && !solo && <ChaseCard on={chaseOn} setOn={setChaseOn} side={chaseSide} setSide={setChaseSide} target={target} setTarget={setTarget}
+          down={down} setDown={setDown} a={a} b={b} maxDown={Math.max(0, (chaseSide === 0 ? sb : sa) - 1)} />}
+        <RulesCardView lines={card} extra={chaseLine} />
       </main>
 
       <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[480px] bg-gradient-to-t from-cream from-60% to-transparent px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-8">
-        <PrimaryButton onClick={() => setTossOpen(true)}>Next: toss →</PrimaryButton>
+        {mode === "solo"
+          ? <PrimaryButton disabled={soloNames.length < 2} onClick={beginSolo}>{soloNames.length < 2 ? "Add at least 2 players" : `Start, ${soloNames[0]} bats first`}</PrimaryButton>
+          : mode === "french"
+            ? <PrimaryButton disabled={soloNames.length < 2} onClick={beginFrench}>{soloNames.length < 2 ? "Add at least 2 players" : `Start, ${first} bats first`}</PrimaryButton>
+            : chasing
+              ? <PrimaryButton disabled={!chaseReady} onClick={beginChase}>{chaseReady ? "Agree rules, start the chase →" : "Enter the target"}</PrimaryButton>
+              : <PrimaryButton onClick={() => setTossOpen(true)}>Agree rules, next: toss →</PrimaryButton>}
       </div>
 
       {tossOpen && (
@@ -294,11 +447,16 @@ export default function Setup() {
         </Sheet>
       )}
       {picking && <PickPlayers names={[...new Set([...na, ...nb, ...pool])]} chosen={[...na, ...nb]} onClose={() => setPicking(false)}
-        onSplit={(list) => { shuffle(list); setPicking(false); }} />}
-      {pending && <OpenersSheet match={pending} onClose={() => setPending(null)}
+        onSplit={(list) => { shuffle(list); setPicking(false); }} onFair={(list) => { fairSplit(list, common.trim() || null, 0); setPicking(false); }} />}
+      {soloPending && <SoloTurnSheet match={soloPending} onClose={() => setSoloPending(null)}
         onStart={(m) => {
-          if (!m.cup && !m.series) useStore.setState({ lastSetup: { a, b, na, nb, size: Math.max(sa, sb), sa, sb, rules, common } });
-          add(m); put(m); go("live", m.id);
+          useStore.setState({ lastSetup: { a: "", b: "", na: soloNames, nb: [], size: soloNames.length, rules: m.rules, common: "" } });
+          launch(m);
+        }} />}
+      {pending && <PendingSheet match={pending} onClose={() => setPending(null)}
+        onStart={(m) => {
+          if (!m.cup && !m.series) useStore.setState({ lastSetup: { a, b, na, nb, size: Math.max(sa, sb), sa, sb, rules: forMatch(rules, mode, test), common } });
+          launch(m);
         }} />}
     </div>
   );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addBall, awards, canBowl, howOut, setCrossed, closeInnings, editBall, minOvers, needsBowler, newMatch, redo, replay, result, retire, setBowler,
-  setOvers, startInnings, swapStrike, undo, yetToBat, afterWicket,
+  setOvers, startInnings, swapStrike, undo, yetToBat, afterWicket, wicketKinds, dueToRetire,
 } from "./engine";
 import type { BallInput, Match, Rules, Team } from "./types";
 
@@ -480,5 +480,71 @@ describe("last wicket after a retirement", () => {
     const m = play(startInnings(closeInnings(setup()), "B1", "B2", "A1"),
       { runs: 0, wicket: { kind: "bowled", out: "s", newId: "B3" } }, { runs: 0, wicket: { kind: "bowled", out: "s", newId: "B4" } });
     expect(afterWicket(m, 1)).toEqual({ fresh: [], back: [] });
+  });
+});
+
+describe("hit out of the ground", () => {
+  it("is offered only when the rule is on", () => {
+    expect(wicketKinds(rules(), null, false)).not.toContain("hit out");
+    expect(wicketKinds(rules({ sixOut: true }), null, false)).toContain("hit out");
+    expect(wicketKinds(rules({ sixOut: true }), "nb", false)).toEqual(["run out"]);
+    expect(wicketKinds(rules({ sixOut: true }), null, true)).toEqual(["run out"]);
+  });
+
+  it("is a wicket for the bowler and reads like wall out", () => {
+    const m = addBall(setup({ sixOut: true }), { runs: 0, wicket: { kind: "hit out", out: "s", newId: "A3" } });
+    const st = replay(m, 0);
+    expect(st.wickets).toBe(1);
+    expect(st.bowl.get("B1")!.wickets).toBe(1);
+    expect(howOut(m, st.bat.get("A1")!)).toBe("hit out");
+    expect(st.striker).toBe("A3");
+  });
+});
+
+describe("no LBW", () => {
+  it("leaves lbw out of the wicket kinds", () => {
+    expect(wicketKinds(rules(), null, false)).toContain("lbw");
+    expect(wicketKinds(rules({ noLbw: true }), null, false)).toEqual(["bowled", "caught", "run out", "stumped", "hit wicket"]);
+  });
+
+  it("older matches without the new rules offer the same kinds as before", () => {
+    expect(wicketKinds(rules({ oneTipCatch: true, wall: "out" }), null, false))
+      .toEqual(["bowled", "caught", "run out", "stumped", "lbw", "hit wicket", "one-tip catch", "wall out"]);
+    expect(wicketKinds(rules(), "wd", false)).toEqual(["stumped", "run out"]);
+  });
+});
+
+describe("retire at a score", () => {
+  it("is off without the rule", () => {
+    expect(dueToRetire(play(setup(), r(6), r(6), r(6)), 0)).toBeNull();
+  });
+
+  it("names the batter who reaches the score, until they retire", () => {
+    let m = play(setup({ retireAt: 10 }), r(6), r(1));
+    expect(dueToRetire(m, 0)).toBeNull();
+    m = play(m, r(4), r(1), r(4));
+    expect(replay(m, 0).bat.get("A1")!.runs).toBe(11);
+    expect(dueToRetire(m, 0)).toBe("A1");
+    m = retire(m, "s", "A3");
+    expect(dueToRetire(m, 0)).toBeNull();
+    expect(howOut(m, replay(m, 0).bat.get("A1")!)).toBe("retired not out");
+  });
+
+  it("checks the non-striker too, after the batters cross", () => {
+    const m = play(setup({ retireAt: 5 }), r(5));
+    expect(replay(m, 0).nonStriker).toBe("A1");
+    expect(dueToRetire(m, 0)).toBe("A1");
+  });
+
+  it("a retired batter who comes back bats on past the score", () => {
+    let m = play(setup({ retireAt: 6 }), r(6));
+    m = retire(m, "s", "A3");
+    m = play(m, { runs: 0, wicket: { kind: "bowled", out: "s", newId: "A4" } }, { runs: 0, wicket: { kind: "bowled", out: "s", newId: "A1" } });
+    const st = replay(m, 0);
+    expect(st.striker).toBe("A1");
+    expect(dueToRetire(m, 0)).toBeNull();
+    m = addBall(m, r(4));
+    expect(replay(m, 0).bat.get("A1")!.runs).toBe(10);
+    expect(dueToRetire(m, 0)).toBeNull();
   });
 });

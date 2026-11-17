@@ -6,7 +6,8 @@ export interface Leader extends Fielding { name: string; matches: number; runs: 
 
 const AUTO = /^player \d+$/i;
 
-/** Test and limited overs are never added together. Matches saved before Test mode count as limited overs. */
+/** Test and limited overs are never added together. Matches saved before Test mode count as limited overs, and so do pairs.
+ *  Solo and French matches count as limited overs: each turn is a batting innings. They never win or lose for a team. */
 export type Fmt = "limited" | "test";
 export const fmtOf = (m: Match): Fmt => (E.isTest(m) ? "test" : "limited");
 
@@ -46,7 +47,19 @@ export function leaders(matches: Match[], fmt: Fmt): Leader[] {
   return [...rows.values()].filter((r) => !AUTO.test(r.name)).map(({ seen: _seen, ...r }) => r);
 }
 
+/** Totals across every innings, including players nobody named, for the Home counters. */
+export function matchTotals(matches: Match[]) {
+  const t = { runs: 0, sixes: 0, wickets: 0 };
+  for (const m of matches) m.innings.forEach((_, i) => {
+    const st = E.replay(m, i);
+    t.runs += st.runs; t.wickets += st.wickets;
+    for (const b of st.bat.values()) t.sixes += b.sixes;
+  });
+  return t;
+}
+
 export const strikeRate = (runs: number, balls: number) => (balls ? (runs * 100) / balls : 0);
+/** Runs per 6 balls, so careers with 5- or 8-ball overs still add up. */
 export const economy = (runs: number, legal: number) => (legal ? (runs * 6) / legal : 0);
 
 export interface Profile extends Fielding {
@@ -71,7 +84,7 @@ export function profile(matches: Match[], name: string, fmt: Fmt): Profile {
       if (f) { played = true; p.catches += f.catches; p.runOuts += f.runOuts; p.stumpings += f.stumpings; }
       if (b) {
         played = true; p.innings++; p.runs += b.runs; p.balls += b.balls; p.fours += b.fours; p.sixes += b.sixes;
-        if (!b.out) p.notOuts++;
+        if (!b.out && !b.outs) p.notOuts++;   // pairs: dismissed but batted on still counts as out
         if (b.runs > p.best || (b.runs === p.best && !b.out)) { p.best = b.runs; p.bestNotOut = !b.out; }
         if (b.runs >= 50) p.fifties++; else if (b.runs >= 30) p.thirties++;
         bat = `${bat ? `${bat} & ` : ""}${b.runs}${b.out ? "" : "*"} (${b.balls})`;
@@ -85,7 +98,7 @@ export function profile(matches: Match[], name: string, fmt: Fmt): Profile {
     });
     if (!played) continue;
     p.matches++;
-    const vs = E.isCommon(m, id) ? `${m.teams[0].name} and ${m.teams[1].name} (common)` : m.teams[side === 0 ? 1 : 0].name;
+    const vs = E.isSolo(m) ? `Solo with ${m.teams[0].players.length - 1} other${m.teams[0].players.length === 2 ? "" : "s"}` : E.isCommon(m, id) ? `${m.teams[0].name} and ${m.teams[1].name} (common)` : m.teams[side === 0 ? 1 : 0].name;
     if (p.recent.length < 8) p.recent.push({ matchId: m.id, date: m.createdAt, vs, bat, bowl });
   }
   return p;

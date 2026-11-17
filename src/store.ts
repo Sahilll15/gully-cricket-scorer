@@ -7,17 +7,24 @@ import type { Series } from "./engine/series";
 import type { Fmt } from "./stats";
 import type { PlayerInfo } from "./playerInfo";
 import { migrate, STORE_VERSION } from "./persist";
+import { emptyKitty, type Kitty } from "./kitty";
+import { kittyActions, type KittyActions } from "./kittyView";
+import { extraActions, type ExtraActions } from "./storeExtras";
+import type { NextGame } from "./nextGame";
+import type { MergeUndo } from "./merge";
 import { track } from "./track";
+import { EV } from "./events";
+import { matchEvents } from "./matchEvents";
 
 /** What the last match was set up with, so the next one starts filled in. */
 export interface LastSetup { a: string; b: string; na: string[]; nb: string[]; size: number; sa?: number; sb?: number; rules: Rules; common: string }
 
-export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch" | "join" | "series" | "newseries";
+export type Screen = "home" | "setup" | "live" | "scorecard" | "result" | "stats" | "history" | "cups" | "newcup" | "cup" | "teams" | "player" | "watch" | "join" | "series" | "newseries" | "book" | "kitty";
 
 /** Never goes backwards, so a phone with a slow clock still wins once it adopts the newer copy. */
 export const stamp = (m: Match, prev?: Match): Match => ({ ...m, editedAt: Math.max(Date.now(), (prev?.editedAt ?? 0) + 1) });
 
-interface Store {
+interface Store extends KittyActions, ExtraActions {
   matches: Match[];
   screen: Screen;
   viewId: string | null;     // match being shown
@@ -60,6 +67,9 @@ interface Store {
   setInfo: (name: string, info: PlayerInfo) => void;
   fmt: Fmt;                     // stats format shown on the leaderboard and player pages
   cupsTab: "cups" | "series";
+  kitty: Kitty;
+  nextGame: NextGame | null;
+  lastMerge: MergeUndo | null;   // kept so the last player merge can be undone
 }
 
 export const useStore = create<Store>()(
@@ -67,6 +77,12 @@ export const useStore = create<Store>()(
     (set, get) => {
       const put = (m: Match) => set({ matches: get().matches.map((x) => (x.id === m.id ? stamp(m, x) : x)) });
       const find = (id: string) => get().matches.find((m) => m.id === id)!;
+      // Local changes only: adopt (remote copies) and undo/redo skip this, so nothing is counted twice.
+      const putTracked = (m: Match) => {
+        const prev = get().matches.find((x) => x.id === m.id);
+        put(m);
+        if (prev) for (const [name, params] of matchEvents(prev, m)) track(name, params);
+      };
       return {
         matches: [],
         screen: "home",
@@ -83,7 +99,7 @@ export const useStore = create<Store>()(
             if (c) get().putCup({ ...c, fixtures: c.fixtures.map((f) => (f.id === m.cup!.fixtureId ? { ...f, matchId: m.id } : f)) });
           }
         },
-        put,
+        put: putTracked,
         remove: (id) => set({
           matches: get().matches.filter((m) => m.id !== id),
           cups: get().cups.map((c) => ({ ...c, fixtures: c.fixtures.map((f) => (f.matchId === id ? { ...f, matchId: null } : f)) })),
@@ -114,7 +130,7 @@ export const useStore = create<Store>()(
         watchCode: null,
         watchKey: null,
         lastSetup: null,
-        watchMatch: (code, key = null) => { track("watch_live", { via: key ? "link" : "code" }); set({ watchCode: code, watchKey: key, screen: "watch" }); window.scrollTo(0, 0); },
+        watchMatch: (code, key = null) => { track(EV.watch_live, { via: key ? "link" : "code" }); set({ watchCode: code, watchKey: key, screen: "watch" }); window.scrollTo(0, 0); },
         adopt: (m) => set({
           matches: get().matches.some((x) => x.id === m.id) ? get().matches.map((x) => (x.id === m.id ? m : x)) : [m, ...get().matches],
           redo: get().viewId === m.id ? [] : get().redo,
@@ -133,9 +149,15 @@ export const useStore = create<Store>()(
         setInfo: (name, info) => set({ infos: { ...get().infos, [name.trim().toLowerCase()]: info } }),
         fmt: "limited",
         cupsTab: "cups",
+        kitty: emptyKitty(),
+        ...kittyActions(get, (p) => set(p)),
+        nextGame: null,
+        lastMerge: null,
+        ...extraActions(get, (p) => set(p)),
         playFixture: (cupId, fixtureId) => { set({ fixture: { cupId, fixtureId }, seriesPlay: null, screen: "setup" }); window.scrollTo(0, 0); },
-        ball: (id, input) => { put(E.addBall(find(id), input)); set({ redo: [] }); },
+        ball: (id, input) => { putTracked(E.addBall(find(id), input)); set({ redo: [] }); },
         undo: (id) => {
+          track(EV.undo);
           const { match, popped } = E.undo(find(id));
           put(match);
           if (popped) set({ redo: [...get().redo, popped] });
@@ -143,6 +165,7 @@ export const useStore = create<Store>()(
         redoBall: (id) => {
           const stack = [...get().redo], ev = stack.pop();
           if (!ev) return;
+          track(EV.redo);
           put(E.redo(find(id), ev));
           set({ redo: stack });
         },
@@ -151,7 +174,7 @@ export const useStore = create<Store>()(
     {
       name: "gully-scorer", version: STORE_VERSION,
       partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" || s.screen === "join" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup,
-        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab }),
+        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab, kitty: s.kitty, nextGame: s.nextGame, lastMerge: s.lastMerge }),
       migrate: (old) => migrate(old) as never,
     },
   ),

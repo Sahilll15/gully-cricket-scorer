@@ -4,6 +4,8 @@ import { advance, champion, fixtureCount, newTournament, stageLabel, standings, 
 import { SeriesList } from "./Series";
 import type { Match, Rules } from "../engine/types";
 import { useStore } from "../store";
+import { track } from "../track";
+import { EV } from "../events";
 import { leaders, strikeRate } from "../stats";
 import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Stepper } from "../ui";
 
@@ -92,7 +94,7 @@ export function NewCup() {
               </button>
             ))}
           </div>
-          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { const t = saveTeam(newTeam, []); setPick([...pick, t.id]); setNewTeam(""); } }}>
+          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { track(EV.team_save); const t = saveTeam(newTeam, []); setPick([...pick, t.id]); setNewTeam(""); } }}>
             <input value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
               className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
             <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
@@ -118,6 +120,7 @@ export function NewCup() {
         </Card>
         <PrimaryButton disabled={pick.length < 2 || !name.trim()} onClick={() => {
           const t = newTournament(name.trim(), pick, { ...CUP_RULES, overs }, format);
+          track(EV.cup_create, { format, teams: pick.length });
           putCup(t); useStore.setState({ cupId: t.id }); go("cup");
         }}>{pick.length < 2 ? "Pick at least 2 teams" : `Create · ${fixtures} match${fixtures === 1 ? "" : "es"}`}</PrimaryButton>
       </main>
@@ -137,7 +140,7 @@ function FixtureRow({ f, cup, matches, name }: { f: Fixture; cup: Tournament; ma
     return `${st.runs}/${st.wickets}`;
   };
   return (
-    <button onClick={() => (m ? go(m.status === "done" ? "result" : "live", m.id) : playFixture(cup.id, f.id))} className="press block w-full text-left">
+    <button onClick={() => (m ? go(m.status === "done" ? "result" : "live", m.id) : (track(EV.cup_fixture_play), playFixture(cup.id, f.id)))} className="press block w-full text-left">
       <Card className={cx(f.stage === "final" ? "!border-sun" : f.stage !== "league" && "!border-sun/50")}>
         <div className="mb-2 flex items-center justify-between text-xs font-semibold text-mute">
           <span>{f.stage === "final" ? "🏆 FINAL" : f.stage === "league" ? `Match ${cup.fixtures.indexOf(f) + 1} · Round ${f.round}` : <span className="text-sun">{stageLabel(cup, f).toUpperCase()}</span>}</span>

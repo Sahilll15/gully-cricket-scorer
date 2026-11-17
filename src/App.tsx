@@ -13,6 +13,8 @@ import { History, Stats } from "./screens/Lists";
 import { Cup, Cups, NewCup } from "./screens/Cups";
 import { PlayerProfile, Teams } from "./screens/Teams";
 import { NewSeries, SeriesView } from "./screens/Series";
+import Book from "./screens/Book";
+import Kitty from "./screens/Kitty";
 
 // Keeps one broadcast channel open per match that is being shared, and pushes every change.
 function LivePublisher() {
@@ -71,6 +73,8 @@ export default function App() {
       {screen === "player" && <PlayerProfile />}
       {screen === "series" && <SeriesView />}
       {screen === "newseries" && <NewSeries />}
+      {screen === "book" && <Book />}
+      {screen === "kitty" && <Kitty />}
       {screen === "watch" && <Watch />}
       {screen === "join" && <JoinScoring />}
       {liveSupported && <LivePublisher />}

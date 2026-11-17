@@ -75,6 +75,36 @@ describe("points table", () => {
     expect(a.runsFor).toBe(6);
   });
 
+  it("net run rate counts overs in each match's balls per over", () => {
+    const t = newTournament("Cup", ["A", "B"], rules, "league");
+    const five = { ...rules, ballsPerOver: 5 };
+    let m = newMatch([team("A"), team("B")], five);
+    m = startInnings(m, "A1", "A2", "B1");
+    m = play(m, r(2), r(2), r(2), r(2), r(2));
+    m = startInnings(m, "B1", "B2", "A1");
+    m = play(m, r(1), r(1), r(1), r(1), r(1));
+    t.fixtures[0].a = "A"; t.fixtures[0].b = "B"; t.fixtures[0].matchId = m.id;
+    const s = standings(t, [m]);
+    const a = s.find((x) => x.teamId === "A")!, b = s.find((x) => x.teamId === "B")!;
+    expect(a.ballsFaced).toBe(5);
+    expect(a.nrr).toBe(5);
+    expect(b.nrr).toBe(-5);
+  });
+
+  it("all out in a five-ball-over match counts the full quota in its own overs", () => {
+    const t = newTournament("Cup", ["A", "B"], rules, "league");
+    const five = { ...rules, overs: 2, ballsPerOver: 5 };
+    let m = newMatch([team("A"), team("B")], five);
+    m = startInnings(m, "A1", "A2", "B1");
+    m = play(m, r(5), { ...out, wicket: { ...out.wicket!, newId: "A3" } }, out);
+    m = startInnings(m, "B1", "B2", "A1");
+    m = play(m, r(6));
+    t.fixtures[0].a = "A"; t.fixtures[0].b = "B"; t.fixtures[0].matchId = m.id;
+    const a = standings(t, [m]).find((x) => x.teamId === "A")!;
+    expect(a.ballsFaced).toBe(10);
+    expect(a.nrr).toBe(-27.5);
+  });
+
   it("adds a final between the top two, then crowns the winner", () => {
     const { t, matches } = setup();
     expect(leagueDone(t, matches)).toBe(true);

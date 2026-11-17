@@ -1,7 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { create } from "zustand";
-import { merge, type Backup } from "./backup";
+import { emptyKitty, mergeBackup, type KittyBackup } from "./kitty";
 import { useStore } from "./store";
+import { track } from "./track";
+import { EV } from "./events";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -23,25 +25,35 @@ type Sync = "idle" | "saving" | "saved" | "error";
 interface Account { phone: string | null; sync: Sync; savedAt: number | null }
 export const useAccount = create<Account>(() => ({ phone: null, sync: "idle", savedAt: null }));
 
-const snapshot = (): Backup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos }; };
+const snapshot = (): KittyBackup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos, kitty: s.kitty }; };
 
-async function pull(): Promise<Backup | null> {
+async function pull(): Promise<KittyBackup | null> {
   const { data, error } = await db().from("gully_backups").select("data").maybeSingle();
   if (error) throw error;
-  return (data?.data as Backup | undefined) ?? null;
+  return (data?.data as KittyBackup | undefined) ?? null;
 }
 
 async function push() {
   if (!uid || !merged) return;
+  const was = useAccount.getState().sync;
   useAccount.setState({ sync: "saving" });
   const { error } = await db().from("gully_backups").upsert({ user_id: uid, data: snapshot(), updated_at: new Date().toISOString() });
   useAccount.setState(error ? { sync: "error" } : { sync: "saved", savedAt: Date.now() });
+  // Only when the outcome changes, or every ball scored would send one.
+  if (was !== (error ? "error" : "saved")) track(EV.backup_sync, { result: error ? "error" : "ok" });
 }
+
+const syncFailed = () => {
+  if (useAccount.getState().sync !== "error") track(EV.backup_sync, { result: "error" });
+  useAccount.setState({ sync: "error" });
+};
 
 /** Pulls the account's copy, merges it into this phone, and saves the result back. */
 async function syncNow() {
-  const both = merge(snapshot(), await pull());
-  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {} });
+  // No await between the snapshot and setState, or changes made during the pull are lost.
+  const cloud = await pull();
+  const both = mergeBackup(snapshot(), cloud);
+  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {}, kitty: both.kitty ?? emptyKitty() });
   merged = true;
   await push();
 }
@@ -49,7 +61,7 @@ async function syncNow() {
 function startSession(id: string, phone: string) {
   uid = id;
   useAccount.setState({ phone });
-  return syncNow().catch(() => useAccount.setState({ sync: "error" }));
+  return syncNow().catch(syncFailed);
 }
 
 export async function signIn(phone: string, passcode: string, isNew: boolean): Promise<string | null> {
@@ -72,7 +84,17 @@ export async function signOut() {
   useAccount.setState({ phone: null, sync: "idle", savedAt: null });
 }
 
-export const retrySync = () => { if (uid) void (merged ? push() : syncNow().catch(() => useAccount.setState({ sync: "error" }))); };
+/** Deletes the login and its cloud backup for good. Matches on this phone stay. */
+export async function deleteAccount(): Promise<string | null> {
+  const { error } = await db().rpc("gully_delete_my_account");
+  if (error) return "Couldn't delete the account. Check your internet and try again.";
+  uid = null; merged = false;
+  await db().auth.signOut({ scope: "local" }).catch(() => {});
+  useAccount.setState({ phone: null, sync: "idle", savedAt: null });
+  return null;
+}
+
+export const retrySync = () => { if (uid) void (merged ? push() : syncNow().catch(syncFailed)); };
 
 /** Restores the session on load and saves a few seconds after every change while signed in. */
 export function startAccountSync() {
@@ -83,7 +105,7 @@ export function startAccountSync() {
     if (data.session && phone) void startSession(data.session.user.id, phone);
   });
   const unsub = useStore.subscribe((s, prev) => {
-    if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos)) return;
+    if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos && s.kitty === prev.kitty)) return;
     clearTimeout(timer);
     timer = setTimeout(() => void push(), 3000);
   });

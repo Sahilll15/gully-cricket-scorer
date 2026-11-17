@@ -1,4 +1,4 @@
-import { replay, result, uid } from "./engine";
+import { ballsPerOver, replay, result, uid } from "./engine";
 import type { Match, Player, Rules, Side } from "./types";
 
 /** league-final: top 2 to the final. ipl: Qualifier 1, Eliminator, Qualifier 2. semis: 1v4, 2v3. knockout: no league. */
@@ -82,9 +82,14 @@ const doneMatch = (f: Fixture, matches: Match[]) => matches.find((m) => m.id ===
 
 export function sideOf(f: Fixture, teamId: string): Side { return f.a === teamId ? 0 : 1; }
 
-/** Points: win 2, tie 1. NRR = runs per over scored minus runs per over conceded; all out counts the full quota. */
+/**
+ * Points: win 2, tie 1. NRR = runs per over scored minus runs per over conceded; all out counts the full quota.
+ * Overs are counted in each match's own balls per over, so a 5-ball-over match isn't read as 6-ball overs.
+ */
 export function standings(t: Tournament, matches: Match[]): Standing[] {
   const rows = new Map<string, Standing>(t.teamIds.map((id) => [id, { teamId: id, p: 0, w: 0, l: 0, t: 0, pts: 0, nrr: 0, runsFor: 0, ballsFaced: 0, runsAgainst: 0, ballsBowled: 0 }]));
+  const oversFaced = new Map<string, number>(), oversBowled = new Map<string, number>();
+  const addTo = (map: Map<string, number>, id: string, v: number) => map.set(id, (map.get(id) ?? 0) + v);
   for (const f of t.fixtures.filter((x) => x.stage === "league")) {
     const m = doneMatch(f, matches);
     if (!m) continue;
@@ -96,18 +101,20 @@ export function standings(t: Tournament, matches: Match[]): Standing[] {
       else if (res.winner === side) { r.w++; r.pts += 2; }
       else r.l++;
     }
+    const bpo = ballsPerOver(m.rules);
     for (let i = 0; i < Math.min(2, m.innings.length); i++) {
       const inn = m.innings[i], st = replay(m, i);
-      const balls = st.allOut ? inn.overs * 6 : st.legal;
+      const balls = st.allOut ? inn.balls ?? inn.overs * bpo : st.legal;
       const bat = inn.bat === 0 ? f.a : f.b, bowl = inn.bat === 0 ? f.b : f.a;
       const rb = rows.get(bat)!, rw = rows.get(bowl)!;
-      rb.runsFor += st.runs; rb.ballsFaced += balls;
-      rw.runsAgainst += st.runs; rw.ballsBowled += balls;
+      rb.runsFor += st.runs; rb.ballsFaced += balls; addTo(oversFaced, bat, balls / bpo);
+      rw.runsAgainst += st.runs; rw.ballsBowled += balls; addTo(oversBowled, bowl, balls / bpo);
     }
   }
   for (const r of rows.values()) {
-    const forRate = r.ballsFaced ? (r.runsFor * 6) / r.ballsFaced : 0;
-    const agRate = r.ballsBowled ? (r.runsAgainst * 6) / r.ballsBowled : 0;
+    const of = oversFaced.get(r.teamId) ?? 0, ob = oversBowled.get(r.teamId) ?? 0;
+    const forRate = of ? r.runsFor / of : 0;
+    const agRate = ob ? r.runsAgainst / ob : 0;
     r.nrr = Math.round((forRate - agRate) * 1000) / 1000;
   }
   return [...rows.values()].sort((x, y) => y.pts - x.pts || y.nrr - x.nrr || y.w - x.w);

@@ -1,6 +1,11 @@
-import { useState } from "react";
-import { accountsSupported, retrySync, signIn, signOut, useAccount } from "./account";
+import { useRef, useState } from "react";
+import { accountsSupported, deleteAccount, retrySync, signIn, signOut, useAccount } from "./account";
 import { cleanPhone, validPasscode } from "./backup";
+import { backupFileName, readBackupFile, restoreFrom, toBackupFile } from "./backupFile";
+import { useStore } from "./store";
+import { track } from "./track";
+import { EV } from "./events";
+import { flag } from "./matchEvents";
 import { cx, PrimaryButton, Sheet } from "./ui";
 
 const pretty = (p: string) => (p.startsWith("+") ? p : `+91 ${p.slice(0, 5)} ${p.slice(5)}`);
@@ -16,11 +21,50 @@ function Digits({ value, set, label, auto }: { value: string; set: (v: string) =
   );
 }
 
+/** Save everything to a JSON file, or merge one back in. Works without an account. */
+export function FileBackup() {
+  const { snapshot, restoreBackup } = useStore();
+  const pickRef = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const save = () => {
+    const url = URL.createObjectURL(new Blob([toBackupFile(snapshot())], { type: "application/json" }));
+    const a = document.createElement("a");
+    track(EV.backup_file_save);
+    a.href = url; a.download = backupFileName();
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMsg({ ok: true, text: "Backup file saved. Keep it somewhere safe, like your Drive or a chat with yourself." });
+  };
+  const restore = async (f: File | undefined) => {
+    if (!f) return;
+    const file = readBackupFile(await f.text());
+    if (!file) return setMsg({ ok: false, text: "That file isn't a Gully Scorer backup." });
+    const { data, added } = restoreFrom(snapshot(), file);
+    track(EV.backup_file_restore);
+    restoreBackup(data);
+    setMsg({ ok: true, text: added });
+  };
+  return (
+    <div>
+      <p className="text-sm font-semibold text-teal">Backup file</p>
+      <p className="mt-1 text-xs text-mute">Matches, teams, cups, series, player details and the kitty in one file. Restoring adds to what's here, it never deletes.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button onClick={save} className="press min-h-12 rounded-2xl border-2 border-line px-2 text-sm font-semibold text-fg">Save a backup file</button>
+        <button onClick={() => pickRef.current?.click()} className="press min-h-12 rounded-2xl border-2 border-line px-2 text-sm font-semibold text-fg">Restore from a file</button>
+      </div>
+      <input ref={pickRef} type="file" accept="application/json,.json" hidden
+        onChange={(e) => { void restore(e.target.files?.[0]); e.target.value = ""; }} />
+      {msg && <p className={cx("mt-3 text-sm font-medium", msg.ok ? "text-fg" : "text-out")}>{msg.text}</p>}
+    </div>
+  );
+}
+
 export function AccountSheet({ onClose }: { onClose: () => void }) {
   const { phone, sync, savedAt } = useAccount();
   const [isNew, setIsNew] = useState(false);
   const [cc, setCc] = useState("91"), [num, setNum] = useState(""), [pass, setPass] = useState(""), [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const [del, setDel] = useState(false), [delErr, setDelErr] = useState("");
   const clean = cleanPhone(num, cc), india = cc === "91" && !num.trim().startsWith("+");
   const ok = clean && validPasscode(pass) && (!isNew || pass === again);
 
@@ -36,9 +80,26 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
       <p className="mt-3 text-sm text-mute">Sign in with the same number on any phone to get your matches, teams and tournaments back.</p>
       <div className="mt-4 grid gap-2">
         {sync === "error" && <PrimaryButton onClick={retrySync}>Try saving again</PrimaryButton>}
-        <button onClick={() => { void signOut(); onClose(); }} className="press min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-fg">Sign out</button>
+        <button onClick={() => { track(EV.sign_out); void signOut(); onClose(); }} className="press min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-fg">Sign out</button>
       </div>
       <p className="mt-3 text-center text-xs text-mute">Signing out keeps everything on this phone too.</p>
+      <div className="mt-5 border-t border-line pt-4"><FileBackup /></div>
+      <div className="mt-5 border-t border-line pt-4">
+        {del ? (
+          <div className="rounded-3xl border-2 border-out p-4">
+            <p className="font-bold text-fg">Delete your account?</p>
+            <p className="mt-1 text-sm text-mute">Your login and the cloud copy of your matches are removed for good. Matches on this phone stay.</p>
+            {delErr && <p className="mt-2 text-sm text-out">{delErr}</p>}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button onClick={() => { setDel(false); setDelErr(""); }} className="press min-h-12 rounded-2xl border-2 border-line font-semibold text-fg">Cancel</button>
+              <button disabled={busy} onClick={async () => { setBusy(true); const e = await deleteAccount(); setBusy(false); if (e) setDelErr(e); else { track(EV.account_delete); onClose(); } }}
+                className="press min-h-12 rounded-2xl bg-out font-semibold text-ink">{busy ? "Deleting…" : "Delete for good"}</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setDel(true)} className="press min-h-11 w-full text-sm font-semibold text-out">Delete my account</button>
+        )}
+      </div>
     </Sheet>
   );
 
@@ -47,7 +108,7 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
     setBusy(true); setErr("");
     const e = await signIn(clean!, pass, isNew);
     setBusy(false);
-    if (e) setErr(e); else onClose();
+    if (e) setErr(e); else { track(EV.sign_in, { new: flag(isNew) }); onClose(); }
   }
 
   return (
@@ -80,6 +141,7 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
       </form>
       {err && <p className="mt-4 rounded-2xl bg-out/15 p-3 text-sm font-medium text-out">{err}</p>}
       <p className="mt-4 text-xs text-mute">No SMS is sent. Your number is just your login name. Remember the passcode, it can't be reset from the app yet.</p>
+      <div className="mt-5 border-t border-line pt-4"><FileBackup /></div>
     </Sheet>
   );
 }
@@ -88,7 +150,12 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
 export function AccountButton() {
   const phone = useAccount((s) => s.phone), sync = useAccount((s) => s.sync);
   const [open, setOpen] = useState(false);
-  if (!accountsSupported) return null;
+  if (!accountsSupported) return (
+    <>
+      <button onClick={() => setOpen(true)} className="press flex min-h-10 items-center rounded-full border border-line bg-key px-3 text-xs font-bold text-fg">Backup</button>
+      {open && <Sheet title="Backup" onClose={() => setOpen(false)}><FileBackup /></Sheet>}
+    </>
+  );
   return (
     <>
       <button onClick={() => setOpen(true)} className="press flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-key px-3 text-xs font-bold text-fg">

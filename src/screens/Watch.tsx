@@ -3,9 +3,13 @@ import * as E from "../engine/engine";
 import type { Match } from "../engine/types";
 import { fingerprint, watch, type LiveState } from "../live";
 import { track } from "../track";
+import { EV } from "../events";
 import { stamp, useStore } from "../store";
 import { deviceId } from "../device";
 import { Badge, BallChip, Card, Header, LivePill, PrimaryButton } from "../ui";
+import { SoloTable } from "../sheets";
+import { PairsStrip } from "../liveSheets";
+import { oversLine } from "../liveKit";
 
 export default function Watch() {
   const { watchCode, watchKey, go } = useStore();
@@ -71,7 +75,7 @@ export function JoinScoring() {
         const keep: Match = same ? ((mine.editedAt ?? 0) > (match.editedAt ?? 0) ? mine : match) : { ...match, id: mine ? E.uid() : match.id, cup: undefined };
         s.adopt(stamp({ ...keep, live: joinCode, liveKey: joinKey, liveFp: fp, scorer: deviceId, handover: undefined }, keep));
         useStore.setState({ redo: [] });
-        track("move_scoring_in");
+        track(EV.move_scoring_in);
         go("live", keep.id);
       }, setStatus);
     });
@@ -115,24 +119,32 @@ class Safe extends Component<{ children: ReactNode }, { err: boolean }> {
 function Board({ m }: { m: NonNullable<LiveState["match"]> }) {
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const tgt = E.target(m, idx), batTeam = m.teams[inn.bat];
-  const need = tgt !== null ? tgt - st.runs : 0, left = inn.overs * 6 - st.legal;
-  const res = E.result(m), test = E.isTest(m), status = E.testStatus(m);
-  const label = E.inningsLabel(m, idx);
+  const need = tgt !== null ? tgt - st.runs : 0, left = E.ballsLeft(m, idx) ?? 0;
+  const res = E.result(m), test = E.isTest(m), status = E.testStatus(m), solo = E.isSolo(m);
+  const label = E.inningsLabel(m, idx), who = E.playerName(m, inn.striker);
   return (
     <div className="stadium mt-3 overflow-hidden rounded-3xl px-5 pb-5 pt-4 text-white">
       <div className="flex items-center gap-2 text-[13px] font-medium text-white/85">
-        <Badge name={batTeam.name} size={28} /><span className="truncate">{batTeam.name} · {label}</span>
+        {solo ? <><Badge name={who} size={28} /><span className="truncate">{who} {m.status === "live" ? "batting" : "· turn over"}{E.isFrench(m) ? " · French cricket" : ""}</span></>
+          : <><Badge name={batTeam.name} size={28} /><span className="truncate">{batTeam.name} · {label}</span></>}
       </div>
       <p className="mt-2 flex items-baseline gap-2">
-        <span key={st.runs + "-" + st.wickets} className="roll text-[64px] font-extrabold leading-none tracking-tight tabular-nums">{st.runs}/{st.wickets}</span>
-        <span className="text-xl font-semibold text-white/85 tabular-nums">({E.oversText(st.legal)}{test ? "" : `/${inn.overs}`})</span>
+        {solo ? <>
+          <span key={st.runs} className="roll text-[64px] font-extrabold leading-none tracking-tight tabular-nums">{st.runs}</span>
+          <span className="text-xl font-semibold text-white/85 tabular-nums">off {st.bat.get(inn.striker)?.balls ?? 0}</span>
+        </> : <>
+          <span key={st.runs + "-" + st.wickets} className="roll text-[64px] font-extrabold leading-none tracking-tight tabular-nums">{st.runs}/{st.wickets}</span>
+          <span className="text-xl font-semibold text-white/85 tabular-nums">({oversLine(m, idx, st)})</span>
+        </>}
       </p>
       <p className="mt-2 text-[13px] text-white/85">
         {res ? <b className="text-sun">{res.text}</b>
-          : test ? <>{m.status === "break" ? "Innings break · " : ""}{status ?? `Run rate ${E.runRate(st.runs, st.legal).toFixed(2)}`}</>
+          : solo ? <>{m.status === "break" ? "Between turns" : `${E.livesLeft(m)} ${E.livesLeft(m) === 1 ? "life" : "lives"} left`}</>
+          : test ? <>{m.status === "break" ? "Innings break · " : ""}{status ?? `Run rate ${E.runRate(st.runs, st.legal, st.bpo).toFixed(2)}`}</>
           : m.status === "break" ? <>Innings break · {m.teams[E.otherSide(inn.bat)].name} need {st.runs + 1}</>
           : tgt !== null ? <>Need <b className="text-sun">{Math.max(0, need)}</b> off <b className="text-sun">{left}</b> ball{left === 1 ? "" : "s"} · Target {tgt}</>
-          : <>Run rate {E.runRate(st.runs, st.legal).toFixed(2)}</>}
+          : <>Run rate {E.runRate(st.runs, st.legal, st.bpo).toFixed(2)}</>}
+        {st.penalties > 0 && <> · incl. {st.penalties} penalty run{st.penalties === 1 ? "" : "s"}</>}
       </p>
     </div>
   );
@@ -141,29 +153,31 @@ function Board({ m }: { m: NonNullable<LiveState["match"]> }) {
 function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const name = (id: string | null) => E.playerName(m, id);
-  const bowler = st.bowl.get(inn.bowler);
-  const overNo = Math.floor(st.legal / 6);
+  const bowler = st.bowl.get(inn.bowler), ump = E.umpire(m), solo = E.isSolo(m);
+  const overNo = Math.floor(st.legal / st.bpo);
   const over = st.overs[overNo]?.length ? st.overs[overNo] : (st.overs[overNo - 1] ?? []);
-  const others = m.innings.slice(0, idx).map((x, i) => ({ x, st: E.replay(m, i) }));
+  const others = solo ? [] : m.innings.slice(0, idx).map((x, i) => ({ x, st: E.replay(m, i) }));
   return (
     <>
-      {m.status === "live" && (
+      {m.status === "live" && !solo && (
         <div className="grid grid-cols-2 gap-3">
           {[st.striker, st.nonStriker].map((id, i) => id ? (
             <div key={id} className={i === 0 ? "rounded-3xl border-2 border-sun bg-panel p-3" : "rounded-3xl border-2 border-transparent bg-panel p-3"}>
               <span className="flex items-center gap-1 text-[15px] font-semibold text-fg">{i === 0 && <span aria-label="On strike">🏏</span>}<span className="truncate">{name(id)}</span></span>
-              <span className="text-sm font-medium text-teal tabular-nums">{st.bat.get(id)?.runs ?? 0} ({st.bat.get(id)?.balls ?? 0})</span>
+              <span className="text-sm font-medium text-teal tabular-nums">{st.bat.get(id)?.runs ?? 0} ({st.bat.get(id)?.balls ?? 0}){st.bat.get(id)?.outs ? ` · out ${st.bat.get(id)!.outs}×` : ""}</span>
             </div>
           ) : <div key={i} />)}
         </div>
       )}
+      {E.isPairs(m) && <PairsStrip match={m} idx={idx} />}
       <Card className="!p-3">
         <div className="flex items-center justify-between text-sm">
           <span className="text-mute">Bowler: <b className="font-semibold text-fg">{name(inn.bowler)}</b></span>
-          <span className="font-semibold text-teal tabular-nums">{bowler ? `${E.oversText(bowler.legal)}-${bowler.maidens}-${bowler.runs}-${bowler.wickets}` : "0.0-0-0-0"}</span>
+          <span className="font-semibold text-teal tabular-nums">{bowler ? `${E.oversText(bowler.legal, st.bpo)}-${bowler.maidens}-${bowler.runs}-${bowler.wickets}` : "0.0-0-0-0"}</span>
         </div>
+        {ump && <p className="mt-1 text-xs text-mute">Umpire this over: <b className="font-semibold text-fg">{ump.name}</b></p>}
         <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="shrink-0 text-xs font-semibold text-mute">{over.length ? `Over ${st.overs[overNo]?.length ? overNo + 1 : overNo}` : "New over"}</span>
+          <span className="shrink-0 text-xs font-semibold text-mute">{E.isFrench(m) ? "Balls" : over.length ? `Over ${st.overs[overNo]?.length ? overNo + 1 : overNo}` : "New over"}</span>
           {over.map((b, i) => <BallChip key={i} b={b} />)}
         </div>
       </Card>
@@ -174,7 +188,8 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
           <span className="font-bold text-fg tabular-nums">{E.inningsScore(m, i)} ({E.oversText(s.legal)})</span>
         </Card>
       ))}
-      <Card className="!p-3">
+      {solo && <Card className="!p-0 overflow-hidden"><p className="px-3 pt-3 pb-2 text-sm font-semibold text-teal">Standings</p><SoloTable match={m} highlight={m.status === "live" ? inn.striker : null} /></Card>}
+      {!solo && <Card className="!p-3">
         <p className="mb-2 text-sm font-semibold text-teal">Batting · {m.teams[inn.bat].name}</p>
         {[...st.bat.entries()].map(([id, b]) => (
           <div key={id} className="flex items-center justify-between border-t border-line py-2 text-sm first:border-0">
@@ -182,9 +197,9 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
             <span className="tabular-nums text-fg"><b>{b.runs}</b> <span className="text-mute">({b.balls})</span></span>
           </div>
         ))}
-      </Card>
+      </Card>}
       <Card className="!p-0 overflow-hidden">
-        <p className="px-3 pt-3 pb-2 text-sm font-semibold text-teal">Bowling · {m.teams[E.otherSide(inn.bat)].name}</p>
+        <p className="px-3 pt-3 pb-2 text-sm font-semibold text-teal">{solo ? "Bowling this turn" : `Bowling · ${m.teams[E.otherSide(inn.bat)].name}`}</p>
         <table className="w-full text-sm">
           <thead><tr className="bg-key text-left text-xs text-fg">
             <th className="px-3 py-2 font-semibold">Bowler</th>{["O", "M", "R", "W", "Wd", "Nb", "Econ"].map((h) => <th key={h} className="px-1 py-2 text-right font-semibold last:pr-3">{h}</th>)}
@@ -192,11 +207,11 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
           <tbody>{st.bowlOrder.map((id) => { const b = st.bowl.get(id)!, on = m.status === "live" && id === inn.bowler; return (
             <tr key={id} className="border-t border-line">
               <td className={on ? "px-3 py-2.5 font-semibold text-sun" : "px-3 py-2.5 font-semibold text-fg"}>{name(id)}{on ? " *" : ""}</td>
-              {[E.oversText(b.legal), b.maidens, b.runs].map((v, k) => <td key={k} className="px-1 text-right tabular-nums">{v}</td>)}
+              {[E.oversText(b.legal, st.bpo), b.maidens, b.runs].map((v, k) => <td key={k} className="px-1 text-right tabular-nums">{v}</td>)}
               <td className="px-1 text-right font-bold text-fg tabular-nums">{b.wickets}</td>
               <td className="px-1 text-right tabular-nums">{b.wides}</td>
               <td className="px-1 text-right tabular-nums">{b.noBalls}</td>
-              <td className="px-1 pr-3 text-right tabular-nums">{E.runRate(b.runs, b.legal).toFixed(1)}</td>
+              <td className="px-1 pr-3 text-right tabular-nums">{E.runRate(b.runs, b.legal, st.bpo).toFixed(1)}</td>
             </tr>); })}</tbody>
         </table>
         {!st.bowlOrder.length && <p className="px-3 py-3 text-sm text-mute">No balls yet.</p>}

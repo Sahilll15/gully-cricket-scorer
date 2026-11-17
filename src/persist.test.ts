@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { merge, type Backup } from "./backup";
 import { migrate, STORE_VERSION } from "./persist";
+import { emptyKitty } from "./kitty";
 import { replay } from "./engine/engine";
 import type { Match } from "./engine/types";
 import type { Tournament } from "./engine/tournament";
@@ -32,7 +33,19 @@ describe("saved data from older versions", () => {
     expect(s).toMatchObject({ matches: [match], teams: [], cups: [], series: [], infos: {}, lastSetup: null });
   });
 
-  it("the store version moved on", () => expect(STORE_VERSION).toBe(4));
+  it("v4 state keeps everything and gains an empty kitty", () => {
+    const v4 = { matches: [match], teams: [], cups: [cup], series: [], infos: { ravi: { role: "bat" } }, fmt: "limited" };
+    const s = migrate(JSON.parse(JSON.stringify(v4))) as Record<string, unknown>;
+    expect(s).toMatchObject({ matches: [match], cups: [cup], infos: { ravi: { role: "bat" } } });
+    expect(s.kitty).toEqual(emptyKitty());
+  });
+
+  it("a kitty missing a list gets the empty list back", () => {
+    const s = migrate({ matches: [], kitty: { expenses: [] } }) as { kitty: unknown };
+    expect(s.kitty).toEqual(emptyKitty());
+  });
+
+  it("the store version moved on", () => expect(STORE_VERSION).toBe(5));
 });
 
 describe("backup with series and player details", () => {

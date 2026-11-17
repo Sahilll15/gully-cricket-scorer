@@ -3,6 +3,7 @@ import { addBall, newMatch, startInnings } from "./engine/engine";
 import type { BallInput, Match, Team } from "./engine/types";
 import { summaryText } from "./share";
 import { playerPool } from "./stats";
+import { soloMatch, teamMatch } from "./fixtures.test-util";
 
 const team = (p: string, names: string[]): Team => ({ name: p, players: names.map((n, i) => ({ id: `${p}${i}`, name: n })) });
 const rules = { overs: 2, extraRun: true, rebowl: true, freeHit: false, lastManStands: false, oneTipCatch: false, wall: "none", tipAndRun: false, maxOversPerBowler: null } as const;
@@ -29,5 +30,19 @@ describe("player pool", () => {
   it("collects named players from matches and saved teams once, skipping placeholders", () => {
     const pool = playerPool([played()], [{ players: [{ name: "rahul" }, { name: "Kabir" }] }]);
     expect(pool).toEqual(["Rahul", "Amit", "Sam", "Zaid", "Kabir"]);
+  });
+});
+
+describe("solo in sharing", () => {
+  it("labels each turn with the batter and leads with the standings, never Solo vs Solo", () => {
+    const t = summaryText(soloMatch());
+    expect(t).not.toContain("*Solo");
+    expect(t).toContain("*Asha 10/1 (0.3 ov)*");
+    expect(t).toContain("*Chitra 12/0 (1.0 ov)*");
+    expect(t).toContain("*Standings*\n1. Chitra 12 (6)\n2. Asha 10 (3)\n3. Bilal 6 (6)");
+  });
+
+  it("names the MVP player of the match", () => {
+    expect(summaryText(teamMatch())).toContain("Player of the match: Tigers B, 13 off 5, 0 for 3 · 26 points");
   });
 });

@@ -1,16 +1,12 @@
 import { useState } from "react";
 import * as E from "./engine/engine";
-import type { Ball, Extra, Match, Player, Side, Wicket, WicketKind } from "./engine/types";
+import type { Ball, Extra, Match, Player, Wicket, WicketKind } from "./engine/types";
 import { Badge, cx, Pill, PrimaryButton, Segmented, Sheet, Stepper } from "./ui";
+import { BLOCK_TEXT, wicketCost } from "./liveKit";
 
-export function addPlayer(m: Match, side: Side, name: string): { match: Match; id: string } {
-  const n: Match = JSON.parse(JSON.stringify(m)), id = E.uid();
-  n.teams[side].players.push({ id, name: name.trim() });
-  n.innings.forEach((inn) => { if (inn.bat === side) inn.wicketLimit = inn.superOver ? inn.wicketLimit : E.wicketLimit(n.teams[side], n.rules, inn.solo); });
-  return { match: n, id };
-}
+const addPlayer = E.addPlayer;
 
-function PlayerPick({ players, value, set, disabled, note }: {
+export function PlayerPick({ players, value, set, disabled, note }: {
   players: Player[]; value: string | null; set: (id: string) => void; disabled?: (id: string) => boolean; note?: (id: string) => string;
 }) {
   return (
@@ -28,7 +24,7 @@ function PlayerPick({ players, value, set, disabled, note }: {
   );
 }
 
-function AddName({ onAdd, label }: { onAdd: (name: string) => void; label: string }) {
+export function AddName({ onAdd, label }: { onAdd: (name: string) => void; label: string }) {
   const [v, setV] = useState("");
   return (
     <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (v.trim()) { onAdd(v); setV(""); } }}>
@@ -94,47 +90,52 @@ export function OpenersSheet({ match, onStart, onClose }: { match: Match; onStar
 }
 
 export function BowlerSheet({ match, onPick, onClose, onEnd, endLabel = "End innings instead" }: { match: Match; onPick: (m: Match) => void; onClose?: () => void; onEnd?: () => void; endLabel?: string }) {
-  const idx = match.innings.length - 1, field = E.otherSide(match.innings[idx].bat);
-  const st = E.replay(match, idx);
-  const fig = (id: string) => { const b = st.bowl.get(id); return b ? `${E.oversText(b.legal)}-${b.maidens}-${b.runs}-${b.wickets}` : "Yet to bowl"; };
+  const idx = match.innings.length - 1, field = E.otherSide(match.innings[idx].bat), solo = E.isSolo(match);
+  const st = E.replay(match, idx), opts = E.bowlerOptions(match), opt = (id: string) => opts.find((o) => o.id === id);
+  const fig = (id: string) => {
+    const o = opt(id), b = st.bowl.get(id);
+    if (o?.blocked) return BLOCK_TEXT[o.blocked];
+    const f = b ? `${E.oversText(b.legal, st.bpo)}-${b.maidens}-${b.runs}-${b.wickets}` : "Yet to bowl";
+    return o?.oversLeft != null ? `${f}, ${o.oversLeft} over${o.oversLeft === 1 ? "" : "s"} left` : f;
+  };
+  const yet = solo ? [] : E.notBowledYet(match, field).filter((p) => !opt(p.id)?.blocked);
   return (
-    <Sheet title={`Over ${Math.floor(st.legal / 6) + 1}: who bowls?`} onClose={onClose}>
-      <PlayerPick players={match.teams[field].players} value={null} note={fig}
-        disabled={(id) => !E.canBowl(match, idx, id)} set={(id) => onPick(E.setBowler(match, id))} />
-      <AddName label="New bowler's name" onAdd={(name) => { const r = addPlayer(match, field, name); onPick(E.setBowler(r.match, r.id)); }} />
-      <p className="mt-3 text-xs text-mute">Faded names bowled the last over, hit the overs limit, or are batting.</p>
+    <Sheet title={`Over ${Math.floor(st.legal / st.bpo) + 1}: who bowls?`} onClose={onClose}>
+      <PlayerPick players={opts.map((o) => ({ id: o.id, name: o.name }))} value={null} note={fig}
+        disabled={(id) => !!opt(id)?.blocked} set={(id) => onPick(E.setBowler(match, id))} />
+      {!solo && <AddName label="New bowler's name" onAdd={(name) => { const r = addPlayer(match, field, name); onPick(E.setBowler(r.match, r.id)); }} />}
+      {yet.length > 0 && st.bowlOrder.length > 0 && <p className="mt-3 rounded-2xl bg-sun-soft p-3 text-sm text-fg">Yet to bowl: {yet.map((p) => p.name).join(", ")}. Give them a go?</p>}
       {onEnd && <button onClick={onEnd} className="press mt-4 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-out">{endLabel}</button>}
     </Sheet>
   );
 }
 
-const KINDS: WicketKind[] = ["bowled", "caught", "run out", "stumped", "lbw", "hit wicket"];
-
-export function WicketSheet({ match, extra, onDone, onClose }: {
-  match: Match; extra: Extra | null; onDone: (m: Match, input: { runs: number; extra?: Extra; wicket: Wicket }) => void; onClose: () => void;
+export function WicketSheet({ match, extra, preset, onDone, onClose }: {
+  match: Match; extra: Extra | null; preset?: WicketKind | null; onDone: (m: Match, input: { runs: number; extra?: Extra; wicket: Wicket }) => void; onClose: () => void;
 }) {
   const [m, setM] = useState(match);
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
-  const free = st.freeHit || extra === "nb";
-  let kinds = [...KINDS];
-  if (m.rules.oneTipCatch) kinds.push("one-tip catch");
-  if (m.rules.wall === "out") kinds.push("wall out");
-  if (free) kinds = ["run out"];
-  else if (extra === "wd") kinds = ["stumped", "run out"];
-  else if (extra === "b" || extra === "lb") kinds = ["run out"];
+  const kinds = E.wicketKinds(m.rules, extra, st.freeHit);
 
-  const [kind, setKind] = useState<WicketKind | null>(kinds.length === 1 ? kinds[0] : null);
+  const [kind, setKind] = useState<WicketKind | null>(preset && kinds.includes(preset) ? preset : kinds.length === 1 ? kinds[0] : null);
   const [out, setOut] = useState<"s" | "ns">("s");
   const [runs, setRuns] = useState(0);
   const { fresh, back } = E.afterWicket(m, idx);
-  const lastWicket = st.wickets + 1 >= inn.wicketLimit;
+  const outId = (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? null;
+  const pairs = E.isPairs(m), cost = wicketCost(m, st, outId);
+  // A protected player's first dismissal costs runs, and they bat on.
+  const stays = !E.isSolo(m) && !pairs && !!outId && !E.needsNewBatter(m, outId);
+  const lastWicket = !pairs && !stays && st.wickets + 1 >= inn.wicketLimit;
   // Retired batters may have gone home, so with only them left nobody has to come in.
-  const needNew = fresh.length > 0 && !lastWicket;
-  const offer = needNew ? [...fresh, ...back] : back;
+  const needNew = fresh.length > 0 && !lastWicket && !stays;
+  const offer = needNew ? [...fresh, ...back] : stays ? [] : back;
   const [newId, setNewId] = useState<string | null>(null);
   const alone = m.rules.lastManStands && !!st.nonStriker;
   const [fielder, setFielder] = useState<string | null>(null);
-  const fieldSide = E.otherSide(inn.bat);
+  const fieldSide = E.otherSide(inn.bat), solo = E.isSolo(m);
+  // Solo: a new name would join the batting order mid-match, so fielders come from the players only.
+  const fielders = solo ? m.teams[0].players.filter((p) => p.id !== st.striker) : m.teams[fieldSide].players;
+  const livesAfter = inn.wicketLimit - st.wickets - 1;
   const byLabel = kind === "caught" || kind === "one-tip catch" ? "Caught by" : kind === "stumped" ? "Stumped by" : kind === "run out" ? "Run out by" : null;
   const ready = kind && (!needNew || newId);
   const name = (id: string | null) => E.playerName(m, id);
@@ -162,8 +163,8 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
       {byLabel && (
         <>
           <p className="mb-2 mt-5 text-sm font-semibold text-teal">{byLabel} <span className="font-normal text-mute">(optional)</span></p>
-          <PlayerPick players={m.teams[fieldSide].players} value={fielder} set={(id) => setFielder((f) => (f === id ? null : id))} />
-          <AddName label="Fielder's name" onAdd={(n) => { const r = addPlayer(m, fieldSide, n); setM(r.match); setFielder(r.id); }} />
+          <PlayerPick players={fielders} value={fielder} set={(id) => setFielder((f) => (f === id ? null : id))} />
+          {!solo && <AddName label="Fielder's name" onAdd={(n) => { const r = addPlayer(m, fieldSide, n); setM(r.match); setFielder(r.id); }} />}
         </>
       )}
       {needNew ? (
@@ -182,13 +183,18 @@ export function WicketSheet({ match, extra, onDone, onClose }: {
           )}
           {!newId && (
             <p className="mt-5 rounded-2xl bg-sun-soft p-3 text-sm font-medium text-fg">
-              {lastWicket ? "That's the last wicket. The innings ends."
+              {stays ? `${name(outId)} is protected: stays in, and it costs ${cost} run${cost === 1 ? "" : "s"}.`
+                : pairs ? `${name(outId)} bats on.${cost ? ` It costs ${cost} run${cost === 1 ? "" : "s"}.` : ""}`
+                : solo ? (lastWicket ? `That's ${name(st.striker)}'s last life. The turn ends.`
+                : `${name(st.striker)} loses a life and bats on, ${livesAfter} ${livesAfter === 1 ? "life" : "lives"} left.`)
+                : lastWicket ? "That's the last wicket. The innings ends."
                 : alone ? "Last man stands: the other batter carries on alone."
                 : "Nobody left to bat. That's all out, the innings ends."}
             </p>
           )}
         </>
       )}
+      {cost > 0 && !stays && !pairs && <p className="mt-3 text-sm text-mute">This dismissal costs {cost} run{cost === 1 ? "" : "s"}.</p>}
     </Sheet>
   );
 }
@@ -222,18 +228,21 @@ export function OversSheet({ match, onSave, onClose }: { match: Match; onSave: (
   );
 }
 
-export function RetireSheet({ match, onSave, onClose }: { match: Match; onSave: (m: Match) => void; onClose: () => void }) {
+export function RetireSheet({ match, batter, hurt, onSave, onClose }: { match: Match; batter?: string | null; hurt?: boolean; onSave: (m: Match) => void; onClose: () => void }) {
   const [m, setM] = useState(match);
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
-  const [who, setWho] = useState<"s" | "ns">("s");
+  const [who, setWho] = useState<"s" | "ns">(batter && batter === st.nonStriker ? "ns" : "s");
   const [newId, setNewId] = useState<string | null>(null);
   const remaining = E.yetToBat(m, idx);
   const name = (id: string | null) => E.playerName(m, id);
   return (
-    <Sheet title="Retire a batter" onClose={onClose}
+    <Sheet title={hurt ? "Retired hurt" : "Retire a batter"} onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!newId && !st.nonStriker}
-        onClick={() => onSave(E.retire(m, who, newId))}>Retire {name(who === "s" ? st.striker : st.nonStriker)}</PrimaryButton>}>
-      <p className="mb-3 text-sm text-mute">Hurt, or has to leave? They go off not out and it isn't a wicket.</p>
+        onClick={() => onSave(E.retire(m, who, newId, !!hurt))}>Retire {name(who === "s" ? st.striker : st.nonStriker)}</PrimaryButton>}>
+      <p className="mb-3 text-sm text-mute">{hurt ? "They go off retired hurt, not out, and can come back in later."
+        : batter && m.rules.retireAt
+        ? `${name(batter)} has reached ${m.rules.retireAt}, so they retire. They go off not out and can bat again later.`
+        : "Hurt, or has to leave? They go off not out and it isn't a wicket."}</p>
       <div className="grid grid-cols-2 gap-2">
         <Pill active={who === "s"} onClick={() => setWho("s")}>{name(st.striker)}</Pill>
         {st.nonStriker && <Pill active={who === "ns"} onClick={() => setWho("ns")}>{name(st.nonStriker)}</Pill>}
@@ -244,5 +253,62 @@ export function RetireSheet({ match, onSave, onClose }: { match: Match; onSave: 
       {st.nonStriker && <button onClick={() => setNewId(null)}
         className={cx("press mt-3 min-h-12 w-full rounded-2xl border-2 font-semibold", newId === null ? "border-sun bg-sun-soft text-fg" : "border-line text-mute")}>Nobody, the other batter carries on alone</button>}
     </Sheet>
+  );
+}
+
+/** Solo: who bowls the next turn. The suggested bowler is picked already, so one tap starts it. */
+export function SoloTurnSheet({ match: m, onStart, onClose }: { match: Match; onStart: (m: Match) => void; onClose?: () => void }) {
+  const batter = E.nextBatter(m), suggested = E.suggestedBowler(m);
+  const [bw, setBw] = useState<string | null>(suggested);
+  const who = E.playerName(m, batter);
+  return (
+    <Sheet title={`${who} bats next`} onClose={onClose}
+      footer={<PrimaryButton disabled={!bw} onClick={() => onStart(E.startTurn(m, bw!))}>Start {who}'s turn</PrimaryButton>}>
+      <p className="mb-2 text-sm font-semibold text-teal">Who bowls to {who}?</p>
+      <PlayerPick players={m.teams[0].players.filter((p) => p.id !== batter)} value={bw} set={setBw} note={(id) => (id === suggested ? "Next in line" : "")} />
+    </Sheet>
+  );
+}
+
+/** French cricket: who bats next, the one who got the last batter out by default, and who bowls to them. */
+export function FrenchNextSheet({ match: m, onStart, onClose }: { match: Match; onStart: (m: Match) => void; onClose?: () => void }) {
+  const here = m.teams[0].players.filter((p) => !E.hasLeft(m, p.id)), outBy = E.frenchOutBy(m);
+  const prev = m.innings[m.innings.length - 1]?.striker ?? null;
+  const bowlerFor = (b: string | null) => (prev && prev !== b && here.some((p) => p.id === prev) ? prev : here.find((p) => p.id !== b)?.id ?? null);
+  const [bat, setBat] = useState<string | null>(outBy ?? here[0]?.id ?? null);
+  const [bw, setBw] = useState<string | null>(bowlerFor(outBy ?? here[0]?.id ?? null));
+  const who = E.playerName(m, bat);
+  return (
+    <Sheet title={`${who} bats next`} onClose={onClose}
+      footer={<PrimaryButton disabled={!bat || !bw || bat === bw} onClick={() => onStart(E.frenchNext(m, bat!, bw!))}>Start {who}'s turn</PrimaryButton>}>
+      <p className="mb-2 text-sm font-semibold text-teal">Who bats next?</p>
+      <PlayerPick players={here} value={bat} set={(id) => { setBat(id); if (id === bw) setBw(bowlerFor(id)); }} note={(id) => (id === outBy ? "Got them out" : "")} />
+      <p className="mb-2 mt-5 text-sm font-semibold text-teal">Who bowls to {who}?</p>
+      <PlayerPick players={here.filter((p) => p.id !== bat)} value={bw} set={setBw} note={(id) => (id === prev ? "Just batted" : "")} />
+    </Sheet>
+  );
+}
+
+/** Solo: the leaderboard. `full` adds strike rate and boundaries, for the result. */
+export function SoloTable({ match: m, full, highlight }: { match: Match; full?: boolean; highlight?: string | null }) {
+  const rows = E.soloStandings(m);
+  const cols = full ? ["R", "B", "SR", "4s", "6s", "Out"] : ["R", "B", "Out"];
+  return (
+    <table className="w-full text-sm">
+      <thead><tr className="bg-key text-left text-xs text-fg">
+        <th className="w-8 py-2.5 pl-3 font-semibold">#</th><th className="px-1.5 py-2.5 font-semibold">Name</th>
+        {cols.map((h) => <th key={h} className="px-1.5 py-2.5 text-right font-semibold last:pr-3">{h}</th>)}
+      </tr></thead>
+      <tbody>{rows.map((r, i) => {
+        const vals = full ? [r.runs, r.balls, r.strikeRate.toFixed(0), r.fours, r.sixes, r.outs] : [r.runs, r.balls, r.outs];
+        return (
+          <tr key={r.id} className={cx("border-t border-line", r.id === highlight && "bg-sun-soft")}>
+            <td className="py-2.5 pl-3 text-xs font-bold text-mute tabular-nums">{i + 1}</td>
+            <td className="px-1.5 py-2.5 font-semibold text-fg">{r.name}{r.turns === 0 ? <span className="block text-xs font-normal text-mute">Yet to bat</span> : null}</td>
+            {vals.map((v, k) => <td key={k} className={cx("px-1.5 text-right tabular-nums last:pr-3", k === 0 && "font-bold text-fg")}>{v}</td>)}
+          </tr>
+        );
+      })}</tbody>
+    </table>
   );
 }

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { newSeries, seriesMatches, seriesScore, type Series } from "../engine/series";
 import type { Match, Rules } from "../engine/types";
 import { useStore } from "../store";
+import { track } from "../track";
+import { EV } from "../events";
 import { Badge, Card, ConfirmSheet, cx, Header, Pill, PrimaryButton, Segmented, Stepper, Toggle } from "../ui";
 import { MatchCard } from "./Home";
 
@@ -92,7 +94,7 @@ export function NewSeries() {
               </button>
             ))}
           </div>
-          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { const t = saveTeam(newTeam, []); setPick((p) => [...p.filter((x) => x !== t.id), t.id].slice(-2)); setNewTeam(""); } }}>
+          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { track(EV.team_save); const t = saveTeam(newTeam, []); setPick((p) => [...p.filter((x) => x !== t.id), t.id].slice(-2)); setNewTeam(""); } }}>
             <input value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
               className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
             <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
@@ -119,6 +121,7 @@ export function NewSeries() {
         </Card>}
         <PrimaryButton disabled={pick.length < 2} onClick={() => {
           const s = newSeries(name.trim() || `${names[0]} v ${names[1]}`, pick[0], pick[1], games, rules);
+          track(EV.series_create, { matches: games });
           putSeries(s); useStore.setState({ seriesId: s.id, cupsTab: "series" }); go("series");
         }}>{pick.length < 2 ? "Pick 2 teams" : `Create · ${games} match${games === 1 ? "" : "es"}`}</PrimaryButton>
       </main>

@@ -5,9 +5,11 @@ import { AdBox } from "../ad";
 import { Badge, BottomNav, Card, ConfirmSheet, FmtSwitch, Header, Segmented } from "../ui";
 import type { Match } from "../engine/types";
 import { MatchCard } from "./Home";
+import { csvName, statsCsv } from "../csv";
+import { downloadCsv } from "../share";
 
 export function History() {
-  const { matches, remove } = useStore();
+  const { matches, remove, go } = useStore();
   const [q, setQ] = useState("");
   const [f, setF] = useState<"all" | "live" | "done">("all");
   const [ask, setAsk] = useState<Match | null>(null);
@@ -21,6 +23,11 @@ export function History() {
           className="mt-3 min-h-12 w-full rounded-2xl bg-panel px-4 font-medium outline-none placeholder:text-mute" />
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
+        <button onClick={() => go("book")} className="press flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-line bg-panel px-4 py-2 text-left">
+          <span className="text-2xl">📖</span>
+          <span className="flex-1"><span className="block font-semibold text-fg">Gully Book</span><span className="text-xs text-mute">Records, milestones and bragging rights</span></span>
+          <span className="text-mute">›</span>
+        </button>
         <Segmented value={f} set={setF} items={[{ v: "all", label: "All" }, { v: "live", label: "Live" }, { v: "done", label: "Completed" }]} />
         {list.map((m) => (
           <div key={m.id} className="relative">
@@ -74,6 +81,8 @@ export function Stats() {
             ? b === "field" ? "Name the fielder when you record a catch, run out or stumping, and it counts here." : "Nothing here yet."
             : fmt === "test" ? "No Test matches yet. Pick Test match when you set one up." : "Name your players when setting up a match and they show up here."}</p>}
         </Card>
+        {all.length > 0 && <button onClick={() => downloadCsv(statsCsv(matches, fmt), csvName(fmt))}
+          className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Download all player stats (CSV)</button>}
       </main>
       <AdBox />
       <BottomNav />

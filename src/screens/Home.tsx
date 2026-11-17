@@ -3,9 +3,10 @@ import * as E from "../engine/engine";
 import { cleanCode, liveSupported } from "../live";
 import { InstallCard } from "../install";
 import { AccountButton, BackupCard } from "../accountUi";
+import { NextGameCard } from "../nextGameUi";
 import type { Match } from "../engine/types";
 import { useStore } from "../store";
-import { leaders } from "../stats";
+import { matchTotals } from "../stats";
 import { seriesScore } from "../engine/series";
 import { seriesNames, SeriesNext } from "./Series";
 import { AdBox } from "../ad";
@@ -48,8 +49,8 @@ export default function Home() {
   const [code, setCode] = useState("");
   const live = matches.filter((m) => m.status === "live" || m.status === "break");
   const done = matches.filter((m) => m.status === "done").slice(0, 3);
-  const all = [...leaders(matches, "limited"), ...leaders(matches, "test")];
-  const total = (k: "runs" | "sixes" | "wickets") => all.reduce((s, r) => s + r[k], 0);
+  const sums = matchTotals(matches);
+  const total = (k: "runs" | "sixes" | "wickets") => sums[k];
 
   return (
     <div className="min-h-screen pb-28">
@@ -68,6 +69,16 @@ export default function Home() {
       </header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-5">
         <PrimaryButton onClick={() => go("setup")}>+ Start new match</PrimaryButton>
+        <div className="grid grid-cols-2 gap-2">
+          {([["book", "📖", "Gully Book", "Records and bragging rights"], ["kitty", "💰", "Kitty", "Who paid for the ball"]] as const).map(([s, icon, title, sub]) => (
+            <button key={s} onClick={() => go(s)} className="press rounded-3xl border border-line bg-panel p-4 text-left">
+              <span className="text-2xl">{icon}</span>
+              <span className="mt-2 block font-bold text-fg">{title}</span>
+              <span className="block text-xs text-mute">{sub}</span>
+            </button>
+          ))}
+        </div>
+        <NextGameCard />
         {going.map((s) => (
           <Card key={s.id} className="!p-3">
             <button onClick={() => { useStore.setState({ seriesId: s.id }); go("series"); }} className="press mb-2 flex w-full items-center justify-between px-1 text-left text-sm">

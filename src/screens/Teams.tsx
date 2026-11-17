@@ -2,9 +2,18 @@ import { useState } from "react";
 import * as E from "../engine/engine";
 import type { SavedTeam } from "../engine/tournament";
 import { useStore } from "../store";
-import { average, bowlAverage, bowlStrikeRate, economy, profile, strikeRate, type Fmt } from "../stats";
+import { track } from "../track";
+import { EV } from "../events";
+import { average, bowlAverage, bowlStrikeRate, economy, playerPool, profile, strikeRate } from "../stats";
 import { infoLine, ROLES, STYLES, type PlayerInfo } from "../playerInfo";
-import { Badge, BottomNav, Card, ConfirmSheet, cx, FmtSwitch, Header, PrimaryButton, Sheet } from "../ui";
+import { uniqueNames } from "../kitty";
+import { knownNames } from "../kittyView";
+import { mergeReach } from "../merge";
+import { cleanUpi, validUpi } from "../upi";
+import {
+  filterMatches, fmtFor, kindsPlayed, matchesLine, PROFILE_KINDS, skillCard, skillCardText, startKind, TIER_COLOR, yearsPlayed, type Kind, type SkillCard,
+} from "../playerCard";
+import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Sheet } from "../ui";
 
 function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void }) {
   const { putTeam, removeTeam, openPlayer } = useStore();
@@ -33,23 +42,70 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
       <button onClick={() => setAskDel(true)} className="press mt-5 min-h-12 w-full rounded-2xl font-semibold text-out">Delete team</button>
     </Sheet>
     {askDel && <ConfirmSheet title={`Delete ${t.name}?`} body="Past matches keep their scores." yes="Delete" danger
-      onYes={() => { removeTeam(t.id); onClose(); }} onClose={() => setAskDel(false)} />}
+      onYes={() => { track(EV.team_delete); removeTeam(t.id); onClose(); }} onClose={() => setAskDel(false)} />}
+  </>);
+}
+
+const chip = (on: boolean) => cx("press min-h-11 rounded-full border px-4 text-sm font-semibold", on ? "border-sun bg-sun text-ink" : "border-line bg-key text-fg");
+
+/** Two names that are the same person: pick the one to drop, then the one to keep. */
+function MergeSheet({ onClose }: { onClose: () => void }) {
+  const { matches, teams, kitty, infos, mergePlayers } = useStore();
+  const names = uniqueNames([...playerPool(matches, teams), ...knownNames(teams, matches, kitty)]);
+  const [from, setFrom] = useState<string | null>(null);
+  const [into, setInto] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [ask, setAsk] = useState(false);
+  const shown = names.filter((n) => n.toLowerCase().includes(q.trim().toLowerCase()));
+  const reach = from ? mergeReach({ matches, teams, infos, kitty }, from) : null;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return (<>
+    <Sheet title="Merge players" onClose={onClose}
+      footer={<PrimaryButton disabled={!from || !into} onClick={() => setAsk(true)}>{from && into ? `Merge ${from} into ${into}` : "Merge"}</PrimaryButton>}>
+      <p className="text-sm text-mute">Same person saved under two names? Merge them and their matches, teams, details and kitty all add up under one name.</p>
+      {names.length > 8 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names" maxLength={20}
+        className="mt-3 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />}
+      <p className="mb-2 mt-4 text-sm font-semibold text-teal">Name to drop</p>
+      <div className="flex flex-wrap gap-2">
+        {shown.map((n) => <button key={n} onClick={() => { setFrom(n); if (into === n) setInto(null); }} aria-pressed={from === n} className={chip(from === n)}>{n}</button>)}
+      </div>
+      {from && <>
+        <p className="mb-2 mt-5 text-sm font-semibold text-teal">Same person as</p>
+        <div className="flex flex-wrap gap-2">
+          {shown.filter((n) => n !== from).map((n) => <button key={n} onClick={() => setInto(n)} aria-pressed={into === n} className={chip(into === n)}>{n}</button>)}
+        </div>
+      </>}
+      {!names.length && <p className="mt-4 text-sm text-mute">No players yet.</p>}
+    </Sheet>
+    {ask && from && into && reach && (
+      <ConfirmSheet title={`Merge ${from} into ${into}?`} yes="Merge"
+        body={`${from} becomes ${into} in ${plural(reach.matches, "match", "matches")}, ${plural(reach.teams, "team", "teams")} and ${plural(reach.kitty, "kitty entry", "kitty entries")}. Their player details are combined. You can undo this merge.`}
+        onYes={() => { track(EV.merge_players); mergePlayers(from, into); onClose(); }} onClose={() => setAsk(false)} />
+    )}
   </>);
 }
 
 export function Teams() {
-  const { teams, saveTeam } = useStore();
+  const { teams, saveTeam, lastMerge, undoMerge } = useStore();
   const [edit, setEdit] = useState<SavedTeam | null>(null);
   const [name, setName] = useState("");
+  const [merging, setMerging] = useState(false);
   return (
     <div className="min-h-screen pb-28">
       <Header title="My Teams" />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (name.trim()) { setEdit(saveTeam(name, [])); setName(""); } }}>
+        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (name.trim()) { track(EV.team_save); setEdit(saveTeam(name, [])); setName(""); } }}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New team name" maxLength={18}
             className="min-h-14 flex-1 rounded-2xl border-2 border-line bg-panel px-4 font-semibold outline-none focus:border-sun" />
           <button className="press min-h-14 rounded-2xl bg-sun px-5 font-bold text-ink">Create</button>
         </form>
+        <button onClick={() => setMerging(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Merge players</button>
+        {lastMerge && (
+          <Card className="flex items-center gap-3 !py-3">
+            <span className="flex-1 text-sm text-fg">Merged <b>{lastMerge.from}</b> into <b>{lastMerge.into}</b>.</span>
+            <button onClick={() => { track(EV.undo_merge); undoMerge(); }} className="press min-h-10 rounded-full border border-line px-4 text-sm font-semibold text-sun">Undo merge</button>
+          </Card>
+        )}
         {teams.map((t) => (
           <button key={t.id} onClick={() => setEdit(t)} className="press block w-full text-left">
             <Card className="flex items-center gap-3">
@@ -63,6 +119,7 @@ export function Teams() {
         {!teams.length && <p className="pt-6 text-center text-sm text-mute">Teams you play with are saved here automatically, with their squads.</p>}
       </main>
       {edit && <TeamEditor team={edit} onClose={() => setEdit(null)} />}
+      {merging && <MergeSheet onClose={() => setMerging(false)} />}
       <BottomNav />
     </div>
   );
@@ -82,11 +139,14 @@ function Choice<T extends string>({ items, value, set }: { items: readonly (read
 function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; onClose: () => void }) {
   const { setInfo } = useStore();
   const [i, setI] = useState(info);
+  const [upi, setUpi] = useState(info.upi ?? "");
   const put = (patch: Partial<PlayerInfo>) => setI({ ...i, ...patch });
   const label = (t: string) => <p className="mb-2 mt-4 text-sm font-semibold text-teal first:mt-0">{t}</p>;
+  const upiOk = !upi.trim() || validUpi(upi);
+  const save = () => { track(EV.player_details_save); setInfo(name, { ...i, upi: upi.trim() ? cleanUpi(upi) : undefined }); onClose(); };
   return (
     <Sheet title={`About ${name}`} onClose={onClose}
-      footer={<PrimaryButton onClick={() => { setInfo(name, i); onClose(); }}>Save</PrimaryButton>}>
+      footer={<PrimaryButton disabled={!upiOk} onClick={save}>Save</PrimaryButton>}>
       {label("Role")}
       <Choice items={ROLES} value={i.role} set={(role) => put({ role })} />
       {label("Bats")}
@@ -99,20 +159,51 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
         {label("Kind (optional)")}
         <Choice items={STYLES[i.bowl].map((x) => [x, x] as const)} value={i.style} set={(style) => put({ style })} />
       </>}
+      {label("UPI ID (optional)")}
+      <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@okaxis" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={60}
+        className="min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 text-fg outline-none focus:border-sun" />
+      <p className={cx("mt-1.5 text-xs", upiOk ? "text-mute" : "text-out")}>{upiOk ? "Lets the kitty show a QR when someone owes them. Stays on this phone." : "A UPI ID looks like name@bank."}</p>
     </Sheet>
+  );
+}
+
+/** The premium card: rating, tier, role and three numbers, tinted by tier. */
+function SkillCardView({ c }: { c: SkillCard }) {
+  const col = TIER_COLOR[c.tier];
+  return (
+    <div className="relative overflow-hidden rounded-3xl border-2 p-5" style={{ borderColor: col, background: `linear-gradient(155deg, ${col}33, #101012 60%)` }}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-6xl font-extrabold leading-none tabular-nums" style={{ color: col }}>{c.score}</p>
+          <p className="mt-1 text-sm font-bold" style={{ color: col }}>{c.tier}</p>
+        </div>
+        <Badge name={c.name} size={60} />
+      </div>
+      <p className="mt-4 truncate text-2xl font-extrabold text-fg">{c.name}</p>
+      <p className="text-sm text-fg/75">{c.role}</p>
+      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-3">
+        {c.stats.map((x) => (
+          <div key={x.label} className="text-center"><p className="text-xl font-extrabold tabular-nums text-fg">{x.value}</p><p className="text-[11px] font-medium text-mute">{x.label}</p></div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 export function PlayerProfile() {
   const { matches, player, go, fmt, infos } = useStore();
   const [editing, setEditing] = useState(false);
+  const [kind, setKind] = useState<Kind>(() => startKind(kindsPlayed(matches, player ?? ""), fmt));
+  const [year, setYear] = useState<number | null>(null);
   if (!player) return null;
-  const other: Fmt = fmt === "test" ? "limited" : "test";
-  // Open on the format they've actually played, without mixing the two.
-  const shown = profile(matches, player, fmt).matches || !profile(matches, player, other).matches ? fmt : other;
-  const p = profile(matches, player, shown);
+  const years = yearsPlayed(matches, player, kind);
+  const pool = filterMatches(matches, kind, year);
+  const p = profile(pool, player, fmtFor(kind));
   const info = infos[player.trim().toLowerCase()] ?? {};
   const line = infoLine(info);
+  const card = skillCard(pool, player, kind, info);
+  const pick = (k: Kind) => { setKind(k); setYear(null); if (k !== "solo") useStore.setState({ fmt: k }); };
+  const share = () => { track(EV.share, { what: "skill_card" }); window.open("https://wa.me/?text=" + encodeURIComponent(skillCardText(card)), "_blank"); };
   const num = (v: number | null, d = 1) => (v === null ? "-" : v.toFixed(d));
   const stat = (k: string, v: string | number) => (
     <div className="min-w-0 rounded-2xl bg-key px-1 py-3 text-center"><p className="text-xl font-extrabold text-fg tabular-nums">{v}</p><p className="text-[10px] font-medium leading-tight text-mute min-[360px]:text-[11px]">{k}</p></div>
@@ -128,8 +219,19 @@ export function PlayerProfile() {
         </div>
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <FmtSwitch value={shown} set={(v) => useStore.setState({ fmt: v })} />
-        <p className="text-center text-sm text-mute">{p.matches ? `${p.matches} ${shown === "test" ? "Test" : "limited-overs"} match${p.matches === 1 ? "" : "es"}` : `No ${shown === "test" ? "Test" : "limited-overs"} matches yet`}</p>
+        <Segmented value={kind} set={pick} items={PROFILE_KINDS} />
+        {years.length > 1 && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {[null, ...years].map((y) => (
+              <button key={y ?? "all"} onClick={() => setYear(y)} aria-pressed={year === y} className={cx(chip(year === y), "min-h-10")}>{y ?? "All years"}</button>
+            ))}
+          </div>
+        )}
+        <p className="text-center text-sm text-mute">{matchesLine(p.matches, kind, year)}</p>
+        {card.matches > 0 && <>
+          <SkillCardView c={card} />
+          <button onClick={share} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share card</button>
+        </>}
         <Card>
           <p className="mb-3 text-sm font-semibold text-teal">Batting</p>
           <div className="grid grid-cols-4 gap-2">
