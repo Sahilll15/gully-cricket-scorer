@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+mobile/store/reviewer-login.txt
+
+# gully mobile
+mobile/node_modules
+mobile/android
+mobile/ios
+mobile/.expo
+mobile/.env
+mobile/store/release
+mobile/store/reviewer-login.txt
