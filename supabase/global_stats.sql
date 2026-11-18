@@ -84,3 +84,40 @@ end $t$;
 drop trigger if exists gully_stats_handle on public.gully_stats;
 create trigger gully_stats_handle before insert on public.gully_stats for each row execute function public.gully_stats_handle();
 update public.gully_stats set on_board = true where nickname is null;
+
+-- Stats can't be recomputed on the server (the scoring engine is client code), so clamp them to what the
+-- scorer's own backup can plausibly hold: never more matches than the backup has, and per-match ceilings.
+create or replace function public.gully_stats_clamp() returns trigger language plpgsql security definer set search_path = '' as $t$
+declare m int;
+begin
+  select case when jsonb_typeof(data -> 'matches') = 'array' then jsonb_array_length(data -> 'matches') else 0 end into m
+    from public.gully_backups where user_id = new.user_id;
+  m := coalesce(m, 0);
+  new.matches := least(new.matches, m);
+  new.runs := least(new.runs, m * 600);
+  new.sixes := least(new.sixes, m * 150);
+  new.wickets := least(new.wickets, m * 60);
+  new.best_score := least(new.best_score, 1500);
+  return new;
+end $t$;
+drop trigger if exists gully_stats_clamp on public.gully_stats;
+create trigger gully_stats_clamp before insert or update on public.gully_stats for each row execute function public.gully_stats_clamp();
+
+-- Rows say which one is the caller's, so the app never has to match on a nickname anyone could copy.
+create or replace function public.gully_top(metric text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(t), '[]'::jsonb) from (
+    select nickname, matches, runs, sixes, wickets, (user_id = auth.uid()) as me
+    from public.gully_stats
+    where on_board and nickname is not null
+    order by case metric when 'runs' then runs when 'sixes' then sixes when 'wickets' then wickets else matches end desc, updated_at asc
+    limit 20
+  ) t;
+$$;
+revoke all on function public.gully_top(text) from public;
+grant execute on function public.gully_top(text) to anon, authenticated;

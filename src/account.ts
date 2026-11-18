@@ -124,7 +124,7 @@ export async function fetchWorld(): Promise<GullyWorld | null> {
   return error ? null : (data as GullyWorld);
 }
 
-export interface BoardRow { nickname: string; matches: number; runs: number; sixes: number; wickets: number }
+export interface BoardRow { nickname: string; matches: number; runs: number; sixes: number; wickets: number; me?: boolean }
 export type BoardMetric = "matches" | "runs" | "sixes" | "wickets";
 
 /** Top scorers who chose to appear, by one metric. Empty when offline or accounts are off. */

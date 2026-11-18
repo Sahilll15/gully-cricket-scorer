@@ -88,7 +88,7 @@ function WorldCard() {
         ))}
       </View>
       {w.best > 0 && <Txt style={tw`mt-3 text-[13px]`}>Highest individual score: <Txt style={tw`font-bold text-sun`}>{fmtN(w.best)}</Txt></Txt>}
-      <Txt style={tw`mt-2 text-[11px] text-mute`}>Runs, sixes and wickets count the {fmtN(w.reporting)} scorers who have backed up since this card began.</Txt>
+      <Txt style={tw`mt-2 text-[11px] text-mute`}>Runs, sixes and wickets cover the {fmtN(w.reporting)} scorers who have scored matches.</Txt>
     </ScoreHero>
   );
 }
@@ -124,7 +124,7 @@ function WorldBoard() {
         {rows.map((r, i) => (
           <View key={r.nickname + i} style={tw`flex-row items-center gap-3 py-2 ${i ? "border-t border-line" : ""}`}>
             <Num style={tw`w-6 text-[16px] ${i === 0 ? "text-sun" : "text-mute"}`}>{i + 1}</Num>
-            <Txt style={tw`flex-1 text-[15px] font-semibold ${r.nickname === me?.nickname ? "text-sun" : "text-fg"}`} numberOfLines={1}>{r.nickname}</Txt>
+            <Txt style={tw`flex-1 text-[15px] font-semibold ${r.me ? "text-sun" : "text-fg"}`} numberOfLines={1}>{r.nickname}</Txt>
             <Num style={tw`text-[18px]`}>{fmtN(r[m])}</Num>
           </View>
         ))}

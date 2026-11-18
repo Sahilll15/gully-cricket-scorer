@@ -56,7 +56,7 @@ function WorldCard() {
         {tiles.map(([k, v]) => <div key={k}><p className="text-lg font-extrabold text-fg tabular-nums">{n(v)}</p><p className="text-[11px] text-mute">{k}</p></div>)}
       </div>
       {w.best > 0 && <p className="mt-3 text-sm text-fg">Highest individual score: <span className="font-bold text-sun">{n(w.best)}</span></p>}
-      <p className="mt-2 text-[11px] text-mute">Runs, sixes and wickets count the {n(w.reporting)} scorers who have backed up since this card began.</p>
+      <p className="mt-2 text-[11px] text-mute">Runs, sixes and wickets cover the {n(w.reporting)} scorers who have scored matches.</p>
     </div>
   );
 }
@@ -88,7 +88,7 @@ function WorldBoard() {
         {rows.map((r, i) => (
           <div key={r.nickname + i} className="flex items-center gap-3 border-t border-line py-2 first:border-0">
             <span className={i === 0 ? "w-6 text-lg font-extrabold text-sun" : "w-6 font-bold text-mute"}>{i + 1}</span>
-            <span className={cx("flex-1 truncate font-semibold", r.nickname === me?.nickname ? "text-sun" : "text-fg")}>{r.nickname}</span>
+            <span className={cx("flex-1 truncate font-semibold", r.me ? "text-sun" : "text-fg")}>{r.nickname}</span>
             <span className="text-xl font-extrabold text-fg tabular-nums">{n(r[m])}</span>
           </div>
         ))}
