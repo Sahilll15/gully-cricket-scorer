@@ -113,7 +113,39 @@ function WorldBoard() {
   );
 }
 
-function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
+const TIER_HEX: Record<string, string> = { Bronze: "#cd8a4f", Silver: "#c9d0d6", Gold: "#f0c75e", Icon: "#ff8a3d" };
+
+/** Player cards and the fastest-to-50 record, on the overview so they are not hidden behind a tap or a tab. */
+function Showcase({ d, goRecords }: { d: BookData; goRecords: () => void }) {
+  const { openPlayer } = useStore();
+  const fast = d.speed.find((b) => b.rows.length && b.runs === 50) ?? d.speed.find((b) => b.rows.length);
+  return (<>
+    {d.cards.length > 0 && (
+      <div className="rounded-3xl border border-line bg-panel p-4">
+        <p className={label}>Player cards</p>
+        <p className="mb-1 text-xs text-mute">Tap a player to open their card.</p>
+        {d.cards.map((c) => (
+          <button key={c.name} onClick={() => openPlayer(c.name)} className="press flex w-full items-center gap-3 border-t border-line py-2 text-left first:border-0">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl border-2 text-lg font-extrabold tabular-nums" style={{ borderColor: TIER_HEX[c.tier], color: TIER_HEX[c.tier] }}>{c.score}</span>
+            <span className="min-w-0 flex-1"><span className="block truncate font-semibold text-fg">{c.name}</span><span className="text-xs text-mute">{c.tier} · {plural(c.matches, "match", "matches")}</span></span>
+            <span className="text-mute">›</span>
+          </button>
+        ))}
+      </div>
+    )}
+    {fast && (
+      <button onClick={goRecords} className="press block w-full text-left">
+        <div className="rounded-3xl border border-line bg-panel p-4">
+          <p className={label}>Fastest to {fast.runs} career runs</p>
+          <p className="text-lg font-bold text-fg">{fast.rows[0].name}</p>
+          <p className="text-xs text-mute">{fast.rows[0].balls} balls. See 100, 200, 500 and 1000 in Records.</p>
+        </div>
+      </button>
+    )}
+  </>);
+}
+
+function Overview({ d, fmt, goRecords }: { d: BookData; fmt: Fmt; goRecords: () => void }) {
   const { openPlayer } = useStore();
   if (!d.o.played) return <><Empty icon="📖" title="The book is empty" body={emptyBook(fmt)} /><WorldCard /><WorldBoard /></>;
   const tiles: [string, number][] = [["Runs", d.o.runs], ["Sixes", d.o.sixes], ["Wickets", d.o.wickets], ["Ducks", d.o.ducks]];
@@ -146,6 +178,7 @@ function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
     ) : <Card><p className={label}>Best player</p><p className="mt-1 text-sm text-fg">Nobody has 3 finished matches yet. Play a few more and the crown goes to someone.</p></Card>}
     <button onClick={() => { track(EV.share, { what: "book" }); window.open("https://wa.me/?text=" + encodeURIComponent(d.summary), "_blank"); }}
       className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share the book on WhatsApp</button>
+    <Showcase d={d} goRecords={goRecords} />
     <WorldCard />
     <WorldBoard />
   </>);
@@ -428,7 +461,7 @@ export default function Book() {
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         <FmtSwitch value={fmt} set={(v) => useStore.setState({ fmt: v })} />
         <Tabs value={sec} set={(s) => { track(EV.book_section, { section: s }); setSec(s); }} />
-        {sec === "overview" && <Overview d={d} fmt={fmt} />}
+        {sec === "overview" && <Overview d={d} fmt={fmt} goRecords={() => setSec("records")} />}
         {sec === "records" && <Records d={d} />}
         {sec === "milestones" && <Milestones d={d} />}
         {sec === "shame" && <Shame d={d} />}

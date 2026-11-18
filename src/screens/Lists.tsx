@@ -87,6 +87,7 @@ export function Stats() {
         <Summary matches={matches} fmt={fmt} players={all.length} />
         <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <p className="text-center text-xs text-mute">Players with at least 10 balls faced</p>}
+        {rows.length > 0 && <p className="text-center text-xs text-mute">Tap a player to open their card.</p>}
         <Card className="!p-0 overflow-hidden">
           {rows.map(([r, big, sub], i) => (
             <button key={r.name} onClick={() => openPlayer(r.name)} className="press flex w-full items-center gap-3 border-t border-line px-4 py-3 text-left first:border-0">

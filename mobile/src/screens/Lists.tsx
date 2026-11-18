@@ -139,6 +139,7 @@ export function Stats() {
         <Summary matches={matches} fmt={fmt} players={all.length} />
         <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <Txt style={tw`text-center text-xs text-mute`}>Players with at least 10 balls faced</Txt>}
+        {rows.length > 0 && <Txt style={tw`text-center text-xs text-mute`}>Tap a player to open their card.</Txt>}
         <View>
           {rows.map(([r, big, sub], i) => (
             <RankRow key={r.name} rank={i + 1} name={r.name} sub={sub} big={big} first={i === 0} onPress={() => openPlayer(r.name)} />

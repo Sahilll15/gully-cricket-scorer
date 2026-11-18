@@ -72,7 +72,7 @@ export function skillCardText(c: SkillCard): string {
 }
 
 /** Card accent per tier. Icon uses the app's floodlight lime. */
-export const TIER_COLOR: Record<Tier, string> = { Bronze: "#cd8a4f", Silver: "#c9d0d6", Gold: "#f0c75e", Icon: "#d6ff63" };
+export const TIER_COLOR: Record<Tier, string> = { Bronze: "#cd8a4f", Silver: "#c9d0d6", Gold: "#f0c75e", Icon: "#ff8a3d" };
 
 /** Opens on the leaderboard's format when they've played it, else the first kind they have. */
 export const startKind = (played: Kind[], fmt: Fmt): Kind => (played.includes(fmt) || !played.length ? fmt : played[0]);
