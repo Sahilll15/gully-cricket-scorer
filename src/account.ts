@@ -123,3 +123,38 @@ export async function fetchWorld(): Promise<GullyWorld | null> {
   const { data, error } = await db().rpc("gully_global");
   return error ? null : (data as GullyWorld);
 }
+
+export interface BoardRow { nickname: string; matches: number; runs: number; sixes: number; wickets: number }
+export type BoardMetric = "matches" | "runs" | "sixes" | "wickets";
+
+/** Top scorers who chose to appear, by one metric. Empty when offline or accounts are off. */
+export async function fetchTop(metric: BoardMetric): Promise<BoardRow[]> {
+  if (!accountsSupported) return [];
+  const { data, error } = await db().rpc("gully_top", { metric });
+  return error ? [] : (data as BoardRow[]);
+}
+
+export interface MyBoard { nickname: string; on: boolean }
+
+/** This scorer's board handle, or null before their first backup creates it. */
+export async function myBoard(): Promise<MyBoard | null> {
+  if (!uid) return null;
+  const { data } = await db().from("gully_stats").select("nickname,on_board").maybeSingle();
+  return data?.nickname ? { nickname: data.nickname as string, on: !!data.on_board } : null;
+}
+
+/** Renames this scorer on the board. Returns an error message, or null. */
+export async function renameBoard(nick: string): Promise<string | null> {
+  if (!uid) return "Sign in first.";
+  const clean = nick.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{1,19}$/.test(clean)) return "Use 2 to 20 letters, numbers, spaces, dots or dashes.";
+  const { error } = await db().from("gully_stats").update({ nickname: clean }).eq("user_id", uid);
+  return error ? "Couldn't save. Check your internet and try again." : null;
+}
+
+/** Shows or hides this scorer on the board. Returns an error message, or null. */
+export async function showOnBoard(on: boolean): Promise<string | null> {
+  if (!uid) return "Sign in first.";
+  const { error } = await db().from("gully_stats").update({ on_board: on }).eq("user_id", uid);
+  return error ? "Couldn't save. Check your internet and try again." : null;
+}

@@ -14,7 +14,7 @@ import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { sendText } from "@/lib/share";
 import { markBookSeen } from "@/ui/guide";
-import { fetchWorld } from "@/lib/account";
+import { fetchTop, fetchWorld, myBoard, renameBoard, showOnBoard, useAccount, type BoardMetric, type BoardRow, type MyBoard } from "@/lib/account";
 import type { GullyWorld } from "@shared/globalStats";
 import { Badge, Board, C, Card, FmtSwitch, GhostButton, Header, IconButton, Num, Page, Press, ScoreHero, SectionTitle, Sheet, tw, Txt } from "@/ui/ui";
 
@@ -93,9 +93,66 @@ function WorldCard() {
   );
 }
 
+const METRICS: [BoardMetric, string][] = [["matches", "Matches"], ["runs", "Runs"], ["sixes", "Sixes"], ["wickets", "Wickets"]];
+
+/** Opt-in world leaderboard of scorers, by nickname. */
+function WorldBoard() {
+  const phone = useAccount((a) => a.phone);
+  const [m, setM] = useState<BoardMetric>("matches");
+  const [rows, setRows] = useState<BoardRow[] | null>(null);
+  const [me, setMe] = useState<MyBoard | null>(null);
+  const [open, setOpen] = useState(false);
+  const [nick, setNick] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const load = () => { void fetchTop(m).then(setRows); void myBoard().then(setMe); };
+  useEffect(load, [m, phone]);
+  if (rows === null) return null;
+  const rename = async () => { const e = await renameBoard(nick); setErr(e); if (!e) { setOpen(false); load(); } };
+  const toggle = async () => { await showOnBoard(!me?.on); load(); };
+  return (
+    <Card>
+      <Txt style={lbl}>World leaderboard</Txt>
+      <View style={tw`mt-2 flex-row gap-1 rounded-full border border-line p-1`}>
+        {METRICS.map(([k, l]) => (
+          <Press key={k} onPress={() => setM(k)} style={tw`min-h-9 flex-1 items-center justify-center rounded-full ${m === k ? "bg-sun" : ""}`}>
+            <Txt style={tw`text-[12px] font-semibold ${m === k ? "text-ink" : "text-mute"}`}>{l}</Txt>
+          </Press>
+        ))}
+      </View>
+      <View style={tw`mt-2`}>
+        {rows.length === 0 && <Txt style={tw`py-3 text-center text-[13px] text-mute`}>The board fills as scorers back up their matches.</Txt>}
+        {rows.map((r, i) => (
+          <View key={r.nickname + i} style={tw`flex-row items-center gap-3 py-2 ${i ? "border-t border-line" : ""}`}>
+            <Num style={tw`w-6 text-[16px] ${i === 0 ? "text-sun" : "text-mute"}`}>{i + 1}</Num>
+            <Txt style={tw`flex-1 text-[15px] font-semibold ${r.nickname === me?.nickname ? "text-sun" : "text-fg"}`} numberOfLines={1}>{r.nickname}</Txt>
+            <Num style={tw`text-[18px]`}>{fmtN(r[m])}</Num>
+          </View>
+        ))}
+      </View>
+      {!phone ? <Txt style={tw`mt-2 text-[12px] text-mute`}>Sign in from Home and your totals join the board under a made-up handle.</Txt>
+        : me ? (
+          <View style={tw`mt-2 flex-row flex-wrap items-center gap-x-3 gap-y-1`}>
+            <Txt style={tw`text-[12px] text-mute`}>{me.on ? "You appear as" : "Hidden. Your handle is"} <Txt style={tw`text-[12px] font-semibold text-fg`}>{me.nickname}</Txt></Txt>
+            <Press onPress={() => { setNick(me.nickname); setOpen(true); }}><Txt style={tw`text-[12px] font-semibold text-sun underline`}>Rename</Txt></Press>
+            <Press onPress={() => void toggle()}><Txt style={tw`text-[12px] font-semibold text-mute underline`}>{me.on ? "Hide me" : "Show me"}</Txt></Press>
+          </View>
+        ) : <Txt style={tw`mt-2 text-[12px] text-mute`}>You'll appear after your next backup.</Txt>}
+      {open && (
+        <Sheet title="Rename on the leaderboard" onClose={() => setOpen(false)}>
+          <Txt style={tw`text-[13px] leading-5 text-mute`}>Others see this name with your matches, runs, sixes and wickets. Never your number or player names.</Txt>
+          <TextInput value={nick} onChangeText={setNick} maxLength={20} placeholderTextColor={C.mute} selectionColor={C.sun} autoCorrect={false}
+            style={[tw`mt-3 min-h-12 rounded-2xl border border-line bg-panel px-4 text-[16px] text-fg`, { fontFamily: "Poppins_500Medium" }]} />
+          {err && <Txt style={tw`mt-2 text-[13px] text-out`}>{err}</Txt>}
+          <View style={tw`mt-4`}><GhostButton onPress={() => void rename()}><Txt style={tw`font-semibold text-sun`}>Save</Txt></GhostButton></View>
+        </Sheet>
+      )}
+    </Card>
+  );
+}
+
 function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
   const { openPlayer } = useStore();
-  if (!d.o.played) return <><Empty icon={BookOpen} title="The book is empty" body={emptyBook(fmt)} /><WorldCard /></>;
+  if (!d.o.played) return <><Empty icon={BookOpen} title="The book is empty" body={emptyBook(fmt)} /><WorldCard /><WorldBoard /></>;
   const tiles: [string, number][] = [["Runs", d.o.runs], ["Sixes", d.o.sixes], ["Wickets", d.o.wickets], ["Ducks", d.o.ducks]];
   return (<>
     <ScoreHero>
@@ -147,6 +204,7 @@ function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
       </View>
     </GhostButton>
     <WorldCard />
+    <WorldBoard />
   </>);
 }
 

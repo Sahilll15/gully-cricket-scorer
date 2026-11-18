@@ -3,10 +3,11 @@ import { FlatList, TextInput, View } from "react-native";
 import { BookOpen, ChevronRight, Download, Search } from "lucide-react-native";
 import { useStore } from "@/lib/store";
 import { economy, fmtOf, leaders, strikeRate } from "@shared/stats";
+import { overview } from "@shared/records";
 import type { Match } from "@shared/engine/types";
 import { AdBanner } from "@/ui/AdBanner";
 import { ChalkStumps } from "@/ui/gully";
-import { Badge, C, ConfirmSheet, FmtSwitch, GhostButton, Header, Num, Page, Press, Segmented, tw, Txt } from "@/ui/ui";
+import { Badge, Board as Score, C, ConfirmSheet, FmtSwitch, GhostButton, Header, Num, Page, Press, ScoreHero, Segmented, tw, Txt } from "@/ui/ui";
 import { csvName, statsCsv } from "@shared/csv";
 import { shareCsv } from "@/lib/share";
 import { MatchCard } from "./Home";
@@ -92,6 +93,31 @@ export function RankRow({ rank, name, sub, big, onPress, first }: { rank: number
   );
 }
 
+/** Totals for the chosen format, so the leaderboard below has something to be a share of. */
+function Summary({ matches, fmt, players }: { matches: Match[]; fmt: "limited" | "test"; players: number }) {
+  const o = overview(matches, fmt);
+  if (!o.played) return null;
+  const tiles: [string, number][] = [["Runs", o.runs], ["Wickets", o.wickets], ["Sixes", o.sixes], ["Fours", o.fours], ["Players", players]];
+  return (
+    <ScoreHero>
+      <Txt style={tw`text-[12px] font-medium text-mute`}>Overall · {fmt === "test" ? "Test" : "limited overs"}</Txt>
+      <View style={tw`mt-1 flex-row items-end gap-2`}>
+        <Score style={{ fontSize: 44, lineHeight: 50 }}>{o.played}</Score>
+        <Txt style={tw`pb-2 text-[14px] text-teal`}>{o.played === 1 ? "match" : "matches"}</Txt>
+      </View>
+      <View style={tw`mt-3 flex-row border-t border-line pt-3`}>
+        {tiles.map(([k, v]) => (
+          <View key={k} style={tw`flex-1 items-center`}>
+            <Num style={tw`text-[17px]`} numberOfLines={1} adjustsFontSizeToFit>{v}</Num>
+            <Txt style={tw`mt-0.5 text-[11px] text-mute`}>{k}</Txt>
+          </View>
+        ))}
+      </View>
+      {o.completed < o.played && <Txt style={tw`mt-3 text-[12px] text-mute`}>Totals count the {o.completed} finished {o.completed === 1 ? "match" : "matches"}.</Txt>}
+    </ScoreHero>
+  );
+}
+
 export function Stats() {
   const { matches, openPlayer, fmt } = useStore();
   const [b, setB] = useState<Board>("runs");
@@ -110,6 +136,7 @@ export function Stats() {
       <Header title="Leaderboard" />
       <View style={tw`gap-3 px-4 pt-4`}>
         <FmtSwitch value={fmt} set={(v) => useStore.setState({ fmt: v })} />
+        <Summary matches={matches} fmt={fmt} players={all.length} />
         <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <Txt style={tw`text-center text-xs text-mute`}>Players with at least 10 balls faced</Txt>}
         <View>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "../store";
-import { fetchWorld } from "../account";
+import { fetchTop, fetchWorld, myBoard, renameBoard, showOnBoard, useAccount, type BoardMetric, type BoardRow, type MyBoard } from "../account";
 import type { GullyWorld } from "../globalStats";
 import { track } from "../track";
 import { EV } from "../events";
@@ -61,9 +61,61 @@ function WorldCard() {
   );
 }
 
+const METRICS: [BoardMetric, string][] = [["matches", "Matches"], ["runs", "Runs"], ["sixes", "Sixes"], ["wickets", "Wickets"]];
+
+/** Opt-in world leaderboard of scorers, by nickname. */
+function WorldBoard() {
+  const phone = useAccount((a) => a.phone);
+  const [m, setM] = useState<BoardMetric>("matches");
+  const [rows, setRows] = useState<BoardRow[] | null>(null);
+  const [me, setMe] = useState<MyBoard | null>(null);
+  const [open, setOpen] = useState(false);
+  const [nick, setNick] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const load = () => { void fetchTop(m).then(setRows); void myBoard().then(setMe); };
+  useEffect(load, [m, phone]);
+  if (rows === null) return null;
+  const rename = async () => { const e = await renameBoard(nick); setErr(e); if (!e) { setOpen(false); load(); } };
+  const toggle = async () => { await showOnBoard(!me?.on); load(); };
+  return (
+    <div className="rounded-3xl border border-line bg-panel p-4">
+      <p className={label}>World leaderboard</p>
+      <div className="mt-2 flex gap-1 rounded-full border border-line p-1">
+        {METRICS.map(([k, l]) => <button key={k} onClick={() => setM(k)} className={cx("press min-h-9 flex-1 rounded-full text-xs font-semibold", m === k ? "bg-sun text-ink" : "text-mute")}>{l}</button>)}
+      </div>
+      <div className="mt-2">
+        {rows.length === 0 && <p className="py-3 text-center text-sm text-mute">The board fills as scorers back up their matches.</p>}
+        {rows.map((r, i) => (
+          <div key={r.nickname + i} className="flex items-center gap-3 border-t border-line py-2 first:border-0">
+            <span className={i === 0 ? "w-6 text-lg font-extrabold text-sun" : "w-6 font-bold text-mute"}>{i + 1}</span>
+            <span className={cx("flex-1 truncate font-semibold", r.nickname === me?.nickname ? "text-sun" : "text-fg")}>{r.nickname}</span>
+            <span className="text-xl font-extrabold text-fg tabular-nums">{n(r[m])}</span>
+          </div>
+        ))}
+      </div>
+      {!phone ? <p className="mt-2 text-xs text-mute">Sign in from Home and your totals join the board under a made-up handle.</p>
+        : me ? (
+          <p className="mt-2 text-xs text-mute">
+            {me.on ? "You appear as" : "Hidden. Your handle is"} <span className="font-semibold text-fg">{me.nickname}</span>.{" "}
+            <button onClick={() => { setNick(me.nickname); setOpen(true); }} className="font-semibold text-sun underline">Rename</button>{" · "}
+            <button onClick={() => void toggle()} className="font-semibold underline">{me.on ? "Hide me" : "Show me"}</button>
+          </p>
+        ) : <p className="mt-2 text-xs text-mute">You'll appear after your next backup.</p>}
+      {open && (
+        <Sheet title="Rename on the leaderboard" onClose={() => setOpen(false)}>
+          <p className="text-sm text-mute">Others see this name with your matches, runs, sixes and wickets. Never your number or player names.</p>
+          <input value={nick} onChange={(e) => setNick(e.target.value)} maxLength={20} className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-panel px-4 text-fg" />
+          {err && <p className="mt-2 text-sm text-out">{err}</p>}
+          <button onClick={() => void rename()} className="press mt-4 min-h-14 w-full rounded-2xl bg-sun font-bold text-ink">Save</button>
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
 function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
   const { openPlayer } = useStore();
-  if (!d.o.played) return <><Empty icon="📖" title="The book is empty" body={emptyBook(fmt)} /><WorldCard /></>;
+  if (!d.o.played) return <><Empty icon="📖" title="The book is empty" body={emptyBook(fmt)} /><WorldCard /><WorldBoard /></>;
   const tiles: [string, number][] = [["Runs", d.o.runs], ["Sixes", d.o.sixes], ["Wickets", d.o.wickets], ["Ducks", d.o.ducks]];
   return (<>
     <div className="header-glow rounded-3xl border border-line p-5 text-center">
@@ -95,6 +147,7 @@ function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
     <button onClick={() => { track(EV.share, { what: "book" }); window.open("https://wa.me/?text=" + encodeURIComponent(d.summary), "_blank"); }}
       className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share the book on WhatsApp</button>
     <WorldCard />
+    <WorldBoard />
   </>);
 }
 

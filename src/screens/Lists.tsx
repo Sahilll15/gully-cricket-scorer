@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { economy, fmtOf, leaders, strikeRate } from "../stats";
+import { overview } from "../records";
 import { AdBox } from "../ad";
 import { Badge, BottomNav, Card, ConfirmSheet, FmtSwitch, Header, Segmented } from "../ui";
 import type { Match } from "../engine/types";
@@ -48,6 +49,23 @@ export function History() {
 
 type Board = "runs" | "wickets" | "sr" | "sixes" | "field";
 
+/** Totals for the chosen format, above the leaderboard. */
+function Summary({ matches, fmt, players }: { matches: Match[]; fmt: "limited" | "test"; players: number }) {
+  const o = overview(matches, fmt);
+  if (!o.played) return null;
+  const tiles: [string, number][] = [["Runs", o.runs], ["Wickets", o.wickets], ["Sixes", o.sixes], ["Fours", o.fours], ["Players", players]];
+  return (
+    <div className="stadium rounded-3xl p-5">
+      <p className="text-xs font-medium text-mute">Overall · {fmt === "test" ? "Test" : "limited overs"}</p>
+      <p className="mt-1 text-5xl font-extrabold leading-none text-fg tabular-nums">{o.played} <span className="text-sm font-medium text-teal">{o.played === 1 ? "match" : "matches"}</span></p>
+      <div className="mt-4 grid grid-cols-5 gap-1 border-t border-white/10 pt-3 text-center">
+        {tiles.map(([k, v]) => <div key={k}><p className="text-base font-extrabold text-fg tabular-nums">{v}</p><p className="text-[11px] text-mute">{k}</p></div>)}
+      </div>
+      {o.completed < o.played && <p className="mt-3 text-xs text-mute">Totals count the {o.completed} finished {o.completed === 1 ? "match" : "matches"}.</p>}
+    </div>
+  );
+}
+
 export function Stats() {
   const { matches, openPlayer, fmt } = useStore();
   const [b, setB] = useState<Board>("runs");
@@ -66,6 +84,7 @@ export function Stats() {
       <Header title="Leaderboard" />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         <FmtSwitch value={fmt} set={(v) => useStore.setState({ fmt: v })} />
+        <Summary matches={matches} fmt={fmt} players={all.length} />
         <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <p className="text-center text-xs text-mute">Players with at least 10 balls faced</p>}
         <Card className="!p-0 overflow-hidden">
