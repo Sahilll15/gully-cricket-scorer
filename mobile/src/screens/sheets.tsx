@@ -51,7 +51,7 @@ export function PlayerPick({ players, value, set, disabled, note }: {
 
 /** Bowling figures are numbers, so they read in the mono face; words stay in Inter. */
 function NoteText({ on, text }: { on: boolean; text: string }) {
-  const style = [tw`text-[11px] leading-tight`, { color: on ? "rgba(11,13,12,0.72)" : C.mute }];
+  const style = [tw`text-[11px] leading-tight`, { color: on ? "rgba(5,5,7,0.72)" : C.mute }];
   return /^\d/.test(text) ? <Num style={[style, { fontWeight: "500" }]}>{text}</Num> : <Txt style={[style, { fontWeight: "500" }]}>{text}</Txt>;
 }
 

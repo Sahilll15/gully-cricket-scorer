@@ -3,14 +3,14 @@
     "name": "Gully Cricket Scorer",
     "slug": "gully-cricket-scorer",
     "scheme": "gullyscorer",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0b0d0c",
     "android": {
       "package": "com.sahilchalke.gullyscorer",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/android-icon-background.png",

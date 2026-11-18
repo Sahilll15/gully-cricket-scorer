@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookOpen, ChevronRight, Download, Search } from "lucide-react-native";
 import { useStore } from "@/lib/store";
 import { economy, fmtOf, leaders, strikeRate } from "@shared/stats";
@@ -14,7 +13,6 @@ import { MatchCard } from "./Home";
 
 export function History() {
   const { matches, remove, go } = useStore();
-  const bottom = useSafeAreaInsets().bottom;
   const [q, setQ] = useState("");
   const [focus, setFocus] = useState(false);
   const [f, setF] = useState<"all" | "live" | "done">("all");
@@ -28,7 +26,7 @@ export function History() {
         data={list}
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: 112 + bottom }}
+        contentContainerStyle={{ paddingBottom: 24 }}
         ListHeaderComponent={
           <View style={tw`gap-3 pb-4`}>
             <Header title="Match History">

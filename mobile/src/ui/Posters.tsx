@@ -19,7 +19,7 @@ function Backdrop({ k, wallH, glow }: { k: number; wallH: number; glow: { y: num
   const bricks: ReactNode[] = [];
   for (let row = 0, y = 0; y < wallH; row++, y += 19) {
     for (let x = row % 2 ? -20 : 0; x < BASE; x += 41)
-      bricks.push(<Rect key={`${row}-${x}`} x={x + 1} y={y + 1} width={39} height={17} rx={2} fill={row % 3 ? "#121513" : "#151917"} opacity={0.95 * (1 - y / wallH)} />);
+      bricks.push(<Rect key={`${row}-${x}`} x={x + 1} y={y + 1} width={39} height={17} rx={2} fill={row % 3 ? "#0d0d12" : "#151917"} opacity={0.95 * (1 - y / wallH)} />);
   }
   return (
     <Svg width={BASE * k} height={BASE * RATIO * k} viewBox={`0 0 ${BASE} ${BASE * RATIO}`} style={StyleSheet.absoluteFill}>
@@ -143,7 +143,7 @@ export function MatchPoster({ m, width = BASE }: { m: Match; width?: number }) {
 }
 
 function Trophy({ k, lit }: { k: number; lit: boolean }) {
-  const a = lit ? "#efffbf" : "#3a423c", b = lit ? C.ember : "#232825";
+  const a = lit ? "#ffe0c2" : "#2a2a35", b = lit ? C.ember : "#1f1f29";
   return (
     <Svg width={92 * k} height={100 * k} viewBox="0 0 100 108">
       <Defs>
@@ -195,9 +195,9 @@ export function WinnerPoster({ m, width = BASE }: { m: Match; width?: number }) 
             </Num>
           </View>
           {p.star && (
-            <View style={{ marginTop: 16 * k, borderRadius: 18 * k, borderWidth: 1, borderColor: "#2e3a22", backgroundColor: C.sunSoft, padding: 14 * k, flexDirection: "row", alignItems: "center", gap: 10 * k }}>
+            <View style={{ marginTop: 16 * k, borderRadius: 18 * k, borderWidth: 1, borderColor: "#4a2c14", backgroundColor: C.sunSoft, padding: 14 * k, flexDirection: "row", alignItems: "center", gap: 10 * k }}>
               <View style={{ flex: 1 }}>
-                <Txt style={{ fontSize: 10.5 * k, fontWeight: "500", color: "#b8d96a", letterSpacing: 0.4 * k }}>{p.solo ? "Top of the gully" : "Star of the side"}</Txt>
+                <Txt style={{ fontSize: 10.5 * k, fontWeight: "500", color: "#ffb27a", letterSpacing: 0.4 * k }}>{p.solo ? "Top of the gully" : "Star of the side"}</Txt>
                 <Txt numberOfLines={1} style={{ marginTop: 2 * k, fontSize: 19 * k, fontWeight: "600", color: C.fg }}>{p.star.name}</Txt>
                 <Num numberOfLines={1} style={{ marginTop: 1 * k, fontSize: 10 * k, color: C.teal, fontWeight: "500" }}>{p.star.line}</Num>
               </View>

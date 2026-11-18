@@ -377,7 +377,7 @@ export function ChaseCard({ on, setOn, side, setSide, target, setTarget, down, s
         <View>
           <Label>Target</Label>
           <Field value={target} onChangeText={(v) => setTarget(v.replace(/\D/g, "").slice(0, 4))} keyboardType="number-pad" placeholder="Runs to win"
-            accessibilityLabel="Target" style={[tw`text-[18px]`, { fontFamily: "JetBrainsMono_700Bold" }]} />
+            accessibilityLabel="Target" style={[tw`text-[18px]`, { fontFamily: "Poppins_700Bold" }]} />
         </View>
         <View>
           <Label>Wickets the first side lost</Label>

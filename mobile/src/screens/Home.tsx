@@ -10,6 +10,9 @@ import { cleanCode, liveSupported } from "@/lib/live";
 import { useStore } from "@/lib/store";
 import { AdBanner } from "@/ui/AdBanner";
 import { TapeBall } from "@/ui/gully";
+import { showIntro } from "@/ui/Onboarding";
+import { GettingStarted } from "@/ui/guide";
+import { demoMatch } from "@/lib/demo";
 import { Badge, Board, C, Card, LivePill, Num, Page, Press, PrimaryButton, RunWorm, ScoreHero, SectionTitle, Sheet, Txt, tw } from "@/ui/ui";
 import { AccountButton, BackupCard } from "./accountUi";
 import { seriesNames, SeriesNext } from "./Series";
@@ -183,7 +186,11 @@ export default function Home() {
             <SeriesNext s={s} matches={matches} />
           </Card>
         ))}
+        <GettingStarted />
         {matches.length > 0 && <BackupCard />}
+        <Press onPress={showIntro} accessibilityLabel="How it works" style={tw`self-center py-2`}>
+          <Txt style={tw`text-[13px] font-medium text-mute`}>How it works</Txt>
+        </Press>
         {live.length > 0 && <View style={tw`pt-3`}><SectionTitle>Live now</SectionTitle></View>}
         {live.map((m) => <MatchCard key={m.id} m={m} />)}
         {done.length > 0 && <View style={tw`pt-3`}><SectionTitle>Recent matches</SectionTitle></View>}
@@ -195,6 +202,9 @@ export default function Home() {
             </View>
             <Txt style={tw`mt-3 text-[17px] font-semibold text-fg`}>No matches yet</Txt>
             <Txt style={tw`mt-1 text-center text-[13px] text-mute`}>Set one up in under 30 seconds. Everything stays on this phone.</Txt>
+            <Press onPress={() => { const m = demoMatch(); useStore.getState().add(m); go("live", m.id); }} accessibilityLabel="Try a demo match" style={tw`mt-4 rounded-full border border-sun px-5 py-2.5`}>
+              <Txt style={tw`text-[14px] font-semibold text-sun`}>Try a demo match</Txt>
+            </Press>
           </Card>
         )}
         <AdBanner />
@@ -207,7 +217,7 @@ export default function Home() {
               placeholderTextColor={C.mute} selectionColor={C.sun} accessibilityLabel="Match code" returnKeyType="go" onSubmitEditing={submit}
               onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
               style={[tw`min-h-16 w-full rounded-2xl border ${focus ? "border-sun" : "border-line"} bg-panel px-4 text-center text-[28px] text-fg`,
-                { fontFamily: "JetBrainsMono_700Bold", letterSpacing: 8 }]} />
+                { fontFamily: "Poppins_700Bold", letterSpacing: 8 }]} />
             <PrimaryButton disabled={code.length !== 6} onPress={submit}>Watch</PrimaryButton>
           </View>
         </Sheet>

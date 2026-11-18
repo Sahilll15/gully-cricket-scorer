@@ -1,6 +1,6 @@
-import { isValidElement, useEffect, useRef, type ReactNode } from "react";
+import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  AccessibilityInfo, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
   type PressableProps, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
 } from "react-native";
 import { create } from "twrnc";
@@ -10,14 +10,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Ball } from "@shared/engine/types";
 import { ballLabel } from "@shared/engine/engine";
 import { BarChart3, ChevronLeft, History as HistoryIcon, House, Trophy, Users, X, type LucideIcon } from "lucide-react-native";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useStore, type Screen } from "@/lib/store";
-import { BrickWall, ChalkRing, StreetLamp } from "./gully";
+import { ChalkRing } from "./gully";
 
-/** Floodlights (DESIGN.md): charcoal ground, floodlight lime as the only accent. `sun` is the accent role. */
+/** Same palette as the web app: black ground, orange as the only accent. */
 export const C = {
-  sun: "#d6ff63", ember: "#a8d63a", sunSoft: "#1c2416", cream: "#0b0d0c", panel: "#141716", key: "#1c201e", raised: "#232825",
-  teal: "#aab2ac", fg: "#eef1ec", ink: "#0b0d0c", mute: "#7e8680", line: "#232825", out: "#ff6b57", six: "#d6ff63", four: "#eef1ec", win: "#d6ff63",
+  sun: "#ff8a3d", ember: "#e0701f", sunSoft: "#2a1a0f", cream: "#050507", panel: "#0d0d12", key: "#17171f", raised: "#1f1f29",
+  teal: "#f1ece4", fg: "#ffffff", ink: "#111111", mute: "#9a9aa5", line: "#24242d", out: "#ff4d4d", six: "#ff8a3d", four: "#f1ece4", win: "#ff8a3d",
 };
 
 export const tw = create({
@@ -34,20 +34,20 @@ export const tw = create({
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 const FONT: Record<string, string> = {
-  "400": "Inter_400Regular", normal: "Inter_400Regular", "500": "Inter_500Medium", "600": "Inter_600SemiBold",
-  "700": "Inter_700Bold", bold: "Inter_700Bold", "800": "Inter_700Bold", "900": "Inter_700Bold",
+  "400": "Poppins_400Regular", normal: "Poppins_400Regular", "500": "Poppins_500Medium", "600": "Poppins_600SemiBold",
+  "700": "Poppins_700Bold", bold: "Poppins_700Bold", "800": "Poppins_800ExtraBold", "900": "Poppins_800ExtraBold",
 };
 
-/** Text in Inter. Android ignores fontWeight on custom fonts, so the weight picks the font file instead. */
+/** Text in Poppins, like the web app. Android ignores fontWeight on custom fonts, so the weight picks the font file instead. */
 export function Txt({ style, ...p }: TextProps) {
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
   const { fontWeight, ...rest } = flat;
   return <Text {...p} style={[{ color: C.fg, fontFamily: FONT[String(fontWeight ?? "400")] ?? FONT["400"] }, rest]} />;
 }
 
-const MONO: Record<string, string> = { "400": "JetBrainsMono_500Medium", "500": "JetBrainsMono_500Medium", "600": "JetBrainsMono_700Bold", "700": "JetBrainsMono_700Bold", "800": "JetBrainsMono_800ExtraBold", "900": "JetBrainsMono_800ExtraBold" };
+const MONO: Record<string, string> = { "400": "Poppins_500Medium", "500": "Poppins_500Medium", "600": "Poppins_600SemiBold", "700": "Poppins_700Bold", "800": "Poppins_800ExtraBold", "900": "Poppins_800ExtraBold" };
 
-/** Every number in JetBrains Mono: tabular, so a score never jumps sideways as runs change. */
+/** Numbers in bold Poppins, as on the web. */
 export function Num({ style, ...p }: TextProps) {
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
   const { fontWeight, ...rest } = flat;
@@ -56,14 +56,14 @@ export function Num({ style, ...p }: TextProps) {
 /** Kept for screens that put numbers in Display; it is the mono numeral face now. */
 export const Display = Num;
 
-/** The floodlit scoreboard: dot-matrix lime digits with a soft glow. Only for the main live score. */
+/** The big live score, bold white like the web app. */
 export function Board({ style, ...p }: TextProps) {
-  return <Text {...p} style={[{ color: C.sun, fontFamily: "Doto_900Black", includeFontPadding: false, textShadowColor: "rgba(214,255,99,0.45)", textShadowRadius: 18 }, style]} />;
+  return <Text {...p} style={[{ color: C.fg, fontFamily: "Poppins_800ExtraBold", includeFontPadding: false }, style]} />;
 }
 
-/** A single street lamp over the gully, behind a screen's content. */
-export function Beams({ height = 460 }: { height?: number }) {
-  return <StreetLamp height={height} />;
+/** Kept so screens compile; the web app has no backdrop art. */
+export function Beams(_: { height?: number }) {
+  return null;
 }
 
 /** Ring that fills as the chase closes in; the middle shows what is still needed. */
@@ -72,7 +72,7 @@ export function ChaseRing({ done, size = 118, children }: { done: number; size?:
   return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke="#1e2321" strokeWidth={9} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke="#24242d" strokeWidth={9} fill="none" />
         <Circle cx={size / 2} cy={size / 2} r={r} stroke={C.sun} strokeWidth={9} fill="none" strokeLinecap="round"
           strokeDasharray={`${len} ${len}`} strokeDashoffset={len * (1 - f)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       </Svg>
@@ -89,7 +89,7 @@ export function RunWorm({ overs, current, height = 34 }: { overs: number[]; curr
     <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 5, height }}>
       {overs.map((r, i) => (
         <View key={i} style={{ flex: 1, height: Math.max(3, (r / max) * height), borderRadius: 4,
-          backgroundColor: i === current ? C.sunSoft : i === best && r > 0 ? C.sun : "#2c332e",
+          backgroundColor: i === current ? C.sunSoft : i === best && r > 0 ? C.sun : "#24242d",
           borderWidth: i === current ? 1 : 0, borderColor: C.sun, borderStyle: "dashed" }} />
       ))}
     </View>
@@ -118,15 +118,28 @@ export function Press({ style, children, disabled, onPress, haptic = true, ...p 
   );
 }
 
-/** Header ground: transparent over the page so the floodlight beams show through. */
+/** Web .header-glow: panel ground, orange glow at the top, rounded bottom edge. */
 export function Glow({ children, style }: { children?: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={style}>{children}</View>;
+  return (
+    <View style={[{ backgroundColor: C.panel, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, borderBottomWidth: 1, borderColor: C.line, overflow: "hidden" }, style]}>
+      <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width="100%" height="100%">
+        <Defs>
+          <RadialGradient id="hg" cx="50%" cy="0%" rx="70%" ry="90%" fx="50%" fy="0%">
+            <Stop offset="0" stopColor={C.sun} stopOpacity="0.22" />
+            <Stop offset="1" stopColor={C.sun} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#hg)" />
+      </Svg>
+      {children}
+    </View>
+  );
 }
 
 export function IconButton({ icon: I, onPress, label, tone = "key", size = 44 }: { icon: LucideIcon; onPress?: () => void; label: string; tone?: "key" | "sun" | "glass"; size?: number }) {
-  const bg = tone === "sun" ? C.sun : tone === "glass" ? "rgba(255,255,255,0.08)" : C.panel;
+  const bg = tone === "sun" ? C.sun : tone === "glass" ? "rgba(255,255,255,0.08)" : C.key;
   return (
-    <Press onPress={onPress} accessibilityLabel={label} style={{ width: size, height: size, borderRadius: size, backgroundColor: bg, alignItems: "center", justifyContent: "center", borderWidth: tone === "sun" ? 0 : 1, borderColor: C.line }}>
+    <Press onPress={onPress} accessibilityLabel={label} style={{ width: size, height: size, borderRadius: size > 40 ? 16 : size, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
       <I size={Math.round(size * 0.48)} color={tone === "sun" ? C.ink : C.fg} strokeWidth={2.4} />
     </Press>
   );
@@ -135,10 +148,10 @@ export function IconButton({ icon: I, onPress, label, tone = "key", size = 44 }:
 export function Header({ title, back, right, children }: { title: string; back?: () => void; right?: ReactNode; children?: ReactNode }) {
   const top = useSafeAreaInsets().top;
   return (
-    <Glow style={[tw`px-4 pb-3`, { paddingTop: Math.max(14, top + 6) }]}>
+    <Glow style={[tw`px-4 pb-5`, { paddingTop: Math.max(14, top + 6) }]}>
       <View style={tw`flex-row items-center gap-3 h-12`}>
-        {back ? <IconButton icon={ChevronLeft} onPress={back} label="Back" size={40} /> : <View style={tw`w-10`} />}
-        <Txt style={tw`flex-1 text-center text-[16px] font-semibold text-teal`} numberOfLines={1}>{title}</Txt>
+        {back ? <IconButton icon={ChevronLeft} onPress={back} label="Back" size={44} /> : <View style={tw`w-11`} />}
+        <Txt style={tw`flex-1 text-center text-[18px] font-bold text-fg`} numberOfLines={1}>{title}</Txt>
         <View style={tw`min-w-11 flex-row justify-end`}>{right}</View>
       </View>
       {children}
@@ -146,12 +159,30 @@ export function Header({ title, back, right, children }: { title: string; back?:
   );
 }
 
-/** The scoreboard card for a live or finished score: charcoal with a faint lime wash; `wall` adds faint bricks. */
-export function ScoreHero({ children, style, wall }: { children: ReactNode; style?: StyleProp<ViewStyle>; wall?: boolean }) {
+/** Web .stadium card: floodlit corners above, orange glow below. */
+export function ScoreHero({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle>; wall?: boolean }) {
   return (
-    <View style={[{ borderRadius: 22, overflow: "hidden", backgroundColor: C.panel, borderWidth: 1, borderColor: C.line }, style]}>
-      {wall && <BrickWall fade={C.panel} />}
-      <LinearGradient colors={["rgba(214,255,99,0.07)", "rgba(214,255,99,0)"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.8 }} style={StyleSheet.absoluteFill} />
+    <View style={[{ borderRadius: 24, overflow: "hidden", backgroundColor: "#12121a", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }, style]}>
+      <LinearGradient colors={["#1a1a22", "#0b0b10"]} style={StyleSheet.absoluteFill} />
+      <Svg pointerEvents="none" style={StyleSheet.absoluteFill} width="100%" height="100%">
+        <Defs>
+          <RadialGradient id="sh" cx="50%" cy="125%" rx="80%" ry="70%" fx="50%" fy="125%">
+            <Stop offset="0" stopColor={C.sun} stopOpacity="0.35" />
+            <Stop offset="1" stopColor={C.sun} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="sl" cx="12%" cy="0%" rx="55%" ry="45%" fx="12%" fy="0%">
+            <Stop offset="0" stopColor="#fff" stopOpacity="0.2" />
+            <Stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="sr" cx="88%" cy="0%" rx="55%" ry="45%" fx="88%" fy="0%">
+            <Stop offset="0" stopColor="#fff" stopOpacity="0.16" />
+            <Stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#sh)" />
+        <Rect width="100%" height="100%" fill="url(#sl)" />
+        <Rect width="100%" height="100%" fill="url(#sr)" />
+      </Svg>
       <View style={tw`p-4`}>{children}</View>
     </View>
   );
@@ -189,7 +220,7 @@ export const LivePill = () => (
 export function Badge({ name, size = 44 }: { name: string; size?: number }) {
   const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
   return (
-    <View style={{ width: size, height: size, borderRadius: size, backgroundColor: "#22302a", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#2e3a33" }}>
+    <View style={{ width: size, height: size, borderRadius: size, backgroundColor: "#1c1c24", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#24242d" }}>
       <Txt style={{ fontSize: size * 0.34, fontWeight: "600", color: C.fg }}>{initials}</Txt>
     </View>
   );
@@ -217,7 +248,7 @@ export function Sheet({ title, onClose, children, footer }: { title: string; onC
     <Modal visible transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => onClose?.()}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={tw`flex-1 justify-end`}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.7)" }]} onPress={onClose} accessibilityLabel="Close" />
-        <View style={[tw`rounded-t-[28px] border-t border-line`, { maxHeight: "88%", backgroundColor: "#111413" }]}>
+        <View style={[tw`rounded-t-[28px] border-t border-line`, { maxHeight: "88%", backgroundColor: C.panel }]}>
           <ScrollView style={[tw`px-5`, { flexShrink: 1 }]} contentContainerStyle={{ paddingTop: 12, paddingBottom: footer ? 16 : Math.max(16, bottom + 8) }}
             keyboardShouldPersistTaps="handled" bounces={false}>
             <View style={tw`self-center mb-3 h-1.5 w-12 rounded-full bg-line`} />
@@ -229,7 +260,7 @@ export function Sheet({ title, onClose, children, footer }: { title: string; onC
             </View>
             {children}
           </ScrollView>
-          {footer && <View style={[tw`border-t border-line px-5 pt-3`, { backgroundColor: "#111413" }, { paddingBottom: Math.max(16, bottom + 8) }]}>{footer}</View>}
+          {footer && <View style={[tw`border-t border-line px-5 pt-3`, { backgroundColor: "#0d0d12" }, { paddingBottom: Math.max(16, bottom + 8) }]}>{footer}</View>}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -246,7 +277,7 @@ export function Pill({ active, children, onPress, disabled }: { active?: boolean
 }
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[tw`rounded-[22px] border border-line bg-panel p-4`, style]}>{children}</View>;
+  return <View style={[tw`rounded-3xl border border-line bg-panel p-4`, style]}>{children}</View>;
 }
 
 /** Labels like `Retire {name}` arrive as arrays; React Native needs every string inside a Txt. */
@@ -255,8 +286,8 @@ const isText = (c: ReactNode) => !isValidElement(c) && (typeof c === "string" ||
 export function PrimaryButton({ children, onPress, disabled, tone = "sun" }: { children: ReactNode; onPress?: () => void; disabled?: boolean; tone?: "sun" | "navy" }) {
   return (
     <Press onPress={onPress} disabled={disabled}
-      style={tw`w-full min-h-14 rounded-[18px] items-center justify-center px-4 ${tone === "sun" ? "bg-sun" : "bg-panel border border-line"}`}>
-      {isText(children) ? <Txt style={tw`text-[16px] font-semibold ${tone === "sun" ? "text-ink" : "text-fg"}`}>{children}</Txt> : children}
+      style={[tw`w-full min-h-14 rounded-2xl items-center justify-center px-4 ${tone === "sun" ? "bg-sun" : "bg-raised"}`, tone === "sun" ? { elevation: 8, shadowColor: C.sun, shadowOpacity: 0.6, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } } : null]}>
+      {isText(children) ? <Txt style={tw`text-[17px] font-bold ${tone === "sun" ? "text-ink" : "text-fg"}`}>{children}</Txt> : children}
     </Press>
   );
 }
@@ -308,26 +339,36 @@ const NAV: { s: Screen; label: string; icon: LucideIcon }[] = [
   { s: "history", label: "History", icon: HistoryIcon },
 ];
 
-/** Floating tab bar for the five top-level screens. The active tab grows into an orange pill with its label. */
+/** Tab bar like the web app, in the page flow so ads and lists never slide under it: icon over label, the active tab is an orange pill. */
 export function BottomNav() {
   const { screen, go } = useStore();
   const bottom = useSafeAreaInsets().bottom;
+  const still = useReduceMotion();
+  const [w, setW] = useState(0);
+  const slot = w / NAV.length;
+  const at = Math.max(0, NAV.findIndex((n) => n.s === screen));
+  const x = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!slot) return;
+    Animated.timing(x, { toValue: at * slot, duration: still ? 0 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [at, slot, still, x]);
   return (
-    <View pointerEvents="box-none" style={[tw`absolute left-0 right-0 bottom-0 px-4`, { paddingBottom: Math.max(14, bottom + 6) }]}>
-      <View style={[tw`flex-row items-center rounded-full border border-line px-2 py-2`, { backgroundColor: "rgba(20,23,22,0.96)", elevation: 16, shadowColor: "#000", shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }]}>
-        {NAV.map(({ s, label, icon: I }) => {
-          const on = screen === s;
-          return (
-            <Press key={s} onPress={() => go(s)} accessibilityLabel={label} accessibilityState={{ selected: on }}
-              style={{ flexGrow: on ? 2.2 : 1, flexShrink: 1, flexBasis: 0, height: 48, alignItems: "center", justifyContent: "center" }}>
-              {/* Explicit flex numbers: toggling the flex-1 class leaves stale widths on the new architecture. */}
-              <View style={[tw`h-12 flex-row items-center justify-center gap-1.5`, { borderRadius: 24 }, on ? tw`bg-sun px-4 self-stretch` : null]}>
-                <I size={20} color={on ? C.ink : C.mute} strokeWidth={on ? 2.4 : 2} />
-                {on && <Txt numberOfLines={1} style={tw`text-[13px] font-semibold text-ink`}>{label}</Txt>}
-              </View>
-            </Press>
-          );
-        })}
+    <View style={[tw`bg-cream px-4 pt-2`, { paddingBottom: Math.max(16, bottom + 6) }]}>
+      <View style={[tw`rounded-full border border-line bg-panel px-2 py-1.5`, { elevation: 16, shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }]}>
+        {/* The orange pill slides under the active tab; the tabs themselves stay put. */}
+        <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={tw`flex-row items-center`}>
+          {slot > 0 && <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: slot, borderRadius: 24, backgroundColor: C.sun, transform: [{ translateX: x }] }} />}
+          {NAV.map(({ s, label, icon: I }) => {
+            const on = screen === s;
+            return (
+              <Press key={s} onPress={() => go(s)} accessibilityLabel={label} accessibilityState={{ selected: on }}
+                style={{ flex: 1, minHeight: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", gap: 2 }}>
+                <I size={18} color={on ? C.ink : C.teal} strokeWidth={2.2} />
+                <Txt numberOfLines={1} style={{ fontSize: 11, fontWeight: "600", color: on ? C.ink : C.teal }}>{label}</Txt>
+              </Press>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -337,9 +378,9 @@ export function Segmented<T extends string | number>({ items, value, set }: { it
   return (
     <View style={tw`flex-row gap-1 rounded-full border border-line bg-panel p-1`}>
       {items.map((it) => (
-        <Press key={String(it.v)} onPress={() => set(it.v)} style={tw`min-h-11 flex-1 rounded-full px-2 items-center justify-center ${value === it.v ? "bg-sun" : ""}`}>
+        <Press key={String(it.v)} onPress={() => set(it.v)} style={tw`min-h-11 flex-1 rounded-full px-3 items-center justify-center ${value === it.v ? "bg-sun" : ""}`}>
           {isText(it.label)
-            ? <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={tw`text-[13px] font-medium ${value === it.v ? "text-ink" : "text-teal"}`}>{it.label}</Txt> : it.label}
+            ? <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={tw`text-sm font-semibold ${value === it.v ? "text-ink" : "text-mute"}`}>{it.label}</Txt> : it.label}
         </Press>
       ))}
     </View>
@@ -369,17 +410,31 @@ export function FmtSwitch({ value, set }: { value: "limited" | "test"; set: (v: 
   return <Segmented value={value} set={set} items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test" }]} />;
 }
 
+/** True when the phone asks for less motion; animations then skip straight to their end. */
+function useReduceMotion() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setOn).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setOn);
+    return () => sub.remove();
+  }, []);
+  return on;
+}
+
 /** Full-height screen body on the brand background with safe-area bottom padding. */
 export function Page({ children, scroll = true, tabs = false }: { children: ReactNode; scroll?: boolean; tabs?: boolean }) {
   const { bottom, top } = useSafeAreaInsets();
-  const pad = tabs ? 112 + bottom : 24 + bottom;
+  const enter = useRef(new Animated.Value(0)).current;
+  const still = useReduceMotion();
+  useEffect(() => { Animated.timing(enter, { toValue: 1, duration: still ? 0 : 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); }, [enter, still]);
+  const pad = tabs ? 24 : 24 + bottom;
+  const rise = { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] };
   return (
     <View style={tw`flex-1 bg-cream`}>
-      <Beams />
       {scroll
-        ? <ScrollView contentContainerStyle={{ paddingBottom: pad }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
-        : <View style={{ flex: 1, paddingBottom: tabs ? 0 : bottom }}>{children}</View>}
-      {scroll && <LinearGradient pointerEvents="none" colors={["rgba(11,13,12,0.97)", "rgba(11,13,12,0.85)", "rgba(11,13,12,0)"]} locations={[0, 0.6, 1]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: top + 14 }} />}
+        ? <Animated.View style={[{ flex: 1 }, rise]}><ScrollView contentContainerStyle={{ paddingBottom: pad }} keyboardShouldPersistTaps="handled">{children}</ScrollView></Animated.View>
+        : <Animated.View style={[{ flex: 1, paddingBottom: tabs ? 0 : bottom }, rise]}>{children}</Animated.View>}
+      {scroll && <LinearGradient pointerEvents="none" colors={["rgba(5,5,7,0.97)", "rgba(5,5,7,0.85)", "rgba(5,5,7,0)"]} locations={[0, 0.6, 1]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: top + 14 }} />}
       {tabs && <BottomNav />}
     </View>
   );

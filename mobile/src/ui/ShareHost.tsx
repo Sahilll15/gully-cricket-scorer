@@ -30,7 +30,7 @@ export function ShareHost() {
   if (!job) return null;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: -10000, top: 0 }}>
-      <View ref={ref} collapsable={false} onLayout={(e) => setH(e.nativeEvent.layout.height)} style={{ width: 360, backgroundColor: job.kind === "match" || job.kind === "winner" ? "#0b0d0c" : "#050507" }}>
+      <View ref={ref} collapsable={false} onLayout={(e) => setH(e.nativeEvent.layout.height)} style={{ width: 360, backgroundColor: job.kind === "match" || job.kind === "winner" ? "#050507" : "#050507" }}>
         {job.kind === "full" ? <FullCard m={job.m} /> : job.kind === "match" ? <MatchPoster m={job.m} /> : job.kind === "winner" ? <WinnerPoster m={job.m} /> : <SmallCard m={job.m} />}
       </View>
     </View>

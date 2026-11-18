@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ScrollView, TextInput, View } from "react-native";
 import {
   ArrowDownRight, ArrowLeftRight, BookOpen, ChevronRight, CircleDot, Crown, Egg, Flame, Footprints, Handshake, Medal, Share2,
@@ -13,6 +13,9 @@ import { useStore } from "@/lib/store";
 import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { sendText } from "@/lib/share";
+import { markBookSeen } from "@/ui/guide";
+import { fetchWorld } from "@/lib/account";
+import type { GullyWorld } from "@shared/globalStats";
 import { Badge, Board, C, Card, FmtSwitch, GhostButton, Header, IconButton, Num, Page, Press, ScoreHero, SectionTitle, Sheet, tw, Txt } from "@/ui/ui";
 
 const lbl = [tw`text-[12px] font-medium text-mute`, { letterSpacing: 0.4 }];
@@ -63,9 +66,36 @@ function Tabs({ value, set }: { value: Section; set: (s: Section) => void }) {
   );
 }
 
+const fmtN = (v: number) => v.toLocaleString("en-IN");
+
+/** All-time totals across every scorer who backs up. Anonymous numbers only. */
+function WorldCard() {
+  const [w, setW] = useState<GullyWorld | null>(null);
+  useEffect(() => { void fetchWorld().then(setW); }, []);
+  if (!w) return null;
+  const tiles: [string, number][] = [["Matches", w.matches], ["Runs", w.runs], ["Sixes", w.sixes], ["Wickets", w.wickets]];
+  return (
+    <ScoreHero>
+      <Txt style={lbl}>Gully world, all time</Txt>
+      <Board style={{ fontSize: 48, lineHeight: 54, marginTop: 4 }} numberOfLines={1} adjustsFontSizeToFit>{fmtN(w.people)}</Board>
+      <Txt style={tw`text-[13px] text-mute`}>scorers, {fmtN(w.active7)} active this week</Txt>
+      <View style={tw`mt-3 flex-row border-t border-line pt-3`}>
+        {tiles.map(([k, v]) => (
+          <View key={k} style={tw`flex-1 items-center`}>
+            <Num style={tw`text-[16px]`} numberOfLines={1} adjustsFontSizeToFit>{fmtN(v)}</Num>
+            <Txt style={tw`mt-0.5 text-[11px] text-mute`}>{k}</Txt>
+          </View>
+        ))}
+      </View>
+      {w.best > 0 && <Txt style={tw`mt-3 text-[13px]`}>Highest individual score: <Txt style={tw`font-bold text-sun`}>{fmtN(w.best)}</Txt></Txt>}
+      <Txt style={tw`mt-2 text-[11px] text-mute`}>Runs, sixes and wickets count the {fmtN(w.reporting)} scorers who have backed up since this card began.</Txt>
+    </ScoreHero>
+  );
+}
+
 function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
   const { openPlayer } = useStore();
-  if (!d.o.played) return <Empty icon={BookOpen} title="The book is empty" body={emptyBook(fmt)} />;
+  if (!d.o.played) return <><Empty icon={BookOpen} title="The book is empty" body={emptyBook(fmt)} /><WorldCard /></>;
   const tiles: [string, number][] = [["Runs", d.o.runs], ["Sixes", d.o.sixes], ["Wickets", d.o.wickets], ["Ducks", d.o.ducks]];
   return (<>
     <ScoreHero>
@@ -116,6 +146,7 @@ function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
         <Txt style={tw`font-medium text-fg`}>Share the book</Txt>
       </View>
     </GhostButton>
+    <WorldCard />
   </>);
 }
 
@@ -123,6 +154,7 @@ function RecordsList({ d }: { d: BookData }) {
   const { go } = useStore();
   const rows = RECORD_ROWS.flatMap((r) => { const rec = d.rec[r.key]; return rec ? [{ r, rec }] : []; });
   if (!rows.length) return <Empty icon={Trophy} title="No records yet" body="Finish a match and the first records get set. Then the fun is breaking them." />;
+  const speed = d.speed.filter((b) => b.rows.length);
   return (
     <View>
       {rows.map(({ r, rec }, i) => {
@@ -143,6 +175,24 @@ function RecordsList({ d }: { d: BookData }) {
           </Press>
         );
       })}
+      {speed.length > 0 && (
+        <View style={tw`mt-5`}>
+          <SectionTitle>Fastest to career runs</SectionTitle>
+          {speed.map((b, bi) => (
+            <View key={b.runs} style={row(bi === 0)}>
+              <Num style={tw`w-16 text-[22px] text-sun`}>{b.runs}</Num>
+              <View style={tw`flex-1 min-w-0`}>
+                {b.rows.map((r, i) => (
+                  <Press key={r.name} onPress={() => go("scorecard", r.matchId)} style={tw`flex-row items-baseline justify-between gap-2 py-0.5`}>
+                    <Txt style={tw`shrink text-[14px] ${i ? "text-mute" : "font-semibold text-fg"}`} numberOfLines={1}>{i + 1}. {r.name}</Txt>
+                    <Num style={tw`text-[12px] ${i ? "text-mute" : "text-fg"}`}>{r.balls} balls · {plural(r.innings, "inning")}</Num>
+                  </Press>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -388,6 +438,7 @@ function RivalryView({ fmt }: { fmt: Fmt }) {
 }
 
 export default function Book() {
+  useEffect(() => { markBookSeen(); }, []);
   const { matches, teams, fmt, go } = useStore();
   const [sec, setSec] = useState<Section>("overview");
   const d = useMemo(() => bookData(matches, teams, fmt), [matches, teams, fmt]);

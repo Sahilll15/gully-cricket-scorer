@@ -3,7 +3,7 @@ import { addBall, afterWicket, closeInnings, newMatch, startInnings, startSolo, 
 import type { BallInput, Match, Rules, Team, WicketKind } from "./engine/types";
 import {
   bestPlayer, fairTeams, margin, hallOfShame, headToHead, milestones, overview, rating, ranking, ratingsFor, records, rivalry,
-  playerStreaks, teamStreaks,
+  playerStreaks, teamStreaks, careerSpeed,
 } from "./records";
 import { leaders } from "./stats";
 
@@ -351,5 +351,17 @@ describe("solo matches", () => {
     expect(headToHead([s], "Aarav", "Bilal", "limited").aBatting).toMatchObject({ runs: 16, balls: 4, dismissals: 1 });
     expect(playerStreaks([s], "limited").find((p) => p.name === "Aarav")!.tens).toEqual({ current: 1, best: 1 });
     expect(ranking([s], "limited", 1).map((x) => x.name)).toEqual(["Aarav", "Bilal"]);
+  });
+});
+
+describe("careerSpeed", () => {
+  const sixes = (n: number) => Array.from({ length: n }, () => r(6));
+  it("adds balls faced across matches until a mark is reached", () => {
+    const one = game(balls(...sixes(6)), balls(...zeros(6)), { day: 1 });
+    const two = game(balls(...sixes(6)), balls(...zeros(6)), { day: 2 });
+    const a1 = careerSpeed([one, two], "limited").find((b) => b.runs === 50)!.rows.find((x) => x.name === "A1")!;
+    expect(a1.balls).toBe(9);
+    expect(a1.innings).toBe(2);
+    expect(careerSpeed([one], "limited").find((b) => b.runs === 50)!.rows).toHaveLength(0);
   });
 });

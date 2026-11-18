@@ -111,9 +111,9 @@ function Rematch({ m }: { m: Match }) {
 
 function PotmCard({ name, line }: { name: string; line: string }) {
   return (
-    <View style={[tw`rounded-[22px] overflow-hidden border`, { borderColor: "#2e3a22" }]}>
+    <View style={[tw`rounded-[22px] overflow-hidden border`, { borderColor: "#4a2c14" }]}>
       <LinearGradient colors={[C.sunSoft, C.panel]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={tw`p-4`}>
-        <Txt style={[lbl, { color: "#b8d96a" }]}>Player of the match</Txt>
+        <Txt style={[lbl, { color: "#ffb27a" }]}>Player of the match</Txt>
         <View style={tw`mt-2.5 flex-row items-center gap-3`}>
           <Badge name={name} size={44} />
           <View style={tw`flex-1`}>

@@ -8,7 +8,7 @@ import * as K from "@shared/liveKit";
 import { AddName, Grid, Label, Note, PlayerPick } from "./sheets";
 import { C, GhostButton, Num, Pill, Press, PrimaryButton, Segmented, Sheet, Stepper, Toggle, Txt, tw } from "@/ui/ui";
 
-const HAIR = "#1e2321";
+const HAIR = "#24242d";
 const OUT_BG = "#2b1311", OUT_LINE = "#4a1f1a";
 const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -16,7 +16,7 @@ const time = (t: number) => new Date(t).toLocaleTimeString([], { hour: "numeric"
 export function Chip({ on, onPress, children, a11y }: { on?: boolean; onPress: () => void; children: ReactNode; a11y?: string }) {
   return (
     <Press onPress={onPress} accessibilityLabel={a11y} accessibilityState={{ selected: !!on }}
-      style={{ minHeight: 32, borderRadius: 99, borderWidth: 1, borderColor: on ? C.sun : "#2a302c", backgroundColor: on ? C.sun : "transparent",
+      style={{ minHeight: 32, borderRadius: 99, borderWidth: 1, borderColor: on ? C.sun : "#24242d", backgroundColor: on ? C.sun : "transparent",
         paddingHorizontal: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 4 }}>
       {typeof children === "string" ? <Txt style={{ fontSize: 12, fontWeight: on ? "600" : "500", color: on ? C.ink : C.teal }} numberOfLines={1}>{children}</Txt> : children}
     </Press>

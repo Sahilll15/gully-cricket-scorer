@@ -12,6 +12,7 @@ import { useLivePrefs, type LivePrefs } from "@/lib/livePrefs";
 import { say } from "@/lib/speak";
 import { BowlerSheet, EditBallSheet, FrenchNextSheet, Note, OpenersSheet, OversSheet, RetireSheet, SoloTable, SoloTurnSheet, WicketSheet } from "./sheets";
 import { AddPlayerSheet, BallLostSheet, ChangeLogSheet, Chip, DidRunSheet, OverthrowSheet, PairsStrip, PenaltySheet, PlayerLeftSheet, RulesSheet, TurfChip, TurfSheet, WagonSheet } from "./liveSheets";
+import { FirstBallCoach } from "@/ui/guide";
 import { BallChip, Beams, Board, buzz, C, Card, ChaseRing, ConfirmSheet, IconButton, LiveDot, LivePill, Num, Press, PrimaryButton, Sheet, Toggle, Txt, tw } from "@/ui/ui";
 import { Crease } from "@/ui/gully";
 import { listen, parse, voiceSupported } from "@/lib/voice";
@@ -21,7 +22,7 @@ import { copyText, sendText } from "@/lib/share";
 import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 
-const HAIR = "#1e2321";
+const HAIR = "#24242d";
 const OUT_BG = "#2b1311", OUT_LINE = "#4a1f1a";
 const LBL = { fontSize: 11, letterSpacing: 0.6, color: C.mute };
 type SixMoment = { name: string; runs: number; balls: number; key: number };
@@ -297,6 +298,7 @@ export default function Live() {
               </View>
             )}
           </View>
+          <FirstBallCoach show={st.legal === 0 && idx === 0 && useStore.getState().matches.length <= 1} />
           {((st.freeHit && m.status === "live") || badges.length > 0 || !!turf) && (
             <View style={tw`mt-3 flex-row flex-wrap gap-2`}>
               {st.freeHit && m.status === "live" && (
@@ -408,7 +410,7 @@ export default function Live() {
       </ScrollView>
 
       {scoring && (
-        <View style={[tw`rounded-t-[28px] border-t px-3.5 pt-3`, { backgroundColor: "#0e100f", borderColor: "#1a1e1c", paddingBottom: Math.max(18, insets.bottom + 10) }]}>
+        <View style={[tw`rounded-t-[28px] border-t px-3.5 pt-3`, { backgroundColor: "#0d0d12", borderColor: "#24242d", paddingBottom: Math.max(18, insets.bottom + 10) }]}>
           <View style={[tw`w-full self-center`, { maxWidth: 480 }]}>
             {/* With only the overthrow chip, the strip takes its row so the keypad doesn't grow over the tools. */}
             {(anyArmed || oddRuns) && !mustTouch && !m.rules.missesOut && !walls.length ? (
@@ -684,7 +686,7 @@ function OverTrack({ over, current, bpo, title, figures, umpire, rules, onEdit }
         {over.map((b, i) => <BallChip key={i} b={b} size={30} onPress={onEdit ? () => onEdit(i) : undefined} />)}
         {Array.from({ length: open }, (_, i) => (
           <View key={`s${i}`} style={[{ width: 30, height: 30, borderRadius: 30, borderWidth: 1.5 },
-            i === 0 ? { borderColor: C.sun, backgroundColor: "rgba(214,255,99,0.08)", shadowColor: C.sun, shadowOpacity: 0.5, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } }
+            i === 0 ? { borderColor: C.sun, backgroundColor: "rgba(255,138,61,0.08)", shadowColor: C.sun, shadowOpacity: 0.5, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } }
               : { borderColor: C.line }]} />
         ))}
       </ScrollView>
@@ -709,7 +711,7 @@ function ExtraPill({ label, onPress, active, disabled, num, flex = 1, a11y }: {
   const color = active ? C.ink : C.teal;
   return (
     <Press onPress={onPress} disabled={disabled} accessibilityLabel={a11y ?? label} accessibilityState={{ selected: !!active, disabled: !!disabled }}
-      style={[{ flex, minHeight: 38, borderRadius: 99, borderWidth: 1, borderColor: active ? C.sun : "#2a302c", backgroundColor: active ? C.sun : "transparent",
+      style={[{ flex, minHeight: 38, borderRadius: 99, borderWidth: 1, borderColor: active ? C.sun : "#24242d", backgroundColor: active ? C.sun : "transparent",
         alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }, active && { opacity: 1 }]}>
       {num
         ? <Num style={{ fontSize: 13, color }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Num>
@@ -720,11 +722,11 @@ function ExtraPill({ label, onPress, active, disabled, num, flex = 1, a11y }: {
 
 type KeyKind = "plain" | "four" | "six" | "out" | "icon";
 const KEY_LOOK: Record<KeyKind, { bg: string; line: string; fg: string }> = {
-  plain: { bg: C.key, line: "#262b28", fg: C.fg },
-  four: { bg: C.key, line: "#262b28", fg: C.sun },
+  plain: { bg: C.key, line: "#24242d", fg: C.fg },
+  four: { bg: C.key, line: "#24242d", fg: C.sun },
   six: { bg: C.sun, line: C.sun, fg: C.ink },
   out: { bg: OUT_BG, line: OUT_LINE, fg: C.out },
-  icon: { bg: C.key, line: "#262b28", fg: C.fg },
+  icon: { bg: C.key, line: "#24242d", fg: C.fg },
 };
 
 /** Score keys buzz from show() once the ball is in, so the press itself stays silent. */

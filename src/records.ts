@@ -255,6 +255,38 @@ export function records(matches: Match[], fmt: Fmt): Records {
   };
 }
 
+// ---------- Career speed ----------
+
+export const SPEED_MARKS = [50, 100, 200, 500, 1000] as const;
+export interface SpeedRow { name: string; balls: number; innings: number; matchId: string; date: number }
+export interface SpeedBoard { runs: number; rows: SpeedRow[] }
+
+/** Fewest balls faced, over a whole career and not one innings, to reach each run mark. Top three per mark. */
+export function careerSpeed(matches: Match[], fmt: Fmt, top = 3): SpeedBoard[] {
+  const acc = new Map<string, { name: string; runs: number; balls: number; inns: number; hit: Map<number, SpeedRow> }>();
+  for (const m of finished(matches, fmt)) {
+    deliveries(m).forEach((ds, inn) => {
+      const seen = new Set<string>();
+      for (const d of ds) {
+        if (!d.striker) continue;
+        const name = E.playerName(m, d.striker);
+        if (!named(name)) continue;
+        const a = acc.get(low(name)) ?? { name, runs: 0, balls: 0, inns: 0, hit: new Map() };
+        acc.set(low(name), a);
+        if (!seen.has(low(name))) { seen.add(low(name)); a.inns += 1; }
+        if (d.ball.extra !== "wd") a.balls += 1;
+        a.runs += d.bat;
+        for (const t of SPEED_MARKS) if (a.runs >= t && !a.hit.has(t)) a.hit.set(t, { name: a.name, balls: a.balls, innings: a.inns, matchId: m.id, date: m.createdAt });
+      }
+    });
+  }
+  return SPEED_MARKS.map((runs) => ({
+    runs,
+    rows: [...acc.values()].flatMap((a) => a.hit.get(runs) ?? [])
+      .sort((x, y) => x.balls - y.balls || x.innings - y.innings || x.date - y.date).slice(0, top),
+  }));
+}
+
 // ---------- Milestones ----------
 
 export type MilestoneKind = "25" | "50" | "100" | "3w" | "5w" | "hatTrick" | "fiveSixesOver" | "thirtyOver" | "goldenDuck" | "maiden";

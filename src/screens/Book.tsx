@@ -1,5 +1,7 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "../store";
+import { fetchWorld } from "../account";
+import type { GullyWorld } from "../globalStats";
 import { track } from "../track";
 import { EV } from "../events";
 import { headToHead, rivalry, type Duel, type Rec } from "../records";
@@ -37,9 +39,31 @@ function Tabs({ value, set }: { value: Section; set: (s: Section) => void }) {
   );
 }
 
+const n = (v: number) => v.toLocaleString("en-IN");
+
+/** All-time totals across every scorer who backs up. Anonymous numbers only. */
+function WorldCard() {
+  const [w, setW] = useState<GullyWorld | null>(null);
+  useEffect(() => { void fetchWorld().then(setW); }, []);
+  if (!w) return null;
+  const tiles: [string, number][] = [["Matches", w.matches], ["Runs", w.runs], ["Sixes", w.sixes], ["Wickets", w.wickets]];
+  return (
+    <div className="stadium rounded-3xl p-5">
+      <p className={label}>Gully world, all time</p>
+      <p className="mt-1 text-5xl font-extrabold leading-none text-fg tabular-nums">{n(w.people)}</p>
+      <p className="mt-1 text-sm text-mute">scorers, {n(w.active7)} active this week</p>
+      <div className="mt-4 grid grid-cols-4 gap-2 border-t border-white/10 pt-3 text-center">
+        {tiles.map(([k, v]) => <div key={k}><p className="text-lg font-extrabold text-fg tabular-nums">{n(v)}</p><p className="text-[11px] text-mute">{k}</p></div>)}
+      </div>
+      {w.best > 0 && <p className="mt-3 text-sm text-fg">Highest individual score: <span className="font-bold text-sun">{n(w.best)}</span></p>}
+      <p className="mt-2 text-[11px] text-mute">Runs, sixes and wickets count the {n(w.reporting)} scorers who have backed up since this card began.</p>
+    </div>
+  );
+}
+
 function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
   const { openPlayer } = useStore();
-  if (!d.o.played) return <Empty icon="📖" title="The book is empty" body={emptyBook(fmt)} />;
+  if (!d.o.played) return <><Empty icon="📖" title="The book is empty" body={emptyBook(fmt)} /><WorldCard /></>;
   const tiles: [string, number][] = [["Runs", d.o.runs], ["Sixes", d.o.sixes], ["Wickets", d.o.wickets], ["Ducks", d.o.ducks]];
   return (<>
     <div className="header-glow rounded-3xl border border-line p-5 text-center">
@@ -70,6 +94,7 @@ function Overview({ d, fmt }: { d: BookData; fmt: Fmt }) {
     ) : <Card><p className={label}>Best player</p><p className="mt-1 text-sm text-fg">Nobody has 3 finished matches yet. Play a few more and the crown goes to someone.</p></Card>}
     <button onClick={() => { track(EV.share, { what: "book" }); window.open("https://wa.me/?text=" + encodeURIComponent(d.summary), "_blank"); }}
       className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share the book on WhatsApp</button>
+    <WorldCard />
   </>);
 }
 
@@ -77,7 +102,9 @@ function Records({ d }: { d: BookData }) {
   const { go } = useStore();
   const rows = RECORD_ROWS.flatMap((row) => { const r = d.rec[row.key]; return r ? [{ row, r }] : []; });
   if (!rows.length) return <Empty icon="🏆" title="No records yet" body="Finish a match and the first records get set. Then the fun is breaking them." />;
+  const speed = d.speed.filter((b) => b.rows.length);
   return (
+    <>
     <Rows>
       {rows.map(({ row, r }) => {
         const big = row.big(r), detail = recordDetail(row, r);
@@ -94,6 +121,27 @@ function Records({ d }: { d: BookData }) {
         );
       })}
     </Rows>
+    {speed.length > 0 && (
+      <div className="mt-5">
+        <p className={cx("mb-2", label)}>Fastest to career runs</p>
+        <Rows>
+          {speed.map((b) => (
+            <div key={b.runs} className={rowCls}>
+              <span className="w-16 text-2xl font-extrabold text-sun tabular-nums">{b.runs}</span>
+              <span className="min-w-0 flex-1">
+                {b.rows.map((r, i) => (
+                  <button key={r.name} onClick={() => go("scorecard", r.matchId)} className="press flex w-full items-baseline justify-between gap-2 text-left">
+                    <span className={cx("truncate", i ? "text-sm text-mute" : "font-semibold text-fg")}>{i + 1}. {r.name}</span>
+                    <span className={cx("shrink-0 tabular-nums", i ? "text-sm text-mute" : "font-semibold text-fg")}>{r.balls} balls · {plural(r.innings, "inning")}</span>
+                  </button>
+                ))}
+              </span>
+            </div>
+          ))}
+        </Rows>
+      </div>
+    )}
+    </>
   );
 }
 

@@ -25,7 +25,7 @@ function Digits({ value, set, label, auto, onSubmit }: { value: string; set: (v:
         placeholder="••••••" placeholderTextColor={C.mute} selectionColor={C.sun} accessibilityLabel={label} onSubmitEditing={onSubmit}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
         style={[tw`min-h-14 w-full rounded-2xl border ${focus ? "border-sun" : "border-line"} bg-panel px-4 text-center text-[22px] text-fg`,
-          { fontFamily: "JetBrainsMono_700Bold", letterSpacing: 12 }]} />
+          { fontFamily: "Poppins_700Bold", letterSpacing: 12 }]} />
     </View>
   );
 }
@@ -157,12 +157,12 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
             <Num style={tw`pl-4 text-[17px] text-mute`}>+</Num>
             <TextInput value={cc} onChangeText={(t) => setCc(t.replace(/\D/g, "").slice(0, 3))} keyboardType="number-pad" accessibilityLabel="Country code" returnKeyType="next"
               selectionColor={C.sun} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-              style={[tw`min-h-12 w-12 text-[17px] text-fg`, { fontFamily: "JetBrainsMono_700Bold" }]} />
+              style={[tw`min-h-12 w-12 text-[17px] text-fg`, { fontFamily: "Poppins_700Bold" }]} />
             <View style={tw`h-6 w-px bg-line`} />
             <TextInput value={num} onChangeText={(t) => setNum(t.replace(/[^\d +]/g, "").slice(0, 18))} keyboardType="phone-pad" autoComplete="tel-national"
               placeholder={india ? "98765 43210" : "Mobile number"} placeholderTextColor={C.mute} selectionColor={C.sun} accessibilityLabel="Mobile number"
               onSubmitEditing={isNew ? undefined : () => void go()} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-              style={[tw`min-h-12 flex-1 px-3 text-[17px] text-fg`, { fontFamily: "JetBrainsMono_700Bold" }]} />
+              style={[tw`min-h-12 flex-1 px-3 text-[17px] text-fg`, { fontFamily: "Poppins_700Bold" }]} />
           </View>
           <Txt style={tw`mt-1.5 text-xs text-mute`}>Country code first. 91 is India.</Txt>
           {num.replace(/\D/g, "").length >= (india ? 10 : 8) && !clean && <Txt style={tw`mt-1 text-xs text-out`}>That doesn't look like a mobile number.</Txt>}
@@ -215,7 +215,7 @@ export function BackupCard() {
   if (!accountsSupported || phone) return null;
   return (
     <>
-      <Press onPress={() => setOpen(true)} style={[tw`flex-row w-full items-center gap-3 rounded-[22px] border bg-sun-soft p-4`, { borderColor: "#2e3a22" }]}>
+      <Press onPress={() => setOpen(true)} style={[tw`flex-row w-full items-center gap-3 rounded-[22px] border bg-sun-soft p-4`, { borderColor: "#4a2c14" }]}>
         <View style={tw`h-10 w-10 rounded-full border border-line bg-panel items-center justify-center`}>
           <Cloud size={20} color={C.sun} strokeWidth={2} />
         </View>

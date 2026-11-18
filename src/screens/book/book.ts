@@ -1,6 +1,6 @@
 import type { Match } from "../../engine/types";
 import {
-  bestPlayer, hallOfShame, milestones, overview, playerStreaks, records, teamStreaks,
+  bestPlayer, careerSpeed, hallOfShame, milestones, overview, playerStreaks, records, teamStreaks,
   type HallOfShame, type MilestoneKind, type PlayerMilestones, type Rated, type Rec, type Records,
 } from "../../records";
 import { leaders, type Fmt } from "../../stats";
@@ -106,9 +106,9 @@ export function shareSummary(s: Summary): string {
 
 /** Everything the book shows for one format. Memoise it on matches, teams and format. */
 export function bookData(matches: Match[], teams: { name: string }[], fmt: Fmt) {
-  const o = overview(matches, fmt), best = bestPlayer(matches, fmt), rec = records(matches, fmt), ms = milestones(matches, fmt);
+  const speed = careerSpeed(matches, fmt), o = overview(matches, fmt), best = bestPlayer(matches, fmt), rec = records(matches, fmt), ms = milestones(matches, fmt);
   return {
-    o, best, why: best ? bestWhy(matches, fmt, best) : null, rec, ms, feed: milestoneFeed(ms),
+    o, speed, best, why: best ? bestWhy(matches, fmt, best) : null, rec, ms, feed: milestoneFeed(ms),
     shame: hallOfShame(matches, fmt), players: playerStreaks(matches, fmt), teams: teamStreaks(matches, teams, fmt),
     summary: shareSummary({ fmt, played: o.played, since: o.first, runs: o.runs, sixes: o.sixes, wickets: o.wickets, ducks: o.ducks, best, records: rec }),
   };

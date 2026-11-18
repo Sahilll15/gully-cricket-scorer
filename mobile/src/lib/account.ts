@@ -3,6 +3,7 @@ import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { emptyKitty, mergeBackup, type KittyBackup } from "@shared/kitty";
 import { useStore } from "./store";
+import { myStats, type GullyWorld } from "@shared/globalStats";
 import { track } from "./track";
 import { EV } from "@shared/events";
 import { SUPABASE_KEY as KEY, SUPABASE_URL as URL } from "./env";
@@ -38,6 +39,8 @@ async function push() {
   useAccount.setState({ sync: "saving" });
   const { error } = await db().from("gully_backups").upsert({ user_id: uid, data: snapshot(), updated_at: new Date().toISOString() });
   useAccount.setState(error ? { sync: "error" } : { sync: "saved", savedAt: Date.now() });
+  // Plain totals for the world card; a failure here never affects the backup.
+  if (!error) void db().from("gully_stats").upsert({ user_id: uid, ...myStats(useStore.getState().matches), updated_at: new Date().toISOString() });
   // Only when the outcome changes, or every ball scored would send one.
   if (was !== (error ? "error" : "saved")) track(EV.backup_sync, { result: error ? "error" : "ok" });
 }
@@ -70,7 +73,9 @@ export async function signIn(phone: string, passcode: string, isNew: boolean): P
     if (/already registered/i.test(error.message)) return "This number already has an account. Sign in instead.";
     if (/invalid login/i.test(error.message)) return "Number or passcode doesn't match.";
     if (/rate|too many/i.test(error.message)) return "Too many tries. Wait a minute and try again.";
-    return "Couldn't reach the server. Check your internet.";
+    if (/at least|weak|short/i.test(error.message)) return "Pick a passcode of at least 6 characters.";
+    if (/network|fetch|timeout/i.test(error.message)) return "No internet right now. Your matches are safe on this phone. Try again when you're online.";
+    return "Something went wrong on our side. Try again in a minute.";
   }
   if (!data.session) return "Sign-up isn't open yet. Try again later.";
   await startSession(data.session.user.id, phone);
@@ -109,4 +114,11 @@ export function startAccountSync() {
     timer = setTimeout(() => void push(), 3000);
   });
   return () => { clearTimeout(timer); unsub(); };
+}
+
+/** Totals across every scorer, for the Gully world card. Null when offline or accounts are off. */
+export async function fetchWorld(): Promise<GullyWorld | null> {
+  if (!accountsSupported) return null;
+  const { data, error } = await db().rpc("gully_global");
+  return error ? null : (data as GullyWorld);
 }

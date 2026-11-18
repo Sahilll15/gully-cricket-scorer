@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Line, Path, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 
 /** Gully touches (DESIGN.md): street lamp, brick wall, chalk and tape ball. Quiet by design. */
-const INK = "#0b0d0c", LIME = "#d6ff63", TEAL = "#aab2ac", MUTE = "#7e8680", OUT = "#ff6b57";
+const INK = "#050507", LIME = "#ff8a3d", TEAL = "#f1ece4", MUTE = "#9a9aa5", OUT = "#ff4d4d";
 const CHALK = "rgba(238,241,236,0.24)";
 /** Uneven dash gaps read as chalk dragged over rough ground. */
 const GRAIN = "7 0.9 4 0.7 10 1.1 3 0.6";
@@ -33,14 +33,14 @@ export function StreetLamp({ height = 460 }: { height?: number }) {
 }
 
 /** Faint brick courses, like the wall behind a gully pitch. Fades out toward the bottom. */
-export function BrickWall({ fade = "#141716" }: { fade?: string }) {
+export function BrickWall({ fade = "#0d0d12" }: { fade?: string }) {
   const id = useSvgId("brick");
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Svg width="100%" height="100%">
         <Defs>
           <Pattern id={id} patternUnits="userSpaceOnUse" width={28} height={20}>
-            <G stroke="#eef1ec" strokeOpacity={0.045} strokeWidth={1}>
+            <G stroke="#ffffff" strokeOpacity={0.045} strokeWidth={1}>
               <Line x1={0} y1={0.5} x2={28} y2={0.5} />
               <Line x1={0} y1={10.5} x2={28} y2={10.5} />
               <Line x1={0.5} y1={0} x2={0.5} y2={10} />
@@ -101,8 +101,8 @@ export function ChalkStumps({ size = 44, color = TEAL }: { size?: number; color?
 export function TapeBall({ size = 24, tone = "sun" }: { size?: number; tone?: "sun" | "ink" | "mute" }) {
   const id = useSvgId("tape");
   const look = {
-    sun: { fill: LIME, edge: LIME, seam: "rgba(11,13,12,0.45)", tape: "#1c201e", shine: "#eef1ec" },
-    ink: { fill: INK, edge: INK, seam: "rgba(214,255,99,0.55)", tape: "#3a413c", shine: LIME },
+    sun: { fill: LIME, edge: LIME, seam: "rgba(5,5,7,0.45)", tape: "#17171f", shine: "#ffffff" },
+    ink: { fill: INK, edge: INK, seam: "rgba(255,138,61,0.55)", tape: "#2a2a35", shine: LIME },
     mute: { fill: "rgba(170,178,172,0.08)", edge: TEAL, seam: MUTE, tape: "rgba(170,178,172,0.4)", shine: TEAL },
   }[tone];
   // A solid ball with a band curving round it: a straight diagonal strip read as a "no entry" sign.

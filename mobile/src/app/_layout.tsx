@@ -6,9 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
-import { JetBrainsMono_500Medium, JetBrainsMono_700Bold, JetBrainsMono_800ExtraBold } from "@expo-google-fonts/jetbrains-mono";
-import { Doto_900Black } from "@expo-google-fonts/doto";
+import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold } from "@expo-google-fonts/poppins";
 import { useStore } from "@/lib/store";
 import { navigate, screenOf, setNavRef, stackNames } from "@/lib/nav";
 import { initDevice } from "@/lib/device";
@@ -18,6 +16,7 @@ import { startAccountSync } from "@/lib/account";
 import { liveSupported, publish } from "@/lib/live";
 import { linkOpened } from "@/lib/links";
 import { ShareHost } from "@/ui/ShareHost";
+import { Onboarding } from "@/ui/Onboarding";
 import { C } from "@/ui/ui";
 
 void SplashScreen.preventAutoHideAsync();
@@ -53,7 +52,7 @@ const hydrated = () => new Promise<void>((done) => {
 });
 
 export default function Root() {
-  const [fonts] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, JetBrainsMono_500Medium, JetBrainsMono_700Bold, JetBrainsMono_800ExtraBold, Doto_900Black });
+  const [fonts] = useFonts({ Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold, Poppins_800ExtraBold });
   const [ready, setReady] = useState(false);
   const resume = useRef<ReturnType<typeof useStore.getState>["screen"]>("home");
   const nav = useNavigationContainerRef();
@@ -85,9 +84,13 @@ export default function Root() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: C.cream }}>
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, animation: "slide_from_right", contentStyle: { backgroundColor: C.cream } }} />
+        <Stack screenOptions={{ headerShown: false, animation: "slide_from_right", animationDuration: 320, contentStyle: { backgroundColor: C.cream } }}>
+          {["cups", "teams", "stats", "history"].map((n) => <Stack.Screen key={n} name={n} options={{ animation: "fade", animationDuration: 220 }} />)}
+          {["setup", "newcup", "newseries", "join"].map((n) => <Stack.Screen key={n} name={n} options={{ animation: "fade_from_bottom", animationDuration: 320 }} />)}
+        </Stack>
         {liveSupported && <LivePublisher />}
         <ShareHost />
+        <Onboarding />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

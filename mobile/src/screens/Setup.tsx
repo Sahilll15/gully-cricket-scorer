@@ -16,6 +16,7 @@ import { useStore } from "@/lib/store";
 import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { flag, matchStartParams, presetIdOf } from "@shared/matchEvents";
+import { GlossaryLink } from "@/ui/guide";
 import { C, Badge, Card, Header, Num, Page, Press, PrimaryButton, SectionTitle, Segmented, Sheet, Txt, tw } from "@/ui/ui";
 import { OpenersSheet, SoloTurnSheet } from "./sheets";
 import { ChaseCard, FairStrip, Field, FrenchFirst, OversCard, PairsCard, PairsStartSheet, PresetRow, RulesCardView, RulesEditor } from "./setupParts";
@@ -274,7 +275,7 @@ function Coin({ flipping, face }: { flipping: boolean; face: string }) {
     <Animated.View style={[tw`self-center my-2 h-28 w-28 rounded-full`,
       { shadowColor: C.sun, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
       { transform: [{ perspective: 800 }, { translateY }, { rotateX }] }]}>
-      <LinearGradient colors={["#2c332e", "#1c201e", "#121514"]} locations={[0, 0.55, 1]} start={{ x: 0.25, y: 0.2 }} end={{ x: 0.9, y: 1 }}
+      <LinearGradient colors={["#24242d", "#17171f", "#121514"]} locations={[0, 0.55, 1]} start={{ x: 0.25, y: 0.2 }} end={{ x: 0.9, y: 1 }}
         style={tw`h-28 w-28 rounded-full items-center justify-center border-2 border-sun`}>
         <Num style={tw`text-[20px] text-sun`}>{face && face[0] + face.slice(1).toLowerCase()}</Num>
       </LinearGradient>
@@ -507,7 +508,7 @@ export default function Setup() {
             pairsCount={Math.max(1, Math.ceil((Math.max(sa, sb) + (common.trim() ? 1 : 0)) / 2))} />}
 
           <View>
-            <SectionTitle>Gully rules</SectionTitle>
+            <SectionTitle action={<GlossaryLink />}>Gully rules</SectionTitle>
             <Card style={tw`p-0 overflow-hidden`}>
               <Press onPress={() => setShowRules(!showRules)} accessibilityLabel="Gully rules" accessibilityState={{ expanded: showRules }}
                 style={tw`min-h-14 flex-row w-full items-center gap-3 px-4 py-3.5`}>
@@ -533,7 +534,7 @@ export default function Setup() {
       </ScrollView>
 
       <View pointerEvents="box-none" style={[tw`absolute left-0 right-0 bottom-0 px-4 pt-8`, { paddingBottom: Math.max(16, bottom) }]}>
-        <LinearGradient pointerEvents="none" colors={["rgba(11,13,12,0)", C.cream, C.cream]} locations={[0, 0.4, 1]} style={tw`absolute inset-0`} />
+        <LinearGradient pointerEvents="none" colors={["rgba(5,5,7,0)", C.cream, C.cream]} locations={[0, 0.4, 1]} style={tw`absolute inset-0`} />
         {mode === "solo" ? (
           <PrimaryButton disabled={soloNames.length < 2} onPress={beginSolo}>
             {soloNames.length < 2 ? "Add at least 2 players" : `Start, ${soloNames[0]} bats first`}
@@ -557,7 +558,7 @@ export default function Setup() {
           <View style={tw`items-center`}>
             <View style={tw`w-full items-center pt-10 pb-6`}>
               {/* Not Glow: its overflow clip would cut the coin off mid-flip. */}
-              <LinearGradient pointerEvents="none" colors={["rgba(214,255,99,0.10)", "rgba(214,255,99,0)"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+              <LinearGradient pointerEvents="none" colors={["rgba(255,138,61,0.10)", "rgba(255,138,61,0)"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
                 style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />
               <Coin flipping={flipping} face={flipping ? "" : toss?.face ?? "TOSS"} />
               {toss ? (

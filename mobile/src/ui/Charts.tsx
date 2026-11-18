@@ -8,7 +8,7 @@ import { matchAwards, mvp } from "@shared/mvp";
 import { Badge, C, Card, Num, Press, SectionTitle, Txt, tw } from "./ui";
 
 // Floodlights charts: lime for the side batting first (or the solo leader), grey for everyone else.
-const GREY = C.teal, DIM = "#3a423c", GRID = "#1e2321", MONO = "JetBrainsMono_500Medium";
+const GREY = C.teal, DIM = "#2a2a35", GRID = "#24242d", MONO = "Poppins_500Medium";
 const VW = 340, VH = 180, PL = 30, PR = 12, PT = 10, PB = 22;
 
 function tone(m: Match, l: Line, lead: string | null): { color: string; width: number; dash?: string } {

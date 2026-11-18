@@ -59,7 +59,7 @@ function AmountField({ value, set, label }: { value: string; set: (v: string) =>
       <Txt style={tw`text-[20px] font-semibold text-mute`}>₹</Txt>
       <TextInput value={value} onChangeText={(v) => set(money(v))} keyboardType="number-pad" placeholder="0" accessibilityLabel={label}
         placeholderTextColor={C.mute} selectionColor={C.sun} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        style={[tw`min-h-14 flex-1 text-[24px]`, { color: C.fg, fontFamily: "JetBrainsMono_700Bold" }]} />
+        style={[tw`min-h-14 flex-1 text-[24px]`, { color: C.fg, fontFamily: "Poppins_700Bold" }]} />
     </View>
   );
 }
