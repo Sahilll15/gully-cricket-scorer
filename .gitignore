@@ -32,3 +32,4 @@ mobile/.expo
 mobile/.env
 mobile/store/release
 mobile/store/reviewer-login.txt
+mobile/google-services.json

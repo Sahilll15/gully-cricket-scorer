@@ -3,19 +3,19 @@
     "name": "Gully Cricket Scorer",
     "slug": "gully-cricket-scorer",
     "scheme": "gullyscorer",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0b0d0c",
+    "backgroundColor": "#050507",
     "android": {
       "package": "com.sahilchalke.gullyscorer",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
-        "backgroundColor": "#0b0d0c"
+        "backgroundColor": "#101018"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -50,9 +50,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0b0d0c",
+          "backgroundColor": "#050507",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 120
+          "imageWidth": 200
         }
       ],
       [
