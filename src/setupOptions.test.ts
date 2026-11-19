@@ -8,7 +8,7 @@ describe("setup options", () => {
     for (const p of PRESETS) {
       const r = applyPreset(p.id, DEFAULT_RULES), mode = modeOf(r), test = r.format === "test";
       expect(presetMatches(p.id, r, mode, test), p.id).toBe(true);
-      expect(mode).toBe(p.id === "box-pairs" || p.id === "double-wicket" ? "pairs" : p.id === "solo" ? "solo" : p.id === "french" ? "french" : "teams");
+      expect(mode).toBe(p.id === "box-pairs" || p.id === "double-wicket" ? "pairs" : p.id === "solo" || p.id === "solo-test" ? "solo" : p.id === "french" ? "french" : "teams");
     }
   });
 

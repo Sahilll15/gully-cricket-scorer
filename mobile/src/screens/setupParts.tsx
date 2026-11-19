@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ScrollView, TextInput, View, type TextInputProps } from "react-native";
 import {
   ArrowUp, Building2, CalendarDays, Check, CircleDot, Flame, Footprints, Gauge, Handshake, PersonStanding, Rocket, Shuffle,
-  Timer, User, Users, Box, type LucideIcon,
+  Timer, User, Users, Box, Hourglass, type LucideIcon,
 } from "lucide-react-native";
 import * as E from "@shared/engine/engine";
 import type { Match, Player, Rules, Side, Surface } from "@shared/engine/types";
@@ -24,7 +24,7 @@ export function Field({ style, ...p }: TextInputProps) {
 
 const ICON: Record<PresetId, LucideIcon> = {
   gully: Flame, "tip-and-run": Footprints, "compulsory-run": Timer, box: Box, "box-pairs": Users, "double-wicket": Handshake,
-  "sixes-only": Rocket, "tape-ball": CircleDot, office: Building2, hundred: Gauge, french: PersonStanding, solo: User, test: CalendarDays,
+  "sixes-only": Rocket, "tape-ball": CircleDot, office: Building2, hundred: Gauge, french: PersonStanding, solo: User, "solo-test": Hourglass, test: CalendarDays,
 };
 
 /** Preset cards in a row at the top of setup. A card stays lit while the rules are still what it set. */
@@ -80,6 +80,7 @@ export function OversCard({ rules, setRules, mode, test, pairsCount }: {
   const r = <K extends keyof Rules>(k: K) => (v: Rules[K]) => setRules({ ...rules, [k]: v });
   const has = (o: Opt) => shows(o, mode, test), bpo = E.ballsPerOver(rules), pairOvers = E.pairOversOf(rules);
   const turnBalls = rules.ballsPerTurn === undefined ? 12 : rules.ballsPerTurn, lives = rules.lives ?? 1, rounds = rules.rounds ?? 1;
+  const [turnPicked, setTurnPicked] = useState(false), customTurn = turnBalls !== null && (turnPicked || !TURN_BALLS.includes(turnBalls));
   const pairTotal = pairsCount * pairOvers;
   return (
     <View>
@@ -114,9 +115,12 @@ export function OversCard({ rules, setRules, mode, test, pairsCount }: {
         {has("turn") && <>
           <Label>Turn ends after</Label>
           <View style={tw`flex-row gap-2`}>
-            {TURN_BALLS.map((n) => <ChoicePill key={String(n)} active={turnBalls === n} onPress={() => r("ballsPerTurn")(n)} label={n === null ? "No cap" : n} />)}
+            {TURN_BALLS.map((n) => <ChoicePill key={String(n)} active={turnBalls === n && !customTurn} onPress={() => { setTurnPicked(false); r("ballsPerTurn")(n); }} label={n === null ? "No cap" : n} />)}
+            <ChoicePill active={customTurn} onPress={() => { setTurnPicked(!customTurn); r("ballsPerTurn")(customTurn ? 12 : 5 * bpo); }} label="Overs" />
           </View>
-          <Txt style={tw`mt-1.5 text-[12px] text-mute`}>balls a turn</Txt>
+          {customTurn
+            ? <View style={tw`mt-2`}><Stepper value={Math.max(1, Math.round((turnBalls ?? 0) / bpo))} set={(o) => r("ballsPerTurn")(o * bpo)} max={50} /><Txt style={tw`mt-1.5 text-[12px] text-mute`}>overs a turn</Txt></View>
+            : <Txt style={tw`mt-1.5 text-[12px] text-mute`}>balls a turn</Txt>}
         </>}
         {(has("lives") || has("turn")) && <View style={tw`flex-row gap-4 ${has("turn") ? "mt-2" : ""}`}>
           {has("lives") && <View style={tw`flex-1`}>

@@ -45,6 +45,7 @@ export function OversCard({ rules, setRules, mode, test, pairsCount }: {
   const r = <K extends keyof Rules>(k: K) => (v: Rules[K]) => setRules({ ...rules, [k]: v });
   const has = (o: Opt) => shows(o, mode, test), bpo = E.ballsPerOver(rules), pairOvers = E.pairOversOf(rules);
   const turnBalls = rules.ballsPerTurn === undefined ? 12 : rules.ballsPerTurn, lives = rules.lives ?? 1, rounds = rules.rounds ?? 1;
+  const [turnPicked, setTurnPicked] = useState(false), customTurn = turnBalls !== null && (turnPicked || !TURN_BALLS.includes(turnBalls));
   const pairTotal = pairsCount * pairOvers;
   return (
     <Card>
@@ -74,9 +75,12 @@ export function OversCard({ rules, setRules, mode, test, pairsCount }: {
       </div>}
       {has("turn") && <>
         <Label>Turn ends after</Label>
-        <div className="grid grid-cols-4 gap-2">
-          {TURN_BALLS.map((n) => <Pill key={String(n)} active={turnBalls === n} onClick={() => r("ballsPerTurn")(n)}>{n === null ? "No cap" : `${n} balls`}</Pill>)}
+        <div className="grid grid-cols-5 gap-2">
+          {TURN_BALLS.map((n) => <Pill key={String(n)} active={turnBalls === n && !customTurn} onClick={() => { setTurnPicked(false); r("ballsPerTurn")(n); }}>{n === null ? "No cap" : `${n} balls`}</Pill>)}
+          <Pill active={customTurn} onClick={() => { setTurnPicked(!customTurn); r("ballsPerTurn")(customTurn ? 12 : 5 * bpo); }}>Overs</Pill>
         </div>
+        {customTurn && <div className="mt-2"><Stepper value={Math.max(1, Math.round((turnBalls ?? 0) / bpo))} set={(o) => r("ballsPerTurn")(o * bpo)} max={50} />
+          <p className="mt-1 text-xs text-mute">overs a turn</p></div>}
       </>}
       {has("lives") && <>
         <Label className={has("turn") ? "mt-4" : ""}>Lives</Label>

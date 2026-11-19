@@ -3,7 +3,7 @@ import type { Rules } from "./engine/types";
 /** Ready-made formats. Each sets only what it needs; applyPreset fills in the rest. */
 export type PresetId =
   | "gully" | "tip-and-run" | "compulsory-run" | "box" | "box-pairs" | "double-wicket" | "sixes-only"
-  | "tape-ball" | "office" | "hundred" | "french" | "solo" | "test";
+  | "tape-ball" | "office" | "hundred" | "french" | "solo" | "solo-test" | "test";
 
 export interface Preset { id: PresetId; name: string; description: string; rules: Partial<Rules> }
 
@@ -34,6 +34,8 @@ export const PRESETS: Preset[] = [
     rules: { format: "french", lives: 1 } },
   { id: "solo", name: "Solo", description: "Everyone bats on their own for twelve balls, everyone else bowls.",
     rules: { format: "solo", ballsPerTurn: 12, lives: 1, rounds: 1 } },
+  { id: "solo-test", name: "Solo Test", description: "Everyone bats on their own until they're out, with no cap on balls, over two rounds.",
+    rules: { format: "solo", ballsPerTurn: null, lives: 1, rounds: 2 } },
   { id: "test", name: "Test", description: "Two innings a side with no over limit.",
     rules: { format: "test", matchOvers: null } },
 ];

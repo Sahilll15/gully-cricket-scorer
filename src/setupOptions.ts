@@ -172,5 +172,5 @@ export function draftMatch(rules: Rules, mode: Mode, test: boolean, teams: [Team
 /** Web icon per preset. The app uses line icons instead. */
 export const PRESET_EMOJI: Record<PresetId, string> = {
   gully: "🏏", "tip-and-run": "🏃", "compulsory-run": "⏱", box: "📦", "box-pairs": "👥", "double-wicket": "✌️", "sixes-only": "💥",
-  "tape-ball": "🎾", office: "🏢", hundred: "💯", french: "🦵", solo: "🙋", test: "🏟",
+  "tape-ball": "🎾", office: "🏢", hundred: "💯", french: "🦵", solo: "🙋", "solo-test": "⏳", test: "🏟",
 };

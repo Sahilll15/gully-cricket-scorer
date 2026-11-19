@@ -16,10 +16,10 @@ function start(id: PresetId): Match {
 const balls: BallInput[] = [{ runs: 1 }, { runs: 4 }, { runs: 0 }, { runs: 6 }, { runs: 0, extra: "wd" }, { runs: 2 }];
 
 describe("presets", () => {
-  it("has the thirteen named formats, each with a one-line description", () => {
+  it("has the fourteen named formats, each with a one-line description", () => {
     expect(PRESETS.map((p) => p.name)).toEqual([
       "Gully classic", "Tip and run", "Compulsory run", "Box cricket", "Pairs box cricket", "Double wicket", "Sixes only",
-      "Tape ball", "Office cricket", "100 balls", "French cricket", "Solo", "Test",
+      "Tape ball", "Office cricket", "100 balls", "French cricket", "Solo", "Solo Test", "Test",
     ]);
     for (const p of PRESETS) expect(p.description).toMatch(/^[A-Z].+\.$/);
     expect(new Set(PRESETS.map((p) => p.id)).size).toBe(PRESETS.length);
