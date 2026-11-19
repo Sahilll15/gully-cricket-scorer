@@ -265,7 +265,7 @@ export interface SpeedBoard { runs: number; rows: SpeedRow[] }
 export function careerSpeed(matches: Match[], fmt: Fmt, top = 3): SpeedBoard[] {
   const acc = new Map<string, { name: string; runs: number; balls: number; inns: number; hit: Map<number, SpeedRow> }>();
   for (const m of finished(matches, fmt)) {
-    deliveries(m).forEach((ds, inn) => {
+    deliveries(m).forEach((ds) => {
       const seen = new Set<string>();
       for (const d of ds) {
         if (!d.striker) continue;
@@ -473,6 +473,22 @@ export function headToHead(matches: Match[], a: string, b: string, fmt: Fmt): { 
     return { ...d, strikeRate: strikeRate(d.runs, d.balls) };
   };
   return { aBatting: duel(a, b), bBatting: duel(b, a) };
+}
+
+/** The batter and bowler who have faced each other most balls, in either direction. */
+export function busiestDuel(matches: Match[], fmt: Fmt): [string, string] | null {
+  const pairs = new Map<string, { a: string; b: string; n: number }>();
+  for (const m of finished(matches, fmt)) for (const x of deliveries(m).flat()) {
+    if (!x.striker || x.ball.extra === "wd") continue;
+    const bat = E.playerName(m, x.striker), bowl = E.playerName(m, x.ball.bowler);
+    if (!named(bat) || !named(bowl) || low(bat) === low(bowl)) continue;
+    const [a, b] = low(bat) < low(bowl) ? [bat, bowl] : [bowl, bat], key = `${low(a)}|${low(b)}`;
+    const e = pairs.get(key) ?? { a, b, n: 0 };
+    e.n++;
+    pairs.set(key, e);
+  }
+  const top = [...pairs.values()].sort((x, y) => y.n - x.n || x.a.localeCompare(y.a) || x.b.localeCompare(y.b))[0];
+  return top ? [top.a, top.b] : null;
 }
 
 // ---------- Team rivalry ----------
