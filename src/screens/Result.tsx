@@ -9,7 +9,8 @@ import { canRematch, rematchMatch, tallyText } from "../afterMatch";
 import { imageFor, printScoresheet, shareImage, shareText, soloLines, type ImageKind } from "../share";
 import { playerOfTheMatch } from "../mvp";
 import { AwardsCard } from "../chartsView";
-import { Badge, Card, Header, PrimaryButton } from "../ui";
+import { Badge, Card, Header, PrimaryButton, Sheet } from "../ui";
+import { shouldPrompt } from "../sharePrompt";
 import { SeriesAfterMatch } from "./Series";
 import { track } from "../track";
 import { EV } from "../events";
@@ -40,6 +41,18 @@ function Confetti() {
   return <canvas ref={ref} className="pointer-events-none fixed inset-0 z-50" />;
 }
 
+/** Right after a match ends: one tap to send the scorecard to the group chat. */
+function SharePrompt({ m }: { m: Match }) {
+  const [open, setOpen] = useState(() => shouldPrompt(m));
+  if (!open) return null;
+  return (
+    <Sheet title="Send the result to your group?" onClose={() => setOpen(false)}
+      footer={<PrimaryButton onClick={() => { track(EV.result_prompt, { act: "send" }); void shareImage(m, "full"); setOpen(false); }}>Send scorecard on WhatsApp</PrimaryButton>}>
+      <p className="text-sm text-mute">The full scorecard goes as one image, with the link to score your own matches.</p>
+    </Sheet>
+  );
+}
+
 export default function Result() {
   const m = useMatch();
   const { go, put, undo } = useStore();
@@ -55,6 +68,7 @@ export default function Result() {
   return (
     <div className="min-h-screen pb-10">
       {winner && <Confetti />}
+      <SharePrompt m={m} />
       <Header title="Match Summary" back={() => go("home")}>
         <div className="mt-2 flex flex-col items-center text-center">
           {winner ? <Badge name={winner} size={72} /> : <span className="text-5xl">🤝</span>}

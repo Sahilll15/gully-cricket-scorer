@@ -45,7 +45,7 @@ describe("saved data from older versions", () => {
     expect(s.kitty).toEqual(emptyKitty());
   });
 
-  it("the store version moved on", () => expect(STORE_VERSION).toBe(5));
+  it("the store version moved on", () => expect(STORE_VERSION).toBe(6));
 });
 
 describe("backup with series and player details", () => {

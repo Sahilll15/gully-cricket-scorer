@@ -26,7 +26,7 @@ type Sync = "idle" | "saving" | "saved" | "error";
 interface Account { phone: string | null; sync: Sync; savedAt: number | null }
 export const useAccount = create<Account>(() => ({ phone: null, sync: "idle", savedAt: null }));
 
-const snapshot = (): KittyBackup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos, kitty: s.kitty }; };
+const snapshot = (): KittyBackup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos, groups: s.groups, kitty: s.kitty }; };
 
 async function pull(): Promise<KittyBackup | null> {
   const { data, error } = await db().from("gully_backups").select("data").maybeSingle();
@@ -56,7 +56,7 @@ async function syncNow() {
   // No await between the snapshot and setState, or changes made during the pull are lost.
   const cloud = await pull();
   const both = mergeBackup(snapshot(), cloud);
-  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {}, kitty: both.kitty ?? emptyKitty() });
+  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {}, groups: both.groups ?? [], kitty: both.kitty ?? emptyKitty() });
   merged = true;
   await push();
 }
@@ -110,7 +110,7 @@ export function startAccountSync() {
     if (data.session && phone) void startSession(data.session.user.id, phone);
   });
   const unsub = useStore.subscribe((s, prev) => {
-    if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos && s.kitty === prev.kitty)) return;
+    if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos && s.groups === prev.groups && s.kitty === prev.kitty)) return;
     clearTimeout(timer);
     timer = setTimeout(() => void push(), 3000);
   });

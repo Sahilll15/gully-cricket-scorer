@@ -179,3 +179,18 @@ export function overTicks(overs: number): number[] {
 
 /** 1st, 2nd, 3rd, 4th ... 11th, 12th, 13th, 21st. */
 export const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+
+export interface ZoneRow { zone: number; runs: number; shots: number }
+
+/** Runs and shots per wagon wheel zone for one innings. Only balls where the scorer tapped a zone count. */
+export function wagon(m: Match, idx: number): ZoneRow[] {
+  const by = new Map<number, ZoneRow>();
+  for (const ev of m.innings[idx]?.events ?? []) {
+    if (ev.t !== "ball" || !ev.zone) continue;
+    const r = by.get(ev.zone) ?? { zone: ev.zone, runs: 0, shots: 0 };
+    r.runs += ev.runs + (ev.overthrow ?? 0);
+    r.shots++;
+    by.set(ev.zone, r);
+  }
+  return [...by.values()].sort((a, b) => a.zone - b.zone);
+}

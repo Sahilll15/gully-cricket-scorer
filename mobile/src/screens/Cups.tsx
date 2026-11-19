@@ -12,6 +12,8 @@ import { Badge, C, Card, ConfirmSheet, Header, LivePill, Num, Page, Press, Prima
 import { RankRow } from "./Lists";
 import { SeriesList } from "./Series";
 import { TextField } from "./Teams";
+import { GroupChips } from "./groups";
+import { playersFrom } from "@shared/groups";
 
 export const CUP_RULES: Rules = {
   overs: 5, extraRun: true, rebowl: true, freeHit: false, lastManStands: false, oneTipCatch: false,
@@ -74,7 +76,8 @@ export function Cups() {
 }
 
 export function NewCup() {
-  const { teams, go, putCup, saveTeam } = useStore();
+  const { teams, go, putCup, saveTeam, groups } = useStore();
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [name, setName] = useState("Gully Premier League");
   const [pick, setPick] = useState<string[]>([]);
   const [overs, setOvers] = useState(5);
@@ -83,7 +86,8 @@ export function NewCup() {
   const toggle = (id: string) => setPick(pick.includes(id) ? pick.filter((x) => x !== id) : [...pick, id]);
   const min = FORMATS.find((f) => f.v === format)!.min;
   const fixtures = fixtureCount(format, pick.length);
-  const addTeam = () => { if (newTeam.trim()) { track(EV.team_save); const t = saveTeam(newTeam, []); setPick([...pick, t.id]); setNewTeam(""); } };
+  const addTeam = () => { if (newTeam.trim()) { track(EV.team_save); const g = groups.find((x) => x.id === groupId); if (g) track(EV.group_use, { where: "cup" });
+    const t = saveTeam(newTeam, g ? playersFrom(g, []) : []); setPick([...pick, t.id]); setNewTeam(""); } };
 
   return (
     <Page>
@@ -113,6 +117,7 @@ export function NewCup() {
               <Txt style={tw`font-semibold text-fg`}>Add</Txt>
             </Press>
           </View>
+          <GroupChips value={groupId} set={setGroupId} />
           <Txt style={tw`mt-2 text-xs text-mute`}>Add players to each team from the Teams tab, or at the toss of each match.</Txt>
         </Card>
         <Card>

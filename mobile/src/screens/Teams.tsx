@@ -13,11 +13,15 @@ import { infoLine, ROLES, STYLES, type PlayerInfo } from "@shared/playerInfo";
 import { uniqueNames } from "@shared/kitty";
 import { knownNames } from "@shared/kittyView";
 import { mergeReach } from "@shared/merge";
+import { recapText } from "@shared/season";
+import { WEB_BASE } from "@/lib/env";
+import { sendText } from "@/lib/share";
 import { cleanUpi, validUpi } from "@shared/upi";
 import {
   filterMatches, fmtFor, kindsPlayed, matchesLine, PROFILE_KINDS, skillCard, startKind, TIER_COLOR, yearsPlayed, type Kind, type SkillCard,
 } from "@shared/playerCard";
-import { ChevronRight, Merge, Pencil, Share2, X } from "lucide-react-native";
+import { ChevronRight, Merge, Pencil, Share2, Users, X } from "lucide-react-native";
+import { AddFromGroup, GroupsSheet } from "./groups";
 import { Badge, C, Card, ConfirmSheet, GhostButton, Header, Num, Page, Press, PrimaryButton, SectionTitle, Segmented, Sheet, tw, Txt } from "@/ui/ui";
 
 const FONTS = { "400": "Inter_400Regular", "500": "Inter_500Medium", "600": "Inter_600SemiBold", "700": "Inter_700Bold" } as const;
@@ -54,6 +58,7 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
   const [t, setT] = useState(team);
   const [v, setV] = useState("");
   const [askDel, setAskDel] = useState(false);
+  const [fromGroup, setFromGroup] = useState(false);
   const save = (next: SavedTeam) => { setT(next); putTeam(next); };
   const add = () => { if (v.trim()) { save({ ...t, players: [...t.players, { id: E.uid(), name: v.trim() }] }); setV(""); } };
   return (<>
@@ -79,10 +84,12 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
           <Txt style={tw`font-semibold text-fg`}>Add</Txt>
         </Press>
       </View>
+      <View style={tw`mt-3`}><GhostButton onPress={() => setFromGroup(true)}>Add from a group</GhostButton></View>
       <Press onPress={() => setAskDel(true)} style={tw`mt-5 min-h-12 w-full rounded-[16px] items-center justify-center`}>
         <Txt style={tw`font-medium text-out`}>Delete team</Txt>
       </Press>
     </Sheet>
+    {fromGroup && <AddFromGroup team={t} onAdd={save} onClose={() => setFromGroup(false)} />}
     {askDel && <ConfirmSheet title={`Delete ${t.name}?`} body="Past matches keep their scores." yes="Delete" danger
       onYes={() => { track(EV.team_delete); removeTeam(t.id); onClose(); }} onClose={() => setAskDel(false)} />}
   </>);
@@ -139,6 +146,7 @@ export function Teams() {
   const [edit, setEdit] = useState<SavedTeam | null>(null);
   const [name, setName] = useState("");
   const [merging, setMerging] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const create = () => { if (name.trim()) { track(EV.team_save); setEdit(saveTeam(name, [])); setName(""); } };
   return (
     <Page tabs>
@@ -151,6 +159,12 @@ export function Teams() {
             <Txt style={tw`font-semibold text-ink`}>Create</Txt>
           </Press>
         </View>
+        <GhostButton onPress={() => setGroupsOpen(true)}>
+          <View style={tw`flex-row items-center gap-2`}>
+            <Users size={18} color={C.teal} strokeWidth={2} />
+            <Txt style={tw`font-medium text-fg`}>Player groups</Txt>
+          </View>
+        </GhostButton>
         <GhostButton onPress={() => setMerging(true)}>
           <View style={tw`flex-row items-center gap-2`}>
             <Merge size={18} color={C.teal} strokeWidth={2} />
@@ -190,6 +204,7 @@ export function Teams() {
       </View>
       {edit && <TeamEditor team={edit} onClose={() => setEdit(null)} />}
       {merging && <MergeSheet onClose={() => setMerging(false)} />}
+      {groupsOpen && <GroupsSheet onClose={() => setGroupsOpen(false)} />}
     </Page>
   );
 }
@@ -283,6 +298,8 @@ export function PlayerProfile() {
   const info = infos[player.trim().toLowerCase()] ?? {};
   const line = infoLine(info);
   const card = skillCard(pool, player, kind, info);
+  const recapYear = year ?? new Date().getFullYear();
+  const recap = recapText(matches, player, recapYear, WEB_BASE);
   const pick = (k: Kind) => { setKind(k); setYear(null); if (k !== "solo") useStore.setState({ fmt: k }); };
   const share = async () => {
     setSharing(true);
@@ -337,6 +354,7 @@ export function PlayerProfile() {
               <Txt style={tw`font-medium text-fg`}>{sharing ? "One sec…" : "Share card"}</Txt>
             </View>
           </GhostButton>
+          {!!recap && <GhostButton onPress={() => { track(EV.recap_share, { year: recapYear }); void sendText(recap); }}><Txt style={tw`font-medium text-fg`}>{`Share my ${recapYear}`}</Txt></GhostButton>}
         </>}
         <Card>
           <SectionTitle>Batting</SectionTitle>

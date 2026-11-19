@@ -1,4 +1,5 @@
 import { useStore } from "./store";
+import { decodeGroup } from "@shared/groups";
 import { cleanCode, parseMoveToken, parseScoreKey } from "./live";
 
 let handled = false;
@@ -9,6 +10,8 @@ export const linkOpened = () => handled;
 export function applyLink(url: string): string | null {
   const q = url.split("#")[0].split("?")[1] ?? "", hash = url.includes("#") ? `#${url.split("#")[1]}` : "";
   const p = new URLSearchParams(q);
+  const inv = decodeGroup(p.get("group") ?? "");
+  if (inv) { useStore.getState().setGroupInvite(inv); handled = true; return "/teams"; }
   const watch = cleanCode(p.get("watch") ?? "");
   if (watch.length === 6) { useStore.setState({ watchCode: watch, watchKey: p.get("k") }); handled = true; return "/watch"; }
   const score = cleanCode(p.get("score") ?? ""), key = parseScoreKey(hash);

@@ -11,6 +11,7 @@ import { emptyKitty, type Kitty } from "./kitty";
 import { kittyActions, type KittyActions } from "./kittyView";
 import { extraActions, type ExtraActions } from "./storeExtras";
 import type { NextGame } from "./nextGame";
+import type { PlayerGroup } from "./groups";
 import type { MergeUndo } from "./merge";
 import { track } from "./track";
 import { EV } from "./events";
@@ -68,6 +69,7 @@ interface Store extends KittyActions, ExtraActions {
   fmt: Fmt;                     // stats format shown on the leaderboard and player pages
   cupsTab: "cups" | "series";
   kitty: Kitty;
+  groups: PlayerGroup[];
   nextGame: NextGame | null;
   lastMerge: MergeUndo | null;   // kept so the last player merge can be undone
 }
@@ -151,6 +153,7 @@ export const useStore = create<Store>()(
         cupsTab: "cups",
         kitty: emptyKitty(),
         ...kittyActions(get, (p) => set(p)),
+        groups: [],
         nextGame: null,
         lastMerge: null,
         ...extraActions(get, (p) => set(p)),
@@ -174,7 +177,7 @@ export const useStore = create<Store>()(
     {
       name: "gully-scorer", version: STORE_VERSION,
       partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" || s.screen === "join" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup,
-        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab, kitty: s.kitty, nextGame: s.nextGame, lastMerge: s.lastMerge }),
+        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab, groups: s.groups, kitty: s.kitty, nextGame: s.nextGame, lastMerge: s.lastMerge }),
       migrate: (old) => migrate(old) as never,
     },
   ),

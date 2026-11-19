@@ -9,12 +9,13 @@ import { canScore } from "@/lib/device";
 import { useMatch, useStore } from "@/lib/store";
 import { sendText, shareImage, sharePdf, shareText, type ImageKind } from "@/lib/share";
 import { AdBanner } from "@/ui/AdBanner";
-import { Badge, Board, C, Card, GhostButton, Header, Num, Page, Press, PrimaryButton, ScoreHero, Txt, tw } from "@/ui/ui";
+import { Badge, Board, C, Card, GhostButton, Header, Num, Page, Press, PrimaryButton, ScoreHero, Sheet, Txt, tw } from "@/ui/ui";
 import { SmallCard } from "@/ui/ScorecardImages";
 import { MatchPoster, WinnerPoster } from "@/ui/Posters";
 import { AwardsCard } from "@/ui/Charts";
 import { playerOfTheMatch } from "@shared/mvp";
 import { soloLines } from "@shared/share";
+import { shouldPrompt } from "@shared/sharePrompt";
 import { OpenersSheet, SoloTable, SoloTurnSheet } from "./sheets";
 import { canRematch, rematchMatch, tallyText } from "@shared/afterMatch";
 import { SeriesAfterMatch } from "./Series";
@@ -180,6 +181,18 @@ function scores(m: Match) {
   });
 }
 
+/** Right after a match ends: one tap to send the scorecard to the group chat. */
+function SharePrompt({ m }: { m: Match }) {
+  const [open, setOpen] = useState(() => shouldPrompt(m));
+  if (!open) return null;
+  return (
+    <Sheet title="Send the result to your group?" onClose={() => setOpen(false)}
+      footer={<PrimaryButton onPress={() => { track(EV.result_prompt, { act: "send" }); void shareImage(m, "full"); setOpen(false); }}>Send scorecard on WhatsApp</PrimaryButton>}>
+      <Txt style={tw`text-sm text-mute`}>The full scorecard goes as one image, with the link to score your own matches.</Txt>
+    </Sheet>
+  );
+}
+
 export default function Result() {
   const m = useMatch();
   const { go, put, undo } = useStore();
@@ -197,6 +210,7 @@ export default function Result() {
 
   return (
     <View style={tw`flex-1`}>
+      <SharePrompt m={m} />
       <Page>
         <Header title="Match summary" back={() => go("home")} />
         <View style={tw`gap-3 px-4 pt-1`}>

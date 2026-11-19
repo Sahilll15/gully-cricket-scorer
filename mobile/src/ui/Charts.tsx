@@ -3,7 +3,8 @@ import { View } from "react-native";
 import Svg, { Circle, G, Line as SvgLine, Path, Rect, Text as SvgText } from "react-native-svg";
 import * as E from "@shared/engine/engine";
 import type { Match } from "@shared/engine/types";
-import { barTicks, chartInnings, inningsOvers, manhattan, ordinal, overTicks, partnerships, runRates, ticks, turns, worm, type Line } from "@shared/charts";
+import { barTicks, chartInnings, inningsOvers, manhattan, ordinal, overTicks, partnerships, runRates, ticks, turns, wagon, worm, type Line } from "@shared/charts";
+import { FIELD_ZONES, labelAt, wedgePath, zoneFrom, zoneName } from "@shared/liveKit";
 import { matchAwards, mvp } from "@shared/mvp";
 import { Badge, C, Card, Num, Press, SectionTitle, Txt, tw } from "./ui";
 
@@ -108,6 +109,40 @@ function Manhattan({ m, idx }: { m: Match; idx: number }) {
   );
 }
 
+function WagonWheel({ m, idx }: { m: Match; idx: number }) {
+  const rows = wagon(m, idx);
+  if (!rows.length) return null;
+  const field = rows.filter((r) => r.zone <= 8), box = rows.filter((r) => r.zone > 8), top = Math.max(1, ...rows.map((r) => r.runs));
+  const get = (z: number) => rows.find((r) => r.zone === z);
+  return (
+    <ChartCard title="Wagon wheel" hint={`${E.inningsLabel(m, idx)}, runs by direction`}>
+      {field.length > 0 && (
+        <View accessible accessibilityLabel="Runs by direction" style={{ width: "100%", maxWidth: 260, aspectRatio: 1, alignSelf: "center" }}>
+          <Svg width="100%" height="100%" viewBox="0 0 240 240">
+            {FIELD_ZONES.map((label, i) => {
+              const z = i + 1, from = zoneFrom(z), at = labelAt(120, 120, 78, z), r = get(z);
+              return (
+                <G key={z}>
+                  <Path d={wedgePath(120, 120, 112, from, from + 45)} fill={C.sun} fillOpacity={r ? 0.15 + 0.7 * (r.runs / top) : 0.04} stroke={GRID} strokeWidth={2} />
+                  <SvgText x={at.x} y={at.y - 2} textAnchor="middle" fill={C.fg} fontSize={10} fontFamily={MONO}>{label}</SvgText>
+                  <SvgText x={at.x} y={at.y + 12} textAnchor="middle" fill={C.fg} fontSize={13} fontFamily="Poppins_700Bold">{r ? String(r.runs) : ""}</SvgText>
+                </G>
+              );
+            })}
+            <Rect x={113} y={92} width={14} height={56} rx={3} fill={DIM} />
+          </Svg>
+        </View>
+      )}
+      {box.length > 0 && (
+        <View style={tw`mt-2 flex-row flex-wrap gap-2`}>{box.map((r) => (
+          <View key={r.zone} style={tw`rounded-full border border-line px-3 py-1.5`}><Txt style={tw`text-sm`}>{`${zoneName(r.zone)} ${r.runs}`}</Txt></View>
+        ))}</View>
+      )}
+      <Txt style={tw`mt-2 text-xs text-mute`}>Bowler's end at the top, off side on the right. Only shots you tapped a direction for.</Txt>
+    </ChartCard>
+  );
+}
+
 function Partnerships({ m, idx }: { m: Match; idx: number }) {
   const list = partnerships(m, idx), max = Math.max(1, ...list.map((p) => p.runs)), name = (id: string | null) => E.playerName(m, id);
   return (
@@ -187,6 +222,7 @@ export function ChartsTab({ m, idx, pick }: { m: Match; idx: number; pick: (i: n
       <Worm m={m} lead={lead} />
       {E.isSolo(m) && <Turns m={m} idx={idx} pick={pick} />}
       <Manhattan m={m} idx={idx} />
+      <WagonWheel m={m} idx={idx} />
       {!E.isSolo(m) && <Partnerships m={m} idx={idx} />}
       <RunRates m={m} lead={lead} />
     </View>

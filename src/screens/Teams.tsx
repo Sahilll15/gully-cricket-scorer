@@ -13,6 +13,8 @@ import { cleanUpi, validUpi } from "../upi";
 import {
   filterMatches, fmtFor, kindsPlayed, matchesLine, PROFILE_KINDS, skillCard, skillCardText, startKind, TIER_COLOR, yearsPlayed, type Kind, type SkillCard,
 } from "../playerCard";
+import { AddFromGroup, GroupsSheet } from "../groupsUi";
+import { recapText } from "../season";
 import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Sheet } from "../ui";
 
 function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void }) {
@@ -20,6 +22,7 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
   const [t, setT] = useState(team);
   const [v, setV] = useState("");
   const [askDel, setAskDel] = useState(false);
+  const [fromGroup, setFromGroup] = useState(false);
   const save = (next: SavedTeam) => { setT(next); putTeam(next); };
   return (<>
     <Sheet title="Edit team" onClose={onClose}>
@@ -39,8 +42,10 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
           className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
         <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
       </form>
+      <button onClick={() => setFromGroup(true)} className="press mt-3 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-fg">Add from a group</button>
       <button onClick={() => setAskDel(true)} className="press mt-5 min-h-12 w-full rounded-2xl font-semibold text-out">Delete team</button>
     </Sheet>
+    {fromGroup && <AddFromGroup team={t} onAdd={save} onClose={() => setFromGroup(false)} />}
     {askDel && <ConfirmSheet title={`Delete ${t.name}?`} body="Past matches keep their scores." yes="Delete" danger
       onYes={() => { track(EV.team_delete); removeTeam(t.id); onClose(); }} onClose={() => setAskDel(false)} />}
   </>);
@@ -90,6 +95,7 @@ export function Teams() {
   const [edit, setEdit] = useState<SavedTeam | null>(null);
   const [name, setName] = useState("");
   const [merging, setMerging] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
   return (
     <div className="min-h-screen pb-28">
       <Header title="My Teams" />
@@ -99,6 +105,7 @@ export function Teams() {
             className="min-h-14 flex-1 rounded-2xl border-2 border-line bg-panel px-4 font-semibold outline-none focus:border-sun" />
           <button className="press min-h-14 rounded-2xl bg-sun px-5 font-bold text-ink">Create</button>
         </form>
+        <button onClick={() => setGroupsOpen(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Player groups</button>
         <button onClick={() => setMerging(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Merge players</button>
         {lastMerge && (
           <Card className="flex items-center gap-3 !py-3">
@@ -120,6 +127,7 @@ export function Teams() {
       </main>
       {edit && <TeamEditor team={edit} onClose={() => setEdit(null)} />}
       {merging && <MergeSheet onClose={() => setMerging(false)} />}
+      {groupsOpen && <GroupsSheet onClose={() => setGroupsOpen(false)} />}
       <BottomNav />
     </div>
   );
@@ -204,6 +212,9 @@ export function PlayerProfile() {
   const card = skillCard(pool, player, kind, info);
   const pick = (k: Kind) => { setKind(k); setYear(null); if (k !== "solo") useStore.setState({ fmt: k }); };
   const share = () => { track(EV.share, { what: "skill_card" }); window.open("https://wa.me/?text=" + encodeURIComponent(skillCardText(card)), "_blank"); };
+  const recapYear = year ?? new Date().getFullYear();
+  const recap = recapText(matches, player, recapYear, `${location.origin}${import.meta.env.BASE_URL}`);
+  const shareYear = () => { track(EV.recap_share, { year: recapYear }); window.open("https://wa.me/?text=" + encodeURIComponent(recap!), "_blank"); };
   const num = (v: number | null, d = 1) => (v === null ? "-" : v.toFixed(d));
   const stat = (k: string, v: string | number) => (
     <div className="min-w-0 rounded-2xl bg-key px-1 py-3 text-center"><p className="text-xl font-extrabold text-fg tabular-nums">{v}</p><p className="text-[10px] font-medium leading-tight text-mute min-[360px]:text-[11px]">{k}</p></div>
@@ -231,6 +242,7 @@ export function PlayerProfile() {
         {card.matches > 0 && <>
           <SkillCardView c={card} />
           <button onClick={share} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share card</button>
+          {recap && <button onClick={shareYear} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share my {recapYear}</button>}
         </>}
         <Card>
           <p className="mb-3 text-sm font-semibold text-teal">Batting</p>

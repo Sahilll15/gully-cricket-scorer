@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import * as E from "./engine/engine";
 import type { Match } from "./engine/types";
-import { barTicks, chartInnings, inningsOvers, manhattan, ordinal, overTicks, partnerships, runRates, ticks, turns, worm, type Line, type RateLine } from "./charts";
+import { barTicks, chartInnings, inningsOvers, manhattan, ordinal, overTicks, partnerships, runRates, ticks, turns, wagon, worm, type Line, type RateLine } from "./charts";
 import { matchAwards, mvp } from "./mvp";
+import { FIELD_ZONES, labelAt, wedgePath, zoneFrom, zoneName } from "./liveKit";
 import { Badge, Card, cx } from "./ui";
 
 const SUN = "#ff8a3d", CREAM = "#f1ece4", MUTE = "#9a9aa5", GRID = "#24242d", DIM = "#4a4a55";
@@ -93,6 +94,34 @@ function Manhattan({ m, idx }: { m: Match; idx: number }) {
   );
 }
 
+function WagonWheel({ m, idx }: { m: Match; idx: number }) {
+  const rows = wagon(m, idx);
+  if (!rows.length) return null;
+  const field = rows.filter((r) => r.zone <= 8), box = rows.filter((r) => r.zone > 8), top = Math.max(1, ...rows.map((r) => r.runs));
+  const get = (z: number) => rows.find((r) => r.zone === z);
+  return (
+    <ChartCard title="Wagon wheel" hint={`${E.inningsLabel(m, idx)}, runs by direction`}>
+      {field.length > 0 && (
+        <svg viewBox="0 0 240 240" className="mx-auto block w-full max-w-[260px]" role="img" aria-label="Runs by direction">
+          {FIELD_ZONES.map((label, i) => {
+            const z = i + 1, from = zoneFrom(z), at = labelAt(120, 120, 78, z), r = get(z);
+            return <g key={z}>
+              <path d={wedgePath(120, 120, 112, from, from + 45)} fill={SUN} fillOpacity={r ? 0.15 + 0.7 * (r.runs / top) : 0.04} stroke={GRID} strokeWidth={2} />
+              <text x={at.x} y={at.y - 2} textAnchor="middle" fill={CREAM} fontSize={10} fontWeight={600}>{label}</text>
+              <text x={at.x} y={at.y + 12} textAnchor="middle" fill={CREAM} fontSize={13} fontWeight={800}>{r ? r.runs : ""}</text>
+            </g>;
+          })}
+          <rect x={113} y={92} width={14} height={56} rx={3} fill="#3a3a46" />
+        </svg>
+      )}
+      {box.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{box.map((r) => (
+        <span key={r.zone} className="rounded-full bg-key px-3 py-1.5 text-sm text-fg">{zoneName(r.zone)} <b className="tabular-nums">{r.runs}</b></span>
+      ))}</div>}
+      <p className="mt-2 text-xs text-mute">Bowler's end at the top, off side on the right. Only shots you tapped a direction for.</p>
+    </ChartCard>
+  );
+}
+
 function Partnerships({ m, idx }: { m: Match; idx: number }) {
   const list = partnerships(m, idx), max = Math.max(1, ...list.map((p) => p.runs)), name = (id: string | null) => E.playerName(m, id);
   return (
@@ -154,6 +183,7 @@ export function ChartsTab({ m, idx, pick }: { m: Match; idx: number; pick: (i: n
       <Worm m={m} lead={lead} />
       {E.isSolo(m) && <Turns m={m} idx={idx} pick={pick} />}
       <Manhattan m={m} idx={idx} />
+      <WagonWheel m={m} idx={idx} />
       {!E.isSolo(m) && <Partnerships m={m} idx={idx} />}
       <RunRates m={m} lead={lead} />
     </div>

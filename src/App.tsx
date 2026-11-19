@@ -15,6 +15,8 @@ import { PlayerProfile, Teams } from "./screens/Teams";
 import { NewSeries, SeriesView } from "./screens/Series";
 import Book from "./screens/Book";
 import Kitty from "./screens/Kitty";
+import { decodeGroup } from "./groups";
+import { InviteSheet } from "./groupsUi";
 
 // Keeps one broadcast channel open per match that is being shared, and pushes every change.
 function LivePublisher() {
@@ -51,6 +53,8 @@ export default function App() {
   useEffect(() => {
     const q = new URLSearchParams(location.search), code = cleanCode(q.get("watch") ?? "");
     if (code.length === 6) { useStore.getState().watchMatch(code, q.get("k")); history.replaceState(null, "", import.meta.env.BASE_URL); }
+    const inv = decodeGroup(q.get("group") ?? "");
+    if (inv) { useStore.getState().setGroupInvite(inv); useStore.getState().go("teams"); history.replaceState(null, "", import.meta.env.BASE_URL); }
     let stash = location.hash;
     try { stash = sessionStorage.getItem("gully-handover") ?? stash; sessionStorage.removeItem("gully-handover"); } catch { /* private mode */ }
     const score = cleanCode(q.get("score") ?? ""), key = parseScoreKey(stash);
@@ -77,6 +81,7 @@ export default function App() {
       {screen === "kitty" && <Kitty />}
       {screen === "watch" && <Watch />}
       {screen === "join" && <JoinScoring />}
+      <InviteSheet />
       {liveSupported && <LivePublisher />}
     </div>
   );

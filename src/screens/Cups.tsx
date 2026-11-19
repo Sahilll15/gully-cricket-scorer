@@ -7,6 +7,8 @@ import { useStore } from "../store";
 import { track } from "../track";
 import { EV } from "../events";
 import { leaders, strikeRate } from "../stats";
+import { GroupChips } from "../groupsUi";
+import { playersFrom } from "../groups";
 import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Stepper } from "../ui";
 
 export const CUP_RULES: Rules = {
@@ -65,7 +67,8 @@ export function Cups() {
 }
 
 export function NewCup() {
-  const { teams, go, putCup, saveTeam } = useStore();
+  const { teams, go, putCup, saveTeam, groups } = useStore();
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [name, setName] = useState("Gully Premier League");
   const [pick, setPick] = useState<string[]>([]);
   const [overs, setOvers] = useState(5);
@@ -94,11 +97,13 @@ export function NewCup() {
               </button>
             ))}
           </div>
-          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { track(EV.team_save); const t = saveTeam(newTeam, []); setPick([...pick, t.id]); setNewTeam(""); } }}>
+          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { track(EV.team_save); const g = groups.find((x) => x.id === groupId); if (g) track(EV.group_use, { where: "cup" });
+            const t = saveTeam(newTeam, g ? playersFrom(g, []) : []); setPick([...pick, t.id]); setNewTeam(""); } }}>
             <input value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
               className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
             <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
           </form>
+          <GroupChips value={groupId} set={setGroupId} />
           <p className="mt-2 text-xs text-mute">Add players to each team from the Teams tab, or at the toss of each match.</p>
         </Card>
         <Card>

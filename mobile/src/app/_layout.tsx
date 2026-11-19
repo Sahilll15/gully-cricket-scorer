@@ -17,6 +17,7 @@ import { liveSupported, publish } from "@/lib/live";
 import { linkOpened } from "@/lib/links";
 import { ShareHost } from "@/ui/ShareHost";
 import { Onboarding } from "@/ui/Onboarding";
+import { InviteSheet } from "@/screens/groups";
 import { C } from "@/ui/ui";
 
 void SplashScreen.preventAutoHideAsync();
@@ -91,6 +92,7 @@ export default function Root() {
         {liveSupported && <LivePublisher />}
         <ShareHost />
         <Onboarding />
+        <InviteSheet />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

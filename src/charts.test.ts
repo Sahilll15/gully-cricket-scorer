@@ -77,3 +77,14 @@ describe("axis ticks", () => {
     expect(barTicks(20)).toEqual([1, 5, 10, 15, 20]);
   });
 });
+
+describe("wagon", () => {
+  it("adds runs and shots per zone and ignores balls with no zone", async () => {
+    const { wagon } = await import("./charts");
+    const m = { innings: [{ events: [
+      { t: "ball", runs: 4, zone: 3 }, { t: "ball", runs: 1, zone: 3, overthrow: 2 }, { t: "ball", runs: 6 }, { t: "ball", runs: 2, zone: 6 }, { t: "swap" },
+    ] }] } as never;
+    expect(wagon(m, 0)).toEqual([{ zone: 3, runs: 7, shots: 2 }, { zone: 6, runs: 2, shots: 1 }]);
+    expect(wagon(m, 5)).toEqual([]);
+  });
+});
