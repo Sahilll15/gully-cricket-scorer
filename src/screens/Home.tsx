@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as E from "../engine/engine";
 import { cleanCode, liveSupported } from "../live";
 import { InstallCard } from "../install";
@@ -13,35 +13,64 @@ import { AdBox } from "../ad";
 import { tipLink } from "../upi";
 import { track } from "../track";
 import { EV } from "../events";
-import { Badge, BottomNav, Card, LivePill, PrimaryButton, Sheet } from "../ui";
+import { cardStatus } from "../cardStatus";
+import { Badge, BottomNav, Card, ConfirmSheet, cx, LivePill, PrimaryButton, Sheet } from "../ui";
 
-export function MatchCard({ m }: { m: Match }) {
+export function MatchCard({ m, onHold }: { m: Match; onHold?: () => void }) {
   const { go } = useStore();
-  const res = E.result(m), live = m.status === "live" || m.status === "break";
-  const line = (side: 0 | 1) => {
-    if (E.isTest(m)) return E.sideScore(m, side) ?? "Yet to bat";
+  const held = useRef(false), timer = useRef(0);
+  const { text: status, live } = cardStatus(m), res = E.result(m);
+  const idx = m.innings.length - 1, batting = live && idx >= 0 && !E.isSolo(m) && !E.isTest(m) ? m.innings[idx].bat : null;
+  const score = (side: 0 | 1) => {
+    if (E.isTest(m)) return { main: E.sideScore(m, side) ?? "Yet to bat", ov: "" };
     const i = m.innings.findIndex((inn) => inn.bat === side && !inn.superOver);
-    if (i < 0) return "Yet to bat";
+    if (i < 0) return { main: "Yet to bat", ov: "" };
     const st = E.replay(m, i);
-    return `${st.runs}/${st.wickets} (${E.oversText(st.legal)})`;
+    return { main: `${st.runs}/${st.wickets}`, ov: ` (${E.oversText(st.legal)})` };
   };
   return (
-    <button onClick={() => go(live ? "live" : m.status === "done" ? "result" : "home", m.id)} className="press block w-full text-left">
-      <Card>
-        <div className="mb-3 flex items-center justify-between text-xs font-medium text-mute">
-          <span>{new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {E.formatText(m)}</span>
-          {live ? <LivePill /> : <span className="rounded-full bg-sun-soft px-2.5 py-1 font-semibold text-fg">Completed</span>}
+    <button onClick={() => { if (!held.current) go(live ? "live" : m.status === "done" ? "result" : "home", m.id); held.current = false; }}
+      onPointerDown={() => { if (!onHold) return; held.current = false; timer.current = window.setTimeout(() => { held.current = true; onHold(); }, 550); }}
+      onPointerUp={() => window.clearTimeout(timer.current)} onPointerLeave={() => window.clearTimeout(timer.current)} onPointerCancel={() => window.clearTimeout(timer.current)}
+      onContextMenu={(e) => { if (onHold) { e.preventDefault(); onHold(); } }} className="press block w-full select-none text-left">
+      <Card className="!py-3">
+        <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-mute">
+          <span className="truncate">{new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {E.formatText(m)}</span>
+          {live ? <LivePill /> : <span className="text-[11px] font-semibold">RESULT</span>}
         </div>
-        {([0, 1] as const).map((s) => (
-          <div key={s} className="flex items-center gap-3 py-1">
-            <Badge name={m.teams[s].name} size={34} />
-            <span className="flex-1 truncate font-semibold text-teal">{m.teams[s].name}</span>
-            <span className="font-bold text-fg tabular-nums">{line(s)}</span>
-          </div>
-        ))}
-        <p className="mt-2 text-sm font-medium text-fg">{res ? res.text : live ? "Tap to keep scoring" : ""}</p>
+        {([0, 1] as const).map((s) => {
+          const strong = batting === s || res?.winner === s, sc = score(s);
+          return (
+            <div key={s} className="flex items-center gap-3 py-1">
+              <Badge name={m.teams[s].name} size={28} />
+              <span className={cx("flex-1 truncate text-[15px]", strong ? "font-semibold text-fg" : "font-medium text-teal")}>{m.teams[s].name}</span>
+              <span className={cx("text-[15px] tabular-nums", strong ? "font-bold text-fg" : "font-medium text-teal")}>{sc.main}<span className="text-xs font-normal text-mute">{sc.ov}</span></span>
+            </div>
+          );
+        })}
+        {status && <p className={cx("mt-1.5 text-[13px] font-medium", live ? "text-sun" : "text-fg")}>{status}</p>}
       </Card>
     </button>
+  );
+}
+
+/** A live match you can remove: hold it (or right-click), or drag it sideways. Both ask before deleting. */
+function LiveRow({ m }: { m: Match }) {
+  const { remove } = useStore();
+  const [ask, setAsk] = useState(false);
+  const [dx, setDx] = useState(0);
+  const start = useRef<{ x: number; y: number } | null>(null), moved = useRef(false);
+  const end = () => { if (Math.abs(dx) > 110) setAsk(true); setDx(0); start.current = null; setTimeout(() => { moved.current = false; }, 0); };
+  return (
+    <div className="relative overflow-hidden rounded-3xl"
+      onTouchStart={(e) => { start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchMove={(e) => { const s = start.current; if (!s) return; const ddx = e.touches[0].clientX - s.x, ddy = e.touches[0].clientY - s.y; if (moved.current || (Math.abs(ddx) > 14 && Math.abs(ddx) > Math.abs(ddy) * 2)) { moved.current = true; setDx(ddx); } }}
+      onTouchEnd={end} onTouchCancel={() => { setDx(0); start.current = null; }}>
+      <div className="absolute inset-0 grid place-items-center bg-out font-bold text-white" aria-hidden>Delete</div>
+      <div style={{ transform: `translateX(${dx}px)`, transition: dx ? "none" : "transform .2s" }}><MatchCard m={m} onHold={() => setAsk(true)} /></div>
+      {ask && <ConfirmSheet title="Delete this match?" body={`${m.teams[0].name} v ${m.teams[1].name} will be removed from this phone. This can't be undone.`} yes="Delete" danger
+        onYes={() => { track(EV.match_delete, { how: "live_row" }); remove(m.id); }} onClose={() => setAsk(false)} />}
+    </div>
   );
 }
 
@@ -111,7 +140,7 @@ export default function Home() {
         {matches.length > 0 && <BackupCard />}
         <InstallCard />
         {live.length > 0 && <h2 className="pt-3 font-bold text-fg">Live now</h2>}
-        {live.map((m) => <MatchCard key={m.id} m={m} />)}
+        {live.map((m) => <LiveRow key={m.id} m={m} />)}
         {done.length > 0 && <h2 className="pt-3 font-bold text-fg">Recent matches</h2>}
         {done.map((m) => <MatchCard key={m.id} m={m} />)}
         {!matches.length && (

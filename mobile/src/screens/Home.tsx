@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Linking, TextInput, View } from "react-native";
+import { useRef, useState } from "react";
+import { Animated, Linking, PanResponder, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookOpen, ChevronRight, Radio, Wallet } from "lucide-react-native";
 import * as E from "@shared/engine/engine";
@@ -8,6 +8,7 @@ import { matchTotals } from "@shared/stats";
 import { seriesScore } from "@shared/engine/series";
 import { cleanCode, liveSupported } from "@/lib/live";
 import { useStore } from "@/lib/store";
+import { cardStatus } from "@shared/cardStatus";
 import { tipLink } from "@shared/upi";
 import { track } from "@/lib/track";
 import { EV } from "@shared/events";
@@ -16,102 +17,70 @@ import { TapeBall } from "@/ui/gully";
 import { showIntro } from "@/ui/Onboarding";
 import { GettingStarted } from "@/ui/guide";
 import { demoMatch } from "@/lib/demo";
-import { Badge, Board, C, Card, LivePill, Num, Page, Press, PrimaryButton, RunWorm, ScoreHero, SectionTitle, Sheet, Txt, tw } from "@/ui/ui";
+import { Badge, C, Card, LivePill, Num, ConfirmSheet, Page, Press, PrimaryButton, SectionTitle, Sheet, Txt, tw } from "@/ui/ui";
 import { AccountButton, BackupCard } from "./accountUi";
 import { seriesNames, SeriesNext } from "./Series";
 import { NextGameCard } from "./nextGameUi";
 
 const lbl = [tw`text-[12px] font-medium text-mute`, { letterSpacing: 0.4 }];
-const WORM_MAX = 12;
-
-/** Runs per over of the innings being played, padded with empty overs still to come, last 12 at most. */
-function worm(m: Match, idx: number) {
-  const st = E.replay(m, idx), inn = m.innings[idx];
-  const runs = st.overs.map((o) => o.reduce((s, b) => s + E.ballTotal(b, m.rules), 0));
-  const cur = Math.floor(st.legal / 6);
-  const current = cur < runs.length && !st.ended ? cur : undefined;
-  if (!E.isTest(m) && inn.overs <= WORM_MAX) while (runs.length < inn.overs) runs.push(0);
-  const cut = Math.max(0, runs.length - WORM_MAX);
-  return { st, overs: runs.slice(cut), current: current === undefined ? undefined : current - cut };
-}
-
-export function MatchCard({ m }: { m: Match }) {
+/** One match row for live and finished matches alike, laid out like a score app: header, two team lines, a status line. */
+export function MatchCard({ m, onLongPress }: { m: Match; onLongPress?: () => void }) {
   const { go } = useStore();
-  const res = E.result(m), live = m.status === "live" || m.status === "break";
-  const line = (side: 0 | 1) => {
-    if (E.isTest(m)) return E.sideScore(m, side) ?? "Yet to bat";
+  const { text: status, live } = cardStatus(m), res = E.result(m);
+  const idx = m.innings.length - 1, batting = live && idx >= 0 && !E.isSolo(m) && !E.isTest(m) ? m.innings[idx].bat : null;
+  const score = (side: 0 | 1) => {
+    if (E.isTest(m)) return { main: E.sideScore(m, side) ?? "Yet to bat", ov: "" };
     const i = m.innings.findIndex((inn) => inn.bat === side && !inn.superOver);
-    if (i < 0) return "Yet to bat";
+    if (i < 0) return { main: "Yet to bat", ov: "" };
     const st = E.replay(m, i);
-    return `${st.runs}/${st.wickets} (${E.oversText(st.legal)})`;
+    return { main: `${st.runs}/${st.wickets}`, ov: ` (${E.oversText(st.legal)})` };
   };
   const meta = `${new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · ${E.formatText(m)}`;
-  const foot = res ? res.text : live ? "Tap to keep scoring" : "";
-  const idx = m.innings.length - 1;
-
-  if (live && idx >= 0) {
-    const bat = m.innings[idx].bat, other = bat === 0 ? 1 : 0;
-    const { st, overs, current } = worm(m, idx);
-    return (
-      <Press onPress={() => go("live", m.id)} style={tw`w-full`}>
-        <ScoreHero wall>
-          <View style={tw`flex-row items-center justify-between`}>
-            <LivePill />
-            <Num style={[lbl, tw`font-medium`]}>{meta}</Num>
-          </View>
-          <View style={tw`mt-3 flex-row items-end justify-between gap-3`}>
-            <View style={tw`flex-1`}>
-              <View style={tw`flex-row items-center gap-2`}>
-                <Txt style={tw`text-[13px] text-teal`} numberOfLines={1}>{m.teams[bat].name}</Txt>
-                {E.isTest(m) && <Num style={tw`text-[12px] font-medium text-mute`}>{line(bat)}</Num>}
-              </View>
-              <Board style={{ fontSize: 46, lineHeight: 50 }} numberOfLines={1} adjustsFontSizeToFit>{`${st.runs}/${st.wickets}`}</Board>
-            </View>
-            <View style={tw`items-end pb-1`}>
-              <Num style={tw`text-[13px] font-medium`}>{E.oversText(st.legal)} ov</Num>
-              <View style={tw`mt-1 flex-row items-center gap-1`}>
-                <Txt style={lbl}>CRR</Txt>
-                <Num style={tw`text-[12px] font-medium text-teal`}>{E.runRate(st.runs, st.legal).toFixed(2)}</Num>
-              </View>
-            </View>
-          </View>
-          <View style={tw`mt-3.5`}><RunWorm overs={overs} current={current} /></View>
-          <View style={tw`mt-1.5 flex-row items-center justify-between gap-3`}>
-            <Txt style={lbl}>Runs per over</Txt>
-            <View style={tw`flex-row flex-1 items-center justify-end gap-1.5`}>
-              <Txt style={lbl} numberOfLines={1}>{m.teams[other].name}</Txt>
-              <Num style={tw`text-[12px] font-medium text-teal`}>{line(other)}</Num>
-            </View>
-          </View>
-          <View style={tw`mt-3 flex-row items-center justify-between border-t border-line pt-3`}>
-            <Txt style={tw`flex-1 text-[13px] font-medium text-fg`}>{foot}</Txt>
-            <ChevronRight size={18} color={C.mute} strokeWidth={2} />
-          </View>
-        </ScoreHero>
-      </Press>
-    );
-  }
-
   return (
-    <Press onPress={() => go(live ? "live" : m.status === "done" ? "result" : "home", m.id)} style={tw`w-full`}>
-      <Card>
-        <View style={tw`mb-2 flex-row items-center justify-between`}>
-          <Num style={[lbl, tw`font-medium`]}>{meta}</Num>
-          {live ? <LivePill /> : <View style={tw`rounded-full border border-line px-2.5 py-1`}><Txt style={tw`text-[11px] font-medium text-teal`}>Completed</Txt></View>}
+    <Press onPress={() => go(live ? "live" : m.status === "done" ? "result" : "home", m.id)} onLongPress={onLongPress} style={tw`w-full`}>
+      <Card style={tw`py-3`}>
+        <View style={tw`mb-1.5 flex-row items-center justify-between`}>
+          <Num style={[lbl, tw`font-medium`]} numberOfLines={1}>{meta}</Num>
+          {live ? <LivePill /> : <Txt style={tw`text-[11px] font-semibold text-mute`}>RESULT</Txt>}
         </View>
         {([0, 1] as const).map((s) => {
-          const lead = res?.winner === s;
+          const strong = batting === s || res?.winner === s, sc = score(s);
           return (
-            <View key={s} style={tw`flex-row items-center gap-3 py-1.5`}>
-              <Badge name={m.teams[s].name} size={30} />
-              <Txt style={tw`flex-1 text-[15px] ${lead ? "font-semibold text-fg" : "font-medium text-teal"}`} numberOfLines={1}>{m.teams[s].name}</Txt>
-              <Num style={tw`text-[16px] ${lead ? "text-fg" : "text-teal"}`}>{line(s)}</Num>
+            <View key={s} style={tw`flex-row items-center gap-3 py-1`}>
+              <Badge name={m.teams[s].name} size={28} />
+              <Txt style={tw`flex-1 text-[15px] ${strong ? "font-semibold text-fg" : "font-medium text-teal"}`} numberOfLines={1}>{m.teams[s].name}</Txt>
+              <Txt style={tw`text-[15px] ${strong ? "font-bold text-fg" : "font-medium text-teal"}`}>{sc.main}<Txt style={tw`text-[12px] font-normal text-mute`}>{sc.ov}</Txt></Txt>
             </View>
           );
         })}
-        {!!foot && <Txt style={tw`mt-2 border-t border-line pt-2.5 text-[13px] font-medium text-fg`}>{foot}</Txt>}
+        {!!status && <Txt style={tw`mt-1.5 text-[13px] font-medium ${live ? "text-sun" : "text-fg"}`} numberOfLines={2}>{status}</Txt>}
       </Card>
     </Press>
+  );
+}
+
+/** A live match you can remove: long-press it, or drag it sideways like a mail row. Both ask before deleting. */
+function LiveRow({ m }: { m: Match }) {
+  const { remove } = useStore();
+  const x = useRef(new Animated.Value(0)).current;
+  const [ask, setAsk] = useState(false);
+  const back = () => Animated.spring(x, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+  const pan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+    onPanResponderMove: (_, g) => x.setValue(g.dx),
+    onPanResponderRelease: (_, g) => { if (Math.abs(g.dx) > 110) setAsk(true); back(); },
+    onPanResponderTerminate: back,
+  })).current;
+  const names = `${m.teams[0].name} v ${m.teams[1].name}`;
+  return (
+    <View>
+      <View style={[tw`absolute inset-0 rounded-[24px] items-center justify-center bg-out`]} pointerEvents="none"><Txt style={tw`font-semibold text-ink`}>Delete</Txt></View>
+      <Animated.View style={{ transform: [{ translateX: x }] }} {...pan.panHandlers}>
+        <MatchCard m={m} onLongPress={() => setAsk(true)} />
+      </Animated.View>
+      {ask && <ConfirmSheet title="Delete this match?" body={`${names} will be removed from this phone. This can't be undone.`} yes="Delete" danger
+        onYes={() => { track(EV.match_delete, { how: "live_row" }); remove(m.id); }} onClose={() => setAsk(false)} />}
+    </View>
   );
 }
 
@@ -212,7 +181,7 @@ export default function Home() {
           <Txt style={tw`text-[13px] font-medium text-mute`}>How it works</Txt>
         </Press>
         {live.length > 0 && <View style={tw`pt-3`}><SectionTitle>Live now</SectionTitle></View>}
-        {live.map((m) => <MatchCard key={m.id} m={m} />)}
+        {live.map((m) => <LiveRow key={m.id} m={m} />)}
         {done.length > 0 && <View style={tw`pt-3`}><SectionTitle>Recent matches</SectionTitle></View>}
         {done.map((m) => <MatchCard key={m.id} m={m} />)}
         {!matches.length && (
