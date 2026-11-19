@@ -14,6 +14,7 @@ import {
   filterMatches, fmtFor, kindsPlayed, matchesLine, PROFILE_KINDS, skillCard, skillCardText, startKind, TIER_COLOR, yearsPlayed, type Kind, type SkillCard,
 } from "../playerCard";
 import { AddFromGroup, GroupsSheet } from "../groupsUi";
+import { pickPhoto } from "../photoUi";
 import { recapText } from "../season";
 import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Sheet } from "../ui";
 
@@ -155,6 +156,13 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
   return (
     <Sheet title={`About ${name}`} onClose={onClose}
       footer={<PrimaryButton disabled={!upiOk} onClick={save}>Save</PrimaryButton>}>
+      {label("Photo")}
+      <div className="flex items-center gap-3">
+        {i.photo ? <img src={i.photo} alt="" className="h-16 w-16 rounded-full object-cover ring-1 ring-white/10" /> : <Badge name={name} size={64} />}
+        <button onClick={() => { void pickPhoto().then((p) => { if (p) { track(EV.player_photo_set); put({ photo: p }); } }); }}
+          className="press min-h-11 rounded-full border-2 border-line px-4 text-sm font-semibold text-fg">{i.photo ? "Change photo" : "Add photo"}</button>
+        {i.photo && <button onClick={() => put({ photo: undefined })} className="press min-h-11 px-2 text-sm font-semibold text-out">Remove</button>}
+      </div>
       {label("Role")}
       <Choice items={ROLES} value={i.role} set={(role) => put({ role })} />
       {label("Bats")}

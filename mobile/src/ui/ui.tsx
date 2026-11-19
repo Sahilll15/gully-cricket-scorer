@@ -1,6 +1,6 @@
 import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  AccessibilityInfo, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  AccessibilityInfo, Animated, Easing, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
   type PressableProps, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
 } from "react-native";
 import { create } from "twrnc";
@@ -12,6 +12,7 @@ import { ballLabel } from "@shared/engine/engine";
 import { BarChart3, ChevronLeft, History as HistoryIcon, House, Trophy, Users, X, type LucideIcon } from "lucide-react-native";
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useStore, type Screen } from "@/lib/store";
+import { photoOf } from "@shared/photo";
 import { ChalkRing } from "./gully";
 
 /** Same palette as the web app: black ground, orange as the only accent. */
@@ -218,6 +219,8 @@ export const LivePill = () => (
 );
 
 export function Badge({ name, size = 44 }: { name: string; size?: number }) {
+  const photo = useStore((s) => photoOf(s.infos, name));
+  if (photo) return <Image source={{ uri: photo }} accessibilityIgnoresInvertColors style={{ width: size, height: size, borderRadius: size, borderWidth: 1, borderColor: "#24242d" }} />;
   const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
   return (
     <View style={{ width: size, height: size, borderRadius: size, backgroundColor: "#1c1c24", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#24242d" }}>

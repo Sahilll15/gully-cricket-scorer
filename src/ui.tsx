@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import type { Ball } from "./engine/types";
 import { ballLabel } from "./engine/engine";
 import { useStore, type Screen } from "./store";
+import { photoOf } from "./photo";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -27,6 +28,8 @@ export const LivePill = () => (
 );
 
 export function Badge({ name, size = 44 }: { name: string; size?: number }) {
+  const photo = useStore((s) => photoOf(s.infos, name));
+  if (photo) return <img src={photo} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover ring-1 ring-white/10" style={{ width: size, height: size }} />;
   const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
   return (
     <span className="grid place-items-center rounded-full font-extrabold shrink-0 ring-1 ring-white/10"

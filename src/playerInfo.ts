@@ -6,6 +6,7 @@ export interface PlayerInfo {
   bowl?: "pace" | "spin";
   style?: string;              // optional sub-type, e.g. "Off-spin"
   upi?: string;                // UPI ID for the kitty QR; the app never moves money
+  photo?: string;              // small square JPEG as a data URL, see photo.ts
 }
 
 export const ROLES = [["bat", "Batter"], ["bowl", "Bowler"], ["all", "All-rounder"], ["wk", "Wicketkeeper"]] as const;

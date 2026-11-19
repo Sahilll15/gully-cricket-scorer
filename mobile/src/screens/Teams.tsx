@@ -22,6 +22,7 @@ import {
 } from "@shared/playerCard";
 import { ChevronRight, Merge, Pencil, Share2, Users, X } from "lucide-react-native";
 import { AddFromGroup, GroupsSheet } from "./groups";
+import { pickPhoto } from "@/lib/photo";
 import { Badge, C, Card, ConfirmSheet, GhostButton, Header, Num, Page, Press, PrimaryButton, SectionTitle, Segmented, Sheet, tw, Txt } from "@/ui/ui";
 
 const FONTS = { "400": "Inter_400Regular", "500": "Inter_500Medium", "600": "Inter_600SemiBold", "700": "Inter_700Bold" } as const;
@@ -233,7 +234,16 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
   return (
     <Sheet title={`About ${name}`} onClose={onClose}
       footer={<PrimaryButton disabled={!upiOk} onPress={save}>Save</PrimaryButton>}>
-      {label("Role", true)}
+      {label("Photo", true)}
+      <View style={tw`flex-row items-center gap-3`}>
+        <Badge name={name} size={64} />
+        <Press onPress={() => { void pickPhoto().then((p) => { if (p) { track(EV.player_photo_set); put({ photo: p }); } }); }}
+          style={tw`min-h-11 rounded-full border border-line px-4 items-center justify-center`}>
+          <Txt style={tw`text-sm font-medium`}>{i.photo ? "Change photo" : "Add photo"}</Txt>
+        </Press>
+        {!!i.photo && <Press onPress={() => put({ photo: undefined })} style={tw`min-h-11 px-2 items-center justify-center`}><Txt style={tw`text-sm font-medium text-out`}>Remove</Txt></Press>}
+      </View>
+      {label("Role")}
       <Choice items={ROLES} value={i.role} set={(role) => put({ role })} />
       {label("Bats")}
       <Choice items={[["R", "Right-handed"], ["L", "Left-handed"]] as const} value={i.hand} set={(hand) => put({ hand })} />
