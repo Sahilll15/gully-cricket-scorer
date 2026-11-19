@@ -1,5 +1,5 @@
 import { Children, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { StyleSheet, TextInput, useWindowDimensions, View, type StyleProp, type TextInputProps, type TextStyle } from "react-native";
+import { Image, StyleSheet, TextInput, useWindowDimensions, View, type StyleProp, type TextInputProps, type TextStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -23,6 +23,7 @@ import {
 import { ChevronRight, Merge, Pencil, Share2, Users, X } from "lucide-react-native";
 import { AddFromGroup, GroupsSheet } from "./groups";
 import { pickPhoto } from "@/lib/photo";
+import { validPhoto } from "@shared/photo";
 import { Badge, C, Card, ConfirmSheet, GhostButton, Header, Num, Page, Press, PrimaryButton, SectionTitle, Segmented, Sheet, tw, Txt } from "@/ui/ui";
 
 const FONTS = { "400": "Inter_400Regular", "500": "Inter_500Medium", "600": "Inter_600SemiBold", "700": "Inter_700Bold" } as const;
@@ -236,7 +237,7 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
       footer={<PrimaryButton disabled={!upiOk} onPress={save}>Save</PrimaryButton>}>
       {label("Photo", true)}
       <View style={tw`flex-row items-center gap-3`}>
-        <Badge name={name} size={64} />
+        {validPhoto(i.photo) ? <Image source={{ uri: i.photo }} style={{ width: 64, height: 64, borderRadius: 64 }} /> : <Badge name={name} size={64} />}
         <Press onPress={() => { void pickPhoto().then((p) => { if (p) { track(EV.player_photo_set); put({ photo: p }); } }); }}
           style={tw`min-h-11 rounded-full border border-line px-4 items-center justify-center`}>
           <Txt style={tw`text-sm font-medium`}>{i.photo ? "Change photo" : "Add photo"}</Txt>
