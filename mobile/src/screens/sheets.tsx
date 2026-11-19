@@ -3,6 +3,7 @@ import { TextInput, View } from "react-native";
 import * as E from "@shared/engine/engine";
 import type { Ball, Extra, Match, Player, Wicket, WicketKind } from "@shared/engine/types";
 import { BLOCK_TEXT, wicketCost } from "@shared/liveKit";
+import { revisedTarget } from "@shared/season";
 import { Plus } from "lucide-react-native";
 import { Badge, C, GhostButton, Num, Pill, Press, PrimaryButton, SectionTitle, Segmented, Sheet, Stepper, Txt, tw } from "@/ui/ui";
 
@@ -282,6 +283,26 @@ export function OversSheet({ match, onSave, onClose }: { match: Match; onSave: (
       <Stepper value={overs} set={setOvers} min={min} max={50} />
       {match.status === "live" && min > 1 && <Txt style={tw`mt-2 text-xs text-mute`}>Can't go below <Num style={tw`text-xs text-mute`}>{min}</Num>, that many overs are already started.</Txt>}
       <View style={tw`mt-6`}><PrimaryButton onPress={() => onSave(E.setOvers(match, overs))}>Save</PrimaryButton></View>
+    </Sheet>
+  );
+}
+
+/** Rain: fewer overs for the chase and a lower target, shown as runs to win and balls left. */
+export function RainSheet({ match, onSave, onClose }: { match: Match; onSave: (m: Match) => void; onClose: () => void }) {
+  const first = E.replay(match, 0).runs, was = match.innings[0].overs, inn = match.innings[1];
+  const min = E.minOvers(match);
+  const [overs, setOvers] = useState(Math.min(inn.overs, was));
+  const [target, setTarget] = useState(match.revisedTarget ?? revisedTarget(first, was, Math.min(inn.overs, was)));
+  const pickOvers = (o: number) => { setOvers(o); setTarget(revisedTarget(first, was, o)); };
+  return (
+    <Sheet title="Rain rule" onClose={onClose}
+      footer={<PrimaryButton onPress={() => onSave(E.setRevisedTarget(E.setOvers(match, overs), target))}>{`Apply: ${target} to win in ${overs} overs`}</PrimaryButton>}>
+      <Txt style={tw`mb-3 text-sm text-mute`}>{`Rain cut the chase short? Pick the new overs. The target is the first innings (${first} in ${was} overs) scaled down. Change it if you agree a different number.`}</Txt>
+      <SectionTitle>Overs for the chase</SectionTitle>
+      <Stepper value={overs} set={pickOvers} min={min} max={was} />
+      <View style={tw`mt-4`}><SectionTitle>Runs to win</SectionTitle></View>
+      <Stepper value={target} set={setTarget} min={1} max={500} />
+      {!!match.revisedTarget && <View style={tw`mt-4`}><GhostButton onPress={() => onSave(E.setRevisedTarget(match, null))}>Back to the normal target</GhostButton></View>}
     </Sheet>
   );
 }

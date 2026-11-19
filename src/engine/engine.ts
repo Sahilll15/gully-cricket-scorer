@@ -369,7 +369,16 @@ export function target(m: Match, idx: number): number | null {
     return t[otherSide(chaser)] - t[chaser] + 1;
   }
   if (idx % 2 === 0) return null;
+  if (m.revisedTarget && idx === 1) return m.revisedTarget;
   return play(m, idx - 1).runs + 1;
+}
+
+/** Rain: the chasing side now needs `runs` to win (null puts the normal target back). Only in a limited-overs chase. */
+export function setRevisedTarget(m: Match, runs: number | null): Match {
+  if (isTest(m) || isSolo(m) || isPairs(m) || m.innings.length !== 2 || m.status === "done") return m;
+  const n = clone(m);
+  if (runs && runs > 0) n.revisedTarget = Math.round(runs); else delete n.revisedTarget;
+  return settle(n);
 }
 
 /** Test: the side that batted first may make the other side bat again if it leads after two innings. */
@@ -732,6 +741,16 @@ export function result(m: Match): Result | null {
   if (isPairs(m) && b.runs > a.runs) {
     const by = b.runs - a.runs;
     return { text: `${m.teams[second].name} won by ${by} run${by === 1 ? "" : "s"}${so}`, winner: second, tie: false, superOver: !!so };
+  }
+  if (m.revisedTarget && base === 0 && !isPairs(m)) {
+    const need = m.revisedTarget;
+    if (b.runs >= need) {
+      const left = m.innings[1].wicketLimit - b.wickets;
+      return { text: `${m.teams[second].name} won by ${left} wicket${left === 1 ? "" : "s"} (revised target ${need})`, winner: second, tie: false, superOver: false };
+    }
+    if (b.runs === need - 1) return { text: "Match tied (revised target)", winner: null, tie: true, superOver: false };
+    const by = need - 1 - b.runs;
+    return { text: `${m.teams[first].name} won by ${by} run${by === 1 ? "" : "s"} (revised target ${need})`, winner: first, tie: false, superOver: false };
   }
   if (b.runs > a.runs) {
     const left = m.innings[base + 1].wicketLimit - b.wickets;

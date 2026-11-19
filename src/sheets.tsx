@@ -3,6 +3,7 @@ import * as E from "./engine/engine";
 import type { Ball, Extra, Match, Player, Wicket, WicketKind } from "./engine/types";
 import { Badge, cx, Pill, PrimaryButton, Segmented, Sheet, Stepper } from "./ui";
 import { BLOCK_TEXT, wicketCost } from "./liveKit";
+import { revisedTarget } from "./season";
 
 const addPlayer = E.addPlayer;
 
@@ -224,6 +225,26 @@ export function OversSheet({ match, onSave, onClose }: { match: Match; onSave: (
       <Stepper value={overs} set={setOvers} min={min} max={50} />
       {match.status === "live" && min > 1 && <p className="mt-2 text-xs text-mute">Can't go below {min}, that many overs are already started.</p>}
       <div className="mt-6"><PrimaryButton onClick={() => onSave(E.setOvers(match, overs))}>Save</PrimaryButton></div>
+    </Sheet>
+  );
+}
+
+/** Rain: fewer overs for the chase and a lower target, shown as runs to win and balls left. */
+export function RainSheet({ match, onSave, onClose }: { match: Match; onSave: (m: Match) => void; onClose: () => void }) {
+  const first = E.replay(match, 0).runs, was = match.innings[0].overs, inn = match.innings[1];
+  const min = E.minOvers(match);
+  const [overs, setOvers] = useState(Math.min(inn.overs, was));
+  const [target, setTarget] = useState(match.revisedTarget ?? revisedTarget(first, was, Math.min(inn.overs, was)));
+  const pickOvers = (o: number) => { setOvers(o); setTarget(revisedTarget(first, was, o)); };
+  return (
+    <Sheet title="Rain rule" onClose={onClose}
+      footer={<PrimaryButton onClick={() => onSave(E.setRevisedTarget(E.setOvers(match, overs), target))}>Apply: {target} to win in {overs} overs</PrimaryButton>}>
+      <p className="mb-3 text-sm text-mute">Rain cut the chase short? Pick the new overs. The target is the first innings ({first} in {was} overs) scaled down. Change it if you agree a different number.</p>
+      <p className="mb-2 text-sm font-semibold text-teal">Overs for the chase</p>
+      <Stepper value={overs} set={pickOvers} min={min} max={was} />
+      <p className="mb-2 mt-4 text-sm font-semibold text-teal">Runs to win</p>
+      <Stepper value={target} set={setTarget} min={1} max={500} />
+      {match.revisedTarget && <button onClick={() => onSave(E.setRevisedTarget(match, null))} className="press mt-4 min-h-12 w-full rounded-2xl border-2 border-line font-semibold text-fg">Back to the normal target</button>}
     </Sheet>
   );
 }

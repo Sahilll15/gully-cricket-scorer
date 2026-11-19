@@ -10,7 +10,7 @@ import * as K from "@shared/liveKit";
 import { useMatch, useStore } from "@/lib/store";
 import { useLivePrefs, type LivePrefs } from "@/lib/livePrefs";
 import { say } from "@/lib/speak";
-import { BowlerSheet, EditBallSheet, FrenchNextSheet, Note, OpenersSheet, OversSheet, RetireSheet, SoloTable, SoloTurnSheet, WicketSheet } from "./sheets";
+import { BowlerSheet, EditBallSheet, FrenchNextSheet, Note, OpenersSheet, OversSheet, RainSheet, RetireSheet, SoloTable, SoloTurnSheet, WicketSheet } from "./sheets";
 import { AddPlayerSheet, BallLostSheet, ChangeLogSheet, Chip, DidRunSheet, OverthrowSheet, PairsStrip, PenaltySheet, PlayerLeftSheet, RulesSheet, TurfChip, TurfSheet, WagonSheet } from "./liveSheets";
 import { FirstBallCoach } from "@/ui/guide";
 import { BallChip, Beams, Board, buzz, C, Card, ChaseRing, ConfirmSheet, IconButton, LiveDot, LivePill, Num, Press, PrimaryButton, Sheet, Toggle, Txt, tw } from "@/ui/ui";
@@ -41,6 +41,7 @@ export default function Live() {
   const [turnOpen, setTurnOpen] = useState(false);
   const [pickBowler, setPickBowler] = useState(false);
   const [oversOpen, setOversOpen] = useState(false);
+  const [rainOpen, setRainOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [retireFor, setRetireFor] = useState<string | null>(null);
   const [retireHurt, setRetireHurt] = useState(false);
@@ -183,6 +184,7 @@ export default function Live() {
   const scoring = !locked && m.status === "live";
   const showMic = voiceSupported && !locked;
   const solo = E.isSolo(m), me = bat(inn.striker), upNext = solo ? E.nextBatter(m) : null;
+  const canRain = !test && !solo && !E.isPairs(m) && m.status === "live" && m.innings.length === 2 && idx === 1 && !inn.superOver;
   const turnLeft = solo ? E.turnBallsLeft(m) : null, livesLeft = solo ? E.livesLeft(m) : 0;
   const rounds = french ? 1 : m.rules.rounds ?? 1, round = solo ? E.soloRound(m) : 0, turns = m.teams[0].players.length * rounds;
   const badges = m.status === "live" ? K.nextBallBadges(m, st) : [];
@@ -481,6 +483,7 @@ export default function Live() {
       {panel === "leader" && <ConfirmSheet title="Stop now?" yes="Stop, leader wins" danger onClose={() => setPanel(null)}
         onYes={() => { put(E.stopLeaderWins(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
         body={<Body>The match ends here and the side ahead on runs per ball wins. You can undo it.</Body>} />}
+      {rainOpen && <RainSheet match={m} onClose={() => setRainOpen(false)} onSave={(n) => { track(EV.rain_rule); put(n); setRainOpen(false); }} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
       {retireOpen && <RetireSheet match={m} batter={retireFor} hurt={retireHurt} onClose={closeRetire} onSave={(n) => { put(n); closeRetire(); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} preset={wicketKind} onDone={confirmWicket} onClose={() => { setWicket(false); setWicketKind(null); }} />}
@@ -512,6 +515,7 @@ export default function Live() {
           <View style={{ borderTopWidth: 1, borderTopColor: HAIR }}>
             <Row onPress={closeMore(() => setPickBowler(true))}>Change bowler</Row>
             {!inn.superOver && !test && !solo && <Row onPress={closeMore(() => setOversOpen(true))}>Change overs (<Num style={tw`text-[15px] text-fg`}>{inn.overs}</Num>)</Row>}
+            {canRain && <Row onPress={closeMore(() => setRainOpen(true))}>{`Rain rule${m.revisedTarget ? ` (target ${m.revisedTarget})` : ""}`}</Row>}
             {!solo && <Row onPress={closeMore(() => setRetireOpen(true))}>Retire a batter</Row>}
             {!test && <Row accent onPress={closeMore(() => setEnding(true))}>{solo ? "End turn" : "End innings"}</Row>}
             {canDeclare && <Row accent onPress={closeMore(() => setEnding(true))}>Declare innings</Row>}

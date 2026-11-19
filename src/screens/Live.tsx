@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as E from "../engine/engine";
 import type { BallInput, Extra, Match, Surface, WicketKind } from "../engine/types";
 import { useMatch, useStore } from "../store";
-import { BowlerSheet, EditBallSheet, FrenchNextSheet, OpenersSheet, OversSheet, RetireSheet, SoloTable, SoloTurnSheet, WicketSheet } from "../sheets";
+import { BowlerSheet, EditBallSheet, FrenchNextSheet, OpenersSheet, OversSheet, RainSheet, RetireSheet, SoloTable, SoloTurnSheet, WicketSheet } from "../sheets";
 import { AddPlayerSheet, BallLostSheet, ChangeLogSheet, Chip, DidRunSheet, OverthrowSheet, PairsStrip, PenaltySheet, PlayerLeftSheet, RulesSheet, TurfChip, TurfSheet, WagonSheet } from "../liveSheets";
 import * as K from "../liveKit";
 import { useLivePrefs, type LivePrefs } from "../livePrefs";
@@ -29,6 +29,7 @@ export default function Live() {
   const [turnOpen, setTurnOpen] = useState(false);
   const [pickBowler, setPickBowler] = useState(false);
   const [oversOpen, setOversOpen] = useState(false);
+  const [rainOpen, setRainOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [retireFor, setRetireFor] = useState<string | null>(null);
   const [retireHurt, setRetireHurt] = useState(false);
@@ -151,6 +152,7 @@ export default function Live() {
   // Odd runs usually swap ends, but a short run or a misfield can leave them where they were.
   const oddRuns = m.status === "live" && last?.t === "ball" && last.runs % 2 === 1 && !last.wicket && !!st.nonStriker ? last : null;
   const solo = E.isSolo(m), me = bat(inn.striker), upNext = solo ? E.nextBatter(m) : null;
+  const canRain = !test && !solo && !E.isPairs(m) && m.status === "live" && m.innings.length === 2 && idx === 1 && !inn.superOver;
   const turnLeft = solo ? E.turnBallsLeft(m) : null, livesLeft = solo ? E.livesLeft(m) : 0;
   const rounds = m.rules.rounds ?? 1, round = solo ? E.soloRound(m) : 0;
   const badges = m.status === "live" ? K.nextBallBadges(m, st) : [];
@@ -361,6 +363,7 @@ export default function Live() {
       {panel === "leader" && <ConfirmSheet title="Stop now?" yes="Stop, leader wins" danger onClose={() => setPanel(null)}
         onYes={() => { put(E.stopLeaderWins(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
         body={<>The match ends here and the side ahead on runs per ball wins. You can undo it.</>} />}
+      {rainOpen && <RainSheet match={m} onClose={() => setRainOpen(false)} onSave={(n) => { track(EV.rain_rule); put(n); setRainOpen(false); }} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
       {retireOpen && <RetireSheet match={m} batter={retireFor} hurt={retireHurt} onClose={closeRetire} onSave={(n) => { put(n); closeRetire(); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} preset={wicketKind} onDone={confirmWicket} onClose={() => { setWicket(false); setWicketKind(null); }} />}
@@ -392,6 +395,7 @@ export default function Live() {
           <div className="grid gap-2">
             <PrimaryButton tone="navy" onClick={closeMore(() => setPickBowler(true))}>Change bowler</PrimaryButton>
             {!inn.superOver && !test && !solo && <PrimaryButton tone="navy" onClick={closeMore(() => setOversOpen(true))}>Change overs ({inn.overs})</PrimaryButton>}
+            {canRain && <PrimaryButton tone="navy" onClick={closeMore(() => setRainOpen(true))}>Rain rule{m.revisedTarget ? ` (target ${m.revisedTarget})` : ""}</PrimaryButton>}
             {!solo && <PrimaryButton tone="navy" onClick={closeMore(() => setRetireOpen(true))}>Retire a batter</PrimaryButton>}
             {!test && <PrimaryButton onClick={closeMore(() => setEnding(true))}>{solo ? "End turn" : "End innings"}</PrimaryButton>}
             {canDeclare && <PrimaryButton onClick={closeMore(() => setEnding(true))}>Declare innings</PrimaryButton>}

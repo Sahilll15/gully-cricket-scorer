@@ -128,6 +128,7 @@ export interface Match {
   handover?: string;   // one-time token in a move link that hasn't been opened yet
   editedAt?: number;   // last change; orders updates when two phones score the same match
   stopped?: true;   // Test called off before a result: a draw
+  revisedTarget?: number;   // rain: runs the chasing side now needs to win, replacing first innings + 1
   stoppedLead?: true;   // limited overs called off early: the side ahead on runs per ball wins
   rulesLockedAt?: number;   // when the first innings started; later rule changes go through changeRules
   changes?: Change[];   // corrections of earlier balls
