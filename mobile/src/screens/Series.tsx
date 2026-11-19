@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { View } from "react-native";
-import { newSeries, seriesMatches, seriesScore, type Series } from "@shared/engine/series";
+import { endBody, endSeries, newSeries, rulesLabel, seriesMatches, seriesScore, seriesSub, type Series } from "@shared/engine/series";
 import type { Match, Rules } from "@shared/engine/types";
 import { useStore } from "@/lib/store";
 import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { Repeat } from "lucide-react-native";
-import { Badge, C, Card, ConfirmSheet, Header, Num, Page, Pill, Press, PrimaryButton, ScoreHero, SectionTitle, Segmented, Stepper, Toggle, tw, Txt } from "@/ui/ui";
+import { Badge, C, Card, ConfirmSheet, Header, Num, Page, Press, PrimaryButton, ScoreHero, SectionTitle, Segmented, Stepper, tw, Txt } from "@/ui/ui";
 import { MatchCard } from "./Home";
 import { TextField } from "./Teams";
 
@@ -17,15 +17,28 @@ const SERIES_RULES: Rules = {
 
 const teamName = (id: string) => useStore.getState().teams.find((t) => t.id === id)?.name ?? "?";
 export const seriesNames = (s: Series): [string, string] => [teamName(s.a), teamName(s.b)];
-const ruleText = (s: Series) => (s.rules.format === "test" ? `Test${s.rules.matchOvers ? `, ${s.rules.matchOvers} overs max` : ""}` : `${s.rules.overs} overs`);
 
 /** One-tap button for the next match of a series, or to carry on the one under way. */
-export function SeriesNext({ s, matches }: { s: Series; matches: Match[] }) {
+export function SeriesNext({ s, matches, label = "Play next match" }: { s: Series; matches: Match[]; label?: string }) {
   const { playSeries, go } = useStore();
-  const sc = seriesScore(s, matches), names = seriesNames(s);
-  if (sc.current) return <PrimaryButton onPress={() => go("live", sc.current)}>{`Carry on match ${sc.played + 1} of ${s.games}`}</PrimaryButton>;
+  const sc = seriesScore(s, matches);
+  if (sc.current) return <PrimaryButton onPress={() => go("live", sc.current)}>{`Carry on match ${sc.played + 1}`}</PrimaryButton>;
   if (sc.next === null) return null;
-  return <PrimaryButton onPress={() => playSeries(s.id)}>{`Play match ${sc.next} of ${s.games} · ${names[0]} v ${names[1]}`}</PrimaryButton>;
+  return <PrimaryButton onPress={() => playSeries(s.id)}>{label}</PrimaryButton>;
+}
+
+/** Ends the series after a confirm, unless it is already over. */
+export function EndSeries({ s, matches }: { s: Series; matches: Match[] }) {
+  const { putSeries } = useStore();
+  const [ask, setAsk] = useState(false);
+  if (seriesScore(s, matches).done) return null;
+  return (<>
+    <Press onPress={() => setAsk(true)} style={tw`min-h-12 rounded-[16px] border border-line items-center justify-center`}>
+      <Txt style={tw`font-medium text-fg`}>End series</Txt>
+    </Press>
+    {ask && <ConfirmSheet title="End the series?" body={endBody(s, matches, seriesNames(s))} yes="End series"
+      onYes={() => { putSeries(endSeries(s)); setAsk(false); }} onClose={() => setAsk(false)} />}
+  </>);
 }
 
 function ScoreBoard({ s, matches }: { s: Series; matches: Match[] }) {
@@ -43,7 +56,7 @@ function ScoreBoard({ s, matches }: { s: Series; matches: Match[] }) {
           <Txt style={tw`text-center text-[13px] font-medium text-teal`} numberOfLines={1}>{names[1]}</Txt>
         </View>
       </View>
-      <Txt style={tw`mt-3 text-center text-[14px] font-medium text-fg`}>{sc.text(names)}{sc.drawn ? ` · ${sc.drawn} ${s.rules.format === "test" ? "drawn" : "tied"}` : ""}</Txt>
+      <Txt style={tw`mt-3 text-center text-[14px] font-medium text-fg`}>{sc.text(names)}{sc.drawn ? ` · ${sc.drawn} drawn` : ""}</Txt>
     </ScoreHero>
   );
 }
@@ -61,7 +74,7 @@ export function SeriesList() {
               <Txt style={tw`flex-1 text-[17px] font-semibold`} numberOfLines={1}>{s.name}</Txt>
               <Num style={tw`text-[18px] text-sun`}>{sc.a}-{sc.b}</Num>
             </View>
-            <Txt style={tw`mt-1 text-[13px] text-mute`}>{names[0]} v {names[1]} · {s.games} matches · {ruleText(s)}</Txt>
+            <Txt style={tw`mt-1 text-[13px] text-mute`}>{names[0]} v {names[1]} · {seriesSub(s, sc)}</Txt>
             <Txt style={tw`mt-1 text-[14px] text-teal`}>{sc.text(names)}</Txt>
           </Card>
         </Press>
@@ -71,28 +84,25 @@ export function SeriesList() {
       <Card style={tw`items-center py-6`}>
         <View style={tw`h-14 w-14 rounded-full bg-sun-soft items-center justify-center`}><Repeat size={22} color={C.sun} strokeWidth={2} /></View>
         <Txt style={tw`mt-3 font-semibold text-center`}>No series yet</Txt>
-        <Txt style={tw`text-sm text-mute text-center`}>Same two teams, a set number of matches. Set it up once and every next match starts filled in, with the series score kept for you.</Txt>
+        <Txt style={tw`text-sm text-mute text-center`}>Same two teams, as many matches as you like. The team that wins the most matches wins the series. Every next match starts filled in.</Txt>
       </Card>
     )}
   </>);
 }
 
-const OVERS = [3, 4, 5, 6, 10];
-
 export function NewSeries() {
   const { teams, go, putSeries, saveTeam } = useStore();
   const [name, setName] = useState("");
   const [pick, setPick] = useState<string[]>([]);
+  const [plan, setPlan] = useState(false);
   const [games, setGames] = useState(3);
-  const [rules, setRules] = useState<Rules>(SERIES_RULES);
   const [newTeam, setNewTeam] = useState("");
-  const test = rules.format === "test";
   const toggle = (id: string) => setPick(pick.includes(id) ? pick.filter((x) => x !== id) : pick.length < 2 ? [...pick, id] : [pick[1], id]);
   const names = pick.map((id) => teams.find((t) => t.id === id)?.name ?? "");
   const addTeam = () => { if (newTeam.trim()) { track(EV.team_save); const t = saveTeam(newTeam, []); setPick((p) => [...p.filter((x) => x !== t.id), t.id].slice(-2)); setNewTeam(""); } };
   return (
     <Page>
-      <Header title="New Series" back={() => go("cups")} />
+      <Header title="New series" back={() => go("cups")} />
       <View style={tw`gap-3 px-4 pt-4`}>
         <Card>
           <SectionTitle>{`Two teams (${pick.length} of 2)`}</SectionTitle>
@@ -120,27 +130,18 @@ export function NewSeries() {
           <SectionTitle>Name</SectionTitle>
           <TextField value={name} onChangeText={setName} maxLength={32} weight="600" outline placeholder={names.length === 2 ? `${names[0]} v ${names[1]}` : "Sunday series"}
             style={tw`min-h-12 w-full text-[17px]`} />
-          <View style={tw`mt-4`}><SectionTitle>Matches in the series</SectionTitle></View>
-          <Stepper value={games} set={setGames} max={9} />
         </Card>
-        <Segmented value={test ? "test" : "limited"} set={(v) => setRules({ ...rules, format: v === "test" ? "test" : undefined, matchOvers: undefined })}
-          items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test matches" }]} />
-        {test ? <Card>
-          <Txt style={tw`text-sm text-mute`}>Every match is a Test: two innings a side, declare, follow-on and draws.</Txt>
-          <Toggle on={!!rules.matchOvers} set={(v) => setRules({ ...rules, matchOvers: v ? 30 : null })} label="Stop each match after a set number of overs" hint="A draw if nobody has won by then" />
-          {!!rules.matchOvers && <Stepper value={rules.matchOvers} set={(v) => setRules({ ...rules, matchOvers: v })} max={200} />}
-        </Card> : <Card>
-          <SectionTitle>Overs an innings</SectionTitle>
-          <View style={tw`flex-row gap-2`}>
-            {OVERS.map((o) => <View key={o} style={tw`flex-1`}><Pill active={rules.overs === o} onPress={() => setRules({ ...rules, overs: o })}>{o}</Pill></View>)}
-          </View>
-          <View style={tw`mt-2`}><Stepper value={rules.overs} set={(v) => setRules({ ...rules, overs: v })} max={50} /></View>
-        </Card>}
+        <Card>
+          <SectionTitle>Number of matches</SectionTitle>
+          <Segmented value={plan ? "set" : "open"} set={(v) => setPlan(v === "set")} items={[{ v: "open", label: "Open series" }, { v: "set", label: "Plan a number" }]} />
+          {plan && <View style={tw`mt-2`}><Stepper value={games} set={setGames} max={9} /></View>}
+          <Txt style={tw`mt-2 text-xs text-mute`}>{plan ? "You can still play on or end it early." : "Play as many matches as you like and end it when you decide. Most wins takes the series."}</Txt>
+        </Card>
         <PrimaryButton disabled={pick.length < 2} onPress={() => {
-          const s = newSeries(name.trim() || `${names[0]} v ${names[1]}`, pick[0], pick[1], games, rules);
-          track(EV.series_create, { matches: games });
+          const s = newSeries(name.trim() || `${names[0]} v ${names[1]}`, pick[0], pick[1], plan ? games : null, SERIES_RULES);
+          track(EV.series_create, { matches: plan ? games : 0 });
           putSeries(s); useStore.setState({ seriesId: s.id, cupsTab: "series" }); go("series");
-        }}>{pick.length < 2 ? "Pick 2 teams" : `Create · ${games} match${games === 1 ? "" : "es"}`}</PrimaryButton>
+        }}>{pick.length < 2 ? "Pick 2 teams" : "Create series"}</PrimaryButton>
       </View>
     </Page>
   );
@@ -158,11 +159,12 @@ export function SeriesView() {
         <ScoreBoard s={s} matches={matches} />
       </Header>
       <View style={tw`gap-3 px-4 pt-4`}>
-        <Txt style={tw`text-center text-xs text-mute`}>{s.games} matches · {ruleText(s)}</Txt>
+        <Txt style={tw`text-center text-xs text-mute`}>{seriesSub(s, seriesScore(s, matches))}{seriesScore(s, matches).done ? " · Ended" : ""}</Txt>
         <SeriesNext s={s} matches={matches} />
+        <EndSeries s={s} matches={matches} />
         {list.map((m, i) => (
           <View key={m.id}>
-            <View style={tw`px-1`}><SectionTitle>{`Match ${i + 1}`}</SectionTitle></View>
+            <View style={tw`px-1`}><SectionTitle>{`Match ${i + 1} · ${rulesLabel(m.rules)}`}</SectionTitle></View>
             <MatchCard m={m} />
           </View>
         ))}
@@ -188,7 +190,8 @@ export function SeriesAfterMatch({ m }: { m: Match }) {
       <SectionTitle>{s.name}</SectionTitle>
       <Txt style={tw`text-[20px] font-semibold`}>{sc.text(names)}</Txt>
       <View style={tw`mt-3 gap-2`}>
-        <SeriesNext s={s} matches={matches} />
+        <SeriesNext s={s} matches={matches} label="Play the next match" />
+        <EndSeries s={s} matches={matches} />
         <Press onPress={() => { useStore.setState({ seriesId: s.id }); go("series"); }} style={tw`min-h-12 rounded-[16px] border border-line items-center justify-center`}>
           <Txt style={tw`font-medium text-fg`}>See the series</Txt>
         </Press>

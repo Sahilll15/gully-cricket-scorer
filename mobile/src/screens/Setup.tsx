@@ -6,7 +6,7 @@ import { ArrowRight, ArrowUp, Check, ChevronDown, Minus, Pencil, Plus, Scale, Sh
 import * as E from "@shared/engine/engine";
 import type { Match, Player, Rules, Side, Team } from "@shared/engine/types";
 import { playerPool } from "@shared/stats";
-import { seriesScore } from "@shared/engine/series";
+import { nextRules, planned, seriesScore } from "@shared/engine/series";
 import { fairTeams, ratingsFor, type FairSplit } from "@shared/records";
 import { applyPreset, type PresetId } from "@shared/presets";
 import {
@@ -343,7 +343,7 @@ export default function Setup() {
     const ta = teams.find((t) => t.id === series.a), tb = teams.find((t) => t.id === series.b);
     if (ta) { setA(ta.name); setNa(ta.players.map((p) => p.name)); }
     if (tb) { setB(tb.name); setNb(tb.players.map((p) => p.name)); }
-    setRules(series.rules);
+    setRules(nextRules(series, matches));
     // Only when the series changes: later edits to the players here are kept.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [series?.id]);
@@ -468,8 +468,8 @@ export default function Setup() {
           )}
           {series && seriesNo && (
             <View style={tw`rounded-2xl border border-line bg-panel px-4 py-3`}>
-              <Txt style={tw`text-[14px] font-semibold text-fg`}>Match <Num style={tw`text-[13px]`}>{seriesNo.played + 1}</Num> of <Num style={tw`text-[13px]`}>{series.games}</Num> · {series.rules.format === "test" ? "Test" : <><Num style={tw`text-[13px]`}>{series.rules.overs}</Num> overs</>}</Txt>
-              <Txt style={tw`mt-0.5 text-[13px] text-teal`}>{seriesNo.text([a, b])}. Teams and rules are filled in from the series.</Txt>
+              <Txt style={tw`text-[14px] font-semibold text-fg`}>Match <Num style={tw`text-[13px]`}>{seriesNo.played + 1}</Num>{planned(series) ? <> of <Num style={tw`text-[13px]`}>{planned(series)}</Num></> : ""}</Txt>
+              <Txt style={tw`mt-0.5 text-[13px] text-teal`}>{seriesNo.text([a, b])}. Teams are filled in from the series. Overs and rules start as last match and can be changed.</Txt>
             </View>
           )}
           {!cup && !series && <PresetRow rules={rules} mode={mode} test={test} onPick={pick} />}
@@ -501,11 +501,11 @@ export default function Setup() {
           </>}
           </>}
 
-          {!cup && !series && mode === "teams" && <View style={tw`mt-2`}><Segmented value={test ? "test" : "limited"} set={(v) => setRules(withMode(rules, "teams", v === "test"))}
+          {!cup && mode === "teams" && <View style={tw`mt-2`}><Segmented value={test ? "test" : "limited"} set={(v) => setRules(withMode(rules, "teams", v === "test"))}
             items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test match" }]} /></View>}
 
-          {!series && <OversCard key={`${mode}-${test}`} rules={rules} setRules={setRules} mode={mode} test={test}
-            pairsCount={Math.max(1, Math.ceil((Math.max(sa, sb) + (common.trim() ? 1 : 0)) / 2))} />}
+          <OversCard key={`${mode}-${test}`} rules={rules} setRules={setRules} mode={mode} test={test}
+            pairsCount={Math.max(1, Math.ceil((Math.max(sa, sb) + (common.trim() ? 1 : 0)) / 2))} />
 
           <View>
             <SectionTitle action={<GlossaryLink />}>Gully rules</SectionTitle>

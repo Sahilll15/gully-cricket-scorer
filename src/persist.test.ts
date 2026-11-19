@@ -63,4 +63,12 @@ describe("backup with series and player details", () => {
     expect(both.series!.map((x) => x.id).sort()).toEqual(["one", "two"]);
     expect(both.infos).toEqual({ ravi: { role: "bat", hand: "L" }, om: { role: "wk" } });
   });
+
+  it("keeps an open or ended series and a fixed-length one side by side", () => {
+    const old = { id: "old", name: "old", createdAt: 1, a: "x", b: "y", games: 3, rules };
+    const open = { id: "open", name: "open", createdAt: 2, a: "x", b: "y", games: null, rules, ended: 9 };
+    const both = merge({ ...empty, series: [old] }, { ...empty, series: [open] });
+    expect(both.series).toEqual([open, old]);
+    expect(migrate({ series: [old] }).series).toEqual([old]);
+  });
 });

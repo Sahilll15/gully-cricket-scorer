@@ -3,7 +3,7 @@ import * as E from "../engine/engine";
 import type { Match, Player, Rules, Side, Team } from "../engine/types";
 import { useStore } from "../store";
 import { playerPool } from "../stats";
-import { seriesScore } from "../engine/series";
+import { nextRules, planned, seriesScore } from "../engine/series";
 import { track } from "../track";
 import { EV } from "../events";
 import { flag, matchStartParams, presetIdOf } from "../matchEvents";
@@ -248,7 +248,7 @@ export default function Setup() {
     const ta = teams.find((t) => t.id === series.a), tb = teams.find((t) => t.id === series.b);
     if (ta) { setA(ta.name); setNa(ta.players.map((p) => p.name)); }
     if (tb) { setB(tb.name); setNb(tb.players.map((p) => p.name)); }
-    setRules(series.rules);
+    setRules(nextRules(series, matches));
     // Only when the series changes: later edits to the players here are kept.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [series?.id]);
@@ -365,8 +365,8 @@ export default function Setup() {
           <button onClick={clear} className="press min-h-10 shrink-0 font-semibold text-sun">Start fresh</button>
         </div>}
         {series && seriesNo && <div className="rounded-2xl bg-sun-soft px-4 py-3 text-sm text-fg">
-          <p className="font-bold">Match {seriesNo.played + 1} of {series.games} · {series.rules.format === "test" ? "Test" : `${series.rules.overs} overs`}</p>
-          <p className="text-fg/80">{seriesNo.text([a, b])}. Teams and rules are filled in from the series.</p>
+          <p className="font-bold">Match {seriesNo.played + 1}{planned(series) ? ` of ${planned(series)}` : ""}</p>
+          <p className="text-fg/80">{seriesNo.text([a, b])}. Teams are filled in from the series. Overs and rules start as last match and can be changed.</p>
         </div>}
         {!cup && !series && <PresetRow rules={rules} mode={mode} test={test} onPick={pick} />}
         {!cup && !series && <Segmented<Mode> value={mode} set={(v) => setRules(withMode(rules, v, v === "teams" && test))}
@@ -393,11 +393,11 @@ export default function Setup() {
         </>}
         </>}
 
-        {!cup && !series && mode === "teams" && <Segmented value={test ? "test" : "limited"} set={(v) => setRules(withMode(rules, "teams", v === "test"))}
+        {!cup && mode === "teams" && <Segmented value={test ? "test" : "limited"} set={(v) => setRules(withMode(rules, "teams", v === "test"))}
           items={[{ v: "limited", label: "Limited overs" }, { v: "test", label: "Test match" }]} />}
 
-        {!series && <OversCard key={`${mode}-${test}`} rules={rules} setRules={setRules} mode={mode} test={test}
-          pairsCount={Math.max(1, Math.ceil((Math.max(sa, sb) + (common.trim() ? 1 : 0)) / 2))} />}
+        <OversCard key={`${mode}-${test}`} rules={rules} setRules={setRules} mode={mode} test={test}
+          pairsCount={Math.max(1, Math.ceil((Math.max(sa, sb) + (common.trim() ? 1 : 0)) / 2))} />
 
         <Card className="!p-0 overflow-hidden">
           <button onClick={() => setShowRules(!showRules)} className="press flex w-full items-center gap-3 px-4 py-4 text-left">
