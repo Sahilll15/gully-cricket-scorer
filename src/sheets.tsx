@@ -220,8 +220,8 @@ export function OversSheet({ match, onSave, onClose }: { match: Match; onSave: (
   const min = E.minOvers(match), inn = match.innings[match.innings.length - 1];
   const [overs, setOvers] = useState(match.status === "live" && inn && !inn.superOver ? inn.overs : match.rules.overs);
   return (
-    <Sheet title="Change overs" onClose={onClose}>
-      <p className="mb-3 text-sm text-mute">{match.status === "break" ? "Sets the overs for the chase." : "Running late or getting dark? Change the overs for the rest of the match."}</p>
+    <Sheet title="Overs for this innings" onClose={onClose}>
+      <p className="mb-3 text-sm text-mute">{match.status === "break" ? "Sets the overs for the chase." : "Running late or getting dark? Set how many overs this innings gets."}</p>
       <Stepper value={overs} set={setOvers} min={min} max={50} />
       {match.status === "live" && min > 1 && <p className="mt-2 text-xs text-mute">Can't go below {min}, that many overs are already started.</p>}
       <div className="mt-6"><PrimaryButton onClick={() => onSave(E.setOvers(match, overs))}>Save</PrimaryButton></div>

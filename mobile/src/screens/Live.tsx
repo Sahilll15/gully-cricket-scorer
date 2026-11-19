@@ -273,10 +273,12 @@ export default function Live() {
             )}
             <View style={tw`flex-1`}>
               <ScoreRoll runs={st.runs} wickets={st.wickets} size={chasing ? 54 : wide ? 60 : 54} pop={fourPop} />
-              <Num style={[tw`mt-1 text-[13px] text-teal`, { fontWeight: "500" }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                {K.oversLine(m, idx, st)}{inn.balls ? "" : " ov"}
-                {chasing ? ` · RRR ${left ? ((need * bpo) / left).toFixed(2) : "-"}` : !test ? ` · CRR ${crr.toFixed(2)}` : ""}
-              </Num>
+              <Press disabled={inn.superOver || test || solo || m.status !== "live"} onPress={() => setOversOpen(true)} accessibilityLabel="Change the overs for this innings" haptic={false}>
+                <Num style={[tw`mt-1 text-[13px] text-teal`, { fontWeight: "500" }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                  {K.oversLine(m, idx, st)}{inn.balls ? "" : " ov"}
+                  {chasing ? ` · RRR ${left ? ((need * bpo) / left).toFixed(2) : "-"}` : !test ? ` · CRR ${crr.toFixed(2)}` : ""}
+                </Num>
+              </Press>
               {chasing ? (
                 <Num style={[tw`mt-0.5 text-[12px] text-mute`, { fontWeight: "500" }]}>Target {tgt}{st.penalties ? ` · incl. ${st.penalties} pen` : ""}</Num>
               ) : test ? (

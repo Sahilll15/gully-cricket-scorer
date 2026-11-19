@@ -193,7 +193,9 @@ export default function Live() {
           </div>
           <p className={cx("mt-2 flex items-baseline gap-2", voiceSupported && "pr-[68px]")}>
             <span key={st.runs + "-" + st.wickets} className="roll text-[52px] min-[360px]:text-[64px] font-extrabold leading-none tracking-tight tabular-nums">{st.runs}/{st.wickets}</span>
-            <span className="text-xl font-semibold text-white/85 tabular-nums">({K.oversLine(m, idx, st)})</span>
+            {!inn.superOver && !test && !solo && m.status === "live"
+              ? <button onClick={() => setOversOpen(true)} aria-label="Change the overs for this innings" className="press text-xl font-semibold text-white/85 tabular-nums underline decoration-dotted underline-offset-4">({K.oversLine(m, idx, st)})</button>
+              : <span className="text-xl font-semibold text-white/85 tabular-nums">({K.oversLine(m, idx, st)})</span>}
           </p>
           <p className="mt-2 text-[13px] text-white/85">
             {test
