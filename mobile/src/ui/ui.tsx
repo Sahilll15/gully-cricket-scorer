@@ -1,7 +1,7 @@
-import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
+import { isValidElement, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import {
-  AccessibilityInfo, Animated, Easing, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
-  type PressableProps, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
+  AccessibilityInfo, Animated, Easing, Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
+  type PressableProps, type ScrollViewInstance, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
 } from "react-native";
 import { create } from "twrnc";
 import * as Haptics from "expo-haptics";
@@ -246,26 +246,44 @@ export function BallChip({ b, onPress, size = 36 }: { b: Ball; onPress?: () => v
 
 /** Bottom sheet: slides up over a dim backdrop; tapping the backdrop or Android back closes it. */
 export function Sheet({ title, onClose, children, footer }: { title: string; onClose?: () => void; children: ReactNode; footer?: ReactNode }) {
-  const bottom = useSafeAreaInsets().bottom;
+  const insets = useSafeAreaInsets(), bottom = insets.bottom;
+  const { height: win } = useWindowDimensions();
+  const [kb, setKb] = useState(0);
+  const scroll = useRef<ScrollViewInstance>(null), content = useRef<ComponentRef<typeof View>>(null);
+  // A Modal is its own window and is not resized by the keyboard, so lift the sheet by hand and scroll the focused field into view.
+  const reveal = () => {
+    const input = TextInput.State.currentlyFocusedInput?.();
+    if (input && content.current) input.measureLayout(content.current as never, (_x: number, y: number) => scroll.current?.scrollTo({ y: Math.max(0, y - 24), animated: true }), () => {});
+  };
+  const revealRef = useRef(reveal);
+  revealRef.current = reveal;
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", (e) => { setKb(e.endCoordinates.height); setTimeout(() => revealRef.current(), 120); });
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKb(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const room = win - insets.top - 12 - kb;
   return (
     <Modal visible transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => onClose?.()}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={tw`flex-1 justify-end`}>
+      <View style={[tw`flex-1 justify-end`, { paddingBottom: kb }]}>
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.7)" }]} onPress={onClose} accessibilityLabel="Close" />
-        <View style={[tw`rounded-t-[28px] border-t border-line`, { maxHeight: "88%", backgroundColor: C.panel }]}>
-          <ScrollView style={[tw`px-5`, { flexShrink: 1 }]} contentContainerStyle={{ paddingTop: 12, paddingBottom: footer ? 16 : Math.max(16, bottom + 8) }}
-            keyboardShouldPersistTaps="handled" bounces={false}>
-            <View style={tw`self-center mb-3 h-1.5 w-12 rounded-full bg-line`} />
-            <View style={tw`mb-4 flex-row items-center justify-between`}>
-              <Txt style={tw`flex-1 text-[19px] font-semibold`}>{title}</Txt>
-              {onClose && (
-                <IconButton icon={X} onPress={onClose} label="Close" size={40} />
-              )}
+        <View style={[tw`rounded-t-[28px] border-t border-line`, { maxHeight: kb ? room : win * 0.88, backgroundColor: C.panel }]}>
+          <ScrollView ref={scroll} style={[tw`px-5`, { flexShrink: 1 }]} contentContainerStyle={{ paddingTop: 12, paddingBottom: footer ? 16 : kb ? 16 : Math.max(16, bottom + 8) }}
+            keyboardShouldPersistTaps="handled" bounces={false} onTouchEnd={() => { if (kb) setTimeout(() => revealRef.current(), 200); }}>
+            <View ref={content} collapsable={false}>
+              <View style={tw`self-center mb-3 h-1.5 w-12 rounded-full bg-line`} />
+              <View style={tw`mb-4 flex-row items-center justify-between`}>
+                <Txt style={tw`flex-1 text-[19px] font-semibold`}>{title}</Txt>
+                {onClose && (
+                  <IconButton icon={X} onPress={onClose} label="Close" size={40} />
+                )}
+              </View>
+              {children}
             </View>
-            {children}
           </ScrollView>
-          {footer && <View style={[tw`border-t border-line px-5 pt-3`, { backgroundColor: "#0d0d12" }, { paddingBottom: Math.max(16, bottom + 8) }]}>{footer}</View>}
+          {footer && <View style={[tw`border-t border-line px-5 pt-3`, { backgroundColor: "#0d0d12" }, { paddingBottom: kb ? 12 : Math.max(16, bottom + 8) }]}>{footer}</View>}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
