@@ -10,6 +10,9 @@ import { matchTotals } from "../stats";
 import { seriesScore } from "../engine/series";
 import { seriesNames, SeriesNext } from "./Series";
 import { AdBox } from "../ad";
+import { tipLink } from "../upi";
+import { track } from "../track";
+import { EV } from "../events";
 import { Badge, BottomNav, Card, LivePill, PrimaryButton, Sheet } from "../ui";
 
 export function MatchCard({ m }: { m: Match }) {
@@ -43,7 +46,8 @@ export function MatchCard({ m }: { m: Match }) {
 }
 
 export default function Home() {
-  const { matches, go, watchMatch, series } = useStore();
+  const { matches, go, watchMatch, series, me, openPlayer, setMe } = useStore();
+  const tip = tipLink(import.meta.env.VITE_TIP_UPI as string | undefined, "Sahil Chalke");
   const going = series.filter((s) => { const sc = seriesScore(s, matches); return sc.current || sc.next !== null; }).slice(0, 2);
   const [ask, setAsk] = useState(false);
   const [code, setCode] = useState("");
@@ -78,6 +82,17 @@ export default function Home() {
             </button>
           ))}
         </div>
+        {me && (
+          <div className="flex items-center gap-3 rounded-3xl border border-line bg-panel p-3 pl-4">
+            <Badge name={me} size={40} />
+            <span className="min-w-0 flex-1"><span className="block truncate font-bold text-fg">{me}</span><span className="block text-xs text-mute">Your stats and skill card</span></span>
+            <button onClick={() => openPlayer(me)} className="press min-h-10 rounded-full bg-sun px-4 text-sm font-bold text-ink">My stats</button>
+            <button onClick={() => setMe(null)} aria-label="Not me" className="press min-h-10 px-2 text-mute">✕</button>
+          </div>
+        )}
+        {tip && (
+          <a href={tip} onClick={() => track(EV.tip_open)} className="press block rounded-3xl border border-line bg-panel p-4 text-center text-sm font-semibold text-fg">Enjoying the app? Tip the developer</a>
+        )}
         <NextGameCard />
         {going.map((s) => (
           <Card key={s.id} className="!p-3">

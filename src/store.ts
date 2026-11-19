@@ -177,7 +177,7 @@ export const useStore = create<Store>()(
     {
       name: "gully-scorer", version: STORE_VERSION,
       partialize: (s) => ({ matches: s.matches, screen: s.screen === "watch" || s.screen === "join" ? "home" : s.screen, viewId: s.viewId, teams: s.teams, cups: s.cups, cupId: s.cupId, player: s.player, lastSetup: s.lastSetup,
-        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab, groups: s.groups, kitty: s.kitty, nextGame: s.nextGame, lastMerge: s.lastMerge }),
+        series: s.series, seriesId: s.seriesId, seriesPlay: s.seriesPlay, infos: s.infos, fmt: s.fmt, cupsTab: s.cupsTab, groups: s.groups, me: s.me, kitty: s.kitty, nextGame: s.nextGame, lastMerge: s.lastMerge }),
       migrate: (old) => migrate(old) as never,
     },
   ),

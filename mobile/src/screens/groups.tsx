@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import * as E from "@shared/engine/engine";
 import type { SavedTeam } from "@shared/engine/tournament";
@@ -8,9 +8,10 @@ import { EV } from "@shared/events";
 import { useStore } from "@/lib/store";
 import { track } from "@/lib/track";
 import { copyText, sendText } from "@/lib/share";
+import { setWeekly, weeklyOn } from "@/lib/weekly";
 import { WEB_BASE } from "@/lib/env";
 import { ChevronRight, Copy, Send, X } from "lucide-react-native";
-import { C, Card, ConfirmSheet, GhostButton, Press, PrimaryButton, SectionTitle, Sheet, tw, Txt } from "@/ui/ui";
+import { C, Card, ConfirmSheet, GhostButton, Press, PrimaryButton, SectionTitle, Sheet, Toggle, tw, Txt } from "@/ui/ui";
 import { TextField } from "./Teams";
 
 const ghost = (off: boolean) => tw`flex-1 min-h-12 rounded-[16px] border border-line items-center justify-center ${off ? "opacity-40" : ""}`;
@@ -126,6 +127,8 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
+  const [weekly, setWeeklyState] = useState(false);
+  useEffect(() => { void weeklyOn().then(setWeeklyState); }, []);
   const create = () => { if (name.trim()) { track(EV.group_save); setEdit(saveGroup(name)); setName(""); } };
   const doImport = () => {
     const inv = decodeGroup(code);
@@ -155,6 +158,9 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
         ))}
         {!groups.length && <Txt style={tw`py-3 text-center text-sm text-mute`}>No groups yet.</Txt>}
       </View>
+      <View style={tw`mt-4`}><SectionTitle>Sunday reminder</SectionTitle></View>
+      <Toggle on={weekly} label="Remind me on Sunday evening" hint="One notification a week to check the leaderboard and plan the game."
+        set={(v) => { void setWeekly(v).then((now) => { track(EV.weekly_reminder, { on: now ? 1 : 0 }); setWeeklyState(now); }); }} />
       <View style={tw`mt-4`}><SectionTitle>Import a group</SectionTitle></View>
       <View style={tw`flex-row gap-2`}>
         <TextField value={code} onChangeText={(t) => { setCode(t); setMsg(""); }} placeholder="Paste a link or code" outline autoCapitalize="none" autoCorrect={false} onSubmitEditing={doImport} returnKeyType="done" style={tw`min-h-12 flex-1`} />
@@ -170,13 +176,23 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
 
 /** Opens when a group link was followed, on whatever screen the app is showing. */
 export function InviteSheet() {
-  const { groupInvite: inv, setGroupInvite, importGroup } = useStore();
+  const { groupInvite: inv, setGroupInvite, importGroup, setMe, me } = useStore();
+  const [who, setWho] = useState<string | null>(null);
   if (!inv) return null;
+  const mine = who ?? (me && inv.names.find((n) => n.toLowerCase() === me.toLowerCase())) ?? null;
   return (
-    <Sheet title="Add this group?" onClose={() => setGroupInvite(null)}
-      footer={<PrimaryButton onPress={() => { track(EV.group_import, { via: "link" }); importGroup(inv); }}>Add to my groups</PrimaryButton>}>
+    <Sheet title="Add this group?" onClose={() => { setWho(null); setGroupInvite(null); }}
+      footer={<PrimaryButton onPress={() => { track(EV.group_import, { via: "link", claimed: mine ? 1 : 0 }); importGroup(inv); if (mine) setMe(mine); setWho(null); }}>{mine ? `Add, I am ${mine}` : "Add to my groups"}</PrimaryButton>}>
       <Txt style={tw`text-lg font-semibold`}>{inv.name}</Txt>
       <Txt style={tw`mt-1 text-sm text-mute`}>{`${inv.names.length} players: ${inv.names.join(", ")}`}</Txt>
+      <View style={tw`mt-4`}><SectionTitle>Which one is you? (optional)</SectionTitle></View>
+      <View style={tw`flex-row flex-wrap gap-2`}>
+        {inv.names.map((n) => (
+          <Press key={n} onPress={() => setWho(mine === n ? "" : n)} accessibilityState={{ selected: mine === n }} style={pill(mine === n)}>
+            <Txt style={tw`text-sm font-medium ${mine === n ? "text-ink" : "text-fg"}`}>{n}</Txt>
+          </Press>
+        ))}
+      </View>
     </Sheet>
   );
 }

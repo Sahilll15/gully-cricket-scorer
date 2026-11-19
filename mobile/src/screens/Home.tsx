@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TextInput, View } from "react-native";
+import { Linking, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BookOpen, ChevronRight, Radio, Wallet } from "lucide-react-native";
 import * as E from "@shared/engine/engine";
@@ -8,6 +8,9 @@ import { matchTotals } from "@shared/stats";
 import { seriesScore } from "@shared/engine/series";
 import { cleanCode, liveSupported } from "@/lib/live";
 import { useStore } from "@/lib/store";
+import { tipLink } from "@shared/upi";
+import { track } from "@/lib/track";
+import { EV } from "@shared/events";
 import { AdBanner } from "@/ui/AdBanner";
 import { TapeBall } from "@/ui/gully";
 import { showIntro } from "@/ui/Onboarding";
@@ -113,7 +116,8 @@ export function MatchCard({ m }: { m: Match }) {
 }
 
 export default function Home() {
-  const { matches, go, watchMatch, series } = useStore();
+  const { matches, go, watchMatch, series, me, openPlayer, setMe } = useStore();
+  const tip = tipLink(process.env.EXPO_PUBLIC_TIP_UPI, "Sahil Chalke");
   const top = useSafeAreaInsets().top;
   const going = series.filter((s) => { const sc = seriesScore(s, matches); return sc.current || sc.next !== null; }).slice(0, 2);
   const [ask, setAsk] = useState(false);
@@ -175,6 +179,22 @@ export default function Home() {
             </Press>
           ))}
         </View>
+        {!!me && (
+          <View style={tw`flex-row items-center gap-3 rounded-[20px] border border-line bg-panel p-3 pl-4`}>
+            <Badge name={me} size={40} />
+            <View style={tw`flex-1 min-w-0`}>
+              <Txt style={tw`text-[15px] font-semibold text-fg`} numberOfLines={1}>{me}</Txt>
+              <Txt style={tw`text-[12px] text-mute`}>Your stats and skill card</Txt>
+            </View>
+            <Press onPress={() => openPlayer(me)} style={tw`min-h-10 rounded-full bg-sun px-4 items-center justify-center`}><Txt style={tw`text-[13px] font-semibold text-ink`}>My stats</Txt></Press>
+            <Press onPress={() => setMe(null)} accessibilityLabel="Not me" style={tw`min-h-10 px-2 items-center justify-center`}><Txt style={tw`text-mute`}>✕</Txt></Press>
+          </View>
+        )}
+        {!!tip && (
+          <Press onPress={() => { track(EV.tip_open); void Linking.openURL(tip).catch(() => {}); }} style={tw`rounded-[20px] border border-line bg-panel p-4 items-center`}>
+            <Txt style={tw`text-[14px] font-medium text-fg`}>Enjoying the app? Tip the developer</Txt>
+          </Press>
+        )}
         <NextGameCard />
         {going.map((s) => (
           <Card key={s.id} style={tw`p-3`}>

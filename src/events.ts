@@ -50,6 +50,8 @@ export const EV = {
   group_share: "group_share",
   group_import: "group_import",
   group_use: "group_use",
+  weekly_reminder: "weekly_reminder",
+  tip_open: "tip_open",
   rain_rule: "rain_rule",
   player_photo_set: "player_photo_set",
   group_board_share: "group_board_share",

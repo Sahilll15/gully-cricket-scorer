@@ -154,13 +154,22 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
 
 /** Opens when a group link was followed (or a code pasted elsewhere), on whatever screen the app is showing. */
 export function InviteSheet() {
-  const { groupInvite: inv, setGroupInvite, importGroup, go } = useStore();
+  const { groupInvite: inv, setGroupInvite, importGroup, setMe, me, go } = useStore();
+  const [who, setWho] = useState<string | null>(null);
   if (!inv) return null;
+  const mine = who ?? (me && inv.names.find((n) => n.toLowerCase() === me.toLowerCase())) ?? null;
   return (
-    <Sheet title="Add this group?" onClose={() => setGroupInvite(null)}
-      footer={<PrimaryButton onClick={() => { track(EV.group_import, { via: "link" }); importGroup(inv); go("teams"); }}>Add to my groups</PrimaryButton>}>
+    <Sheet title="Add this group?" onClose={() => { setWho(null); setGroupInvite(null); }}
+      footer={<PrimaryButton onClick={() => { track(EV.group_import, { via: "link", claimed: mine ? 1 : 0 }); importGroup(inv); if (mine) setMe(mine); setWho(null); go("teams"); }}>{mine ? `Add, I am ${mine}` : "Add to my groups"}</PrimaryButton>}>
       <p className="text-lg font-bold text-fg">{inv.name}</p>
       <p className="mt-1 text-sm text-mute">{inv.names.length} players: {inv.names.join(", ")}</p>
+      <p className="mb-2 mt-4 text-sm font-semibold text-teal">Which one is you? <span className="font-normal text-mute">(optional)</span></p>
+      <div className="flex flex-wrap gap-2">
+        {inv.names.map((n) => (
+          <button key={n} onClick={() => setWho(mine === n ? "" : n)} aria-pressed={mine === n}
+            className={cx("press min-h-10 rounded-full border-2 px-4 text-sm font-semibold", mine === n ? "border-sun bg-sun text-ink" : "border-line bg-panel text-fg")}>{n}</button>
+        ))}
+      </div>
     </Sheet>
   );
 }

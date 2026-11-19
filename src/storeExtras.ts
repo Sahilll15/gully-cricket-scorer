@@ -9,7 +9,7 @@ import { cleanInfos } from "./photo";
 import { importInvite, newGroup, putIn, type GroupInvite, type PlayerGroup } from "./groups";
 
 interface Slice {
-  matches: Match[]; teams: SavedTeam[]; cups: Tournament[]; series: Series[]; infos: Record<string, PlayerInfo>; kitty: Kitty; groups: PlayerGroup[]; groupInvite: GroupInvite | null;
+  matches: Match[]; teams: SavedTeam[]; cups: Tournament[]; series: Series[]; infos: Record<string, PlayerInfo>; kitty: Kitty; groups: PlayerGroup[]; groupInvite: GroupInvite | null; me: string | null;
   player: string | null; nextGame: NextGame | null; lastMerge: MergeUndo | null;
 }
 
@@ -24,6 +24,8 @@ export interface ExtraActions {
   saveGroup: (name: string, names?: string[]) => PlayerGroup;
   putGroup: (g: PlayerGroup) => void;
   removeGroup: (id: string) => void;
+  me: string | null;
+  setMe: (name: string | null) => void;
   importGroup: (inv: GroupInvite) => { group: PlayerGroup; added: number };
 }
 
@@ -31,6 +33,8 @@ export interface ExtraActions {
 export function extraActions(get: () => Slice, set: (p: Partial<Slice>) => void): ExtraActions {
   const low = (n: string | null) => n?.trim().toLowerCase();
   return {
+    me: null,
+    setMe: (name) => set({ me: name && name.trim() ? name.trim() : null }),
     groupInvite: null,
     setGroupInvite: (g) => set({ groupInvite: g }),
     saveGroup: (name, names = []) => { const g = newGroup(name, names); set({ groups: putIn(get().groups, g) }); return g; },

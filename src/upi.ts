@@ -14,3 +14,9 @@ export function upiLink(upiId: string, name: string, amount: number, note = "Gul
   const am = Math.max(0, Math.round(amount));
   return `upi://pay?pa=${enc(cleanUpi(upiId))}&pn=${enc(name.trim())}&am=${am}&cu=INR&tn=${enc(note)}`;
 }
+
+/** A tip link: the payer picks the amount in their own UPI app. Null if the id is not a valid UPI id. */
+export function tipLink(upiId: string | undefined, name: string): string | null {
+  if (!upiId || !validUpi(upiId)) return null;
+  return `upi://pay?pa=${enc(cleanUpi(upiId))}&pn=${enc(name.trim())}&cu=INR&tn=${enc("Gully Scorer tip")}`;
+}
