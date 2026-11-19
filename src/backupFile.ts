@@ -1,3 +1,4 @@
+import { cleanInfos } from "./photo";
 import { emptyKitty, mergeBackup, type KittyBackup } from "./kitty";
 
 /** A backup saved as a file, so data survives a lost phone without an account. */
@@ -25,7 +26,7 @@ export function readBackupFile(text: string): KittyBackup | null {
   const k = (o.kitty ?? {}) as Record<string, unknown>;
   return {
     v: 1, matches: o.matches, teams: o.teams, cups: list(o.cups), series: list(o.series),
-    infos: o.infos && typeof o.infos === "object" ? (o.infos as KittyBackup["infos"]) : {},
+    infos: o.infos && typeof o.infos === "object" ? cleanInfos(o.infos as KittyBackup["infos"]) : {},
     kitty: { expenses: list(k.expenses), settlements: list(k.settlements), debts: list(k.debts), stakes: list(k.stakes) },
   };
 }

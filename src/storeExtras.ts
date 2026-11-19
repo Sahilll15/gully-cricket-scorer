@@ -5,6 +5,7 @@ import type { PlayerInfo } from "./playerInfo";
 import { emptyKitty, type Kitty, type KittyBackup } from "./kitty";
 import { mergePlayers, undoMerge, type MergeUndo } from "./merge";
 import type { NextGame } from "./nextGame";
+import { cleanInfos } from "./photo";
 import { importInvite, newGroup, putIn, type GroupInvite, type PlayerGroup } from "./groups";
 
 interface Slice {
@@ -46,7 +47,7 @@ export function extraActions(get: () => Slice, set: (p: Partial<Slice>) => void)
       if (!u) return;
       set({ ...undoMerge(s, u), lastMerge: null });
     },
-    restoreBackup: (b) => set({ matches: b.matches, teams: b.teams, cups: b.cups, series: b.series ?? [], infos: b.infos ?? {}, groups: b.groups ?? [], kitty: b.kitty ?? emptyKitty() }),
+    restoreBackup: (b) => set({ matches: b.matches, teams: b.teams, cups: b.cups, series: b.series ?? [], infos: cleanInfos(b.infos), groups: b.groups ?? [], kitty: b.kitty ?? emptyKitty() }),
     snapshot: () => { const s = get(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos, groups: s.groups, kitty: s.kitty }; },
   };
 }

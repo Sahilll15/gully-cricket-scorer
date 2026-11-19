@@ -5,6 +5,7 @@ import { useStore } from "./store";
 import { myStats, type GullyWorld } from "./globalStats";
 import { track } from "./track";
 import { EV } from "./events";
+import { cleanInfos } from "./photo";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -56,7 +57,7 @@ async function syncNow() {
   // No await between the snapshot and setState, or changes made during the pull are lost.
   const cloud = await pull();
   const both = mergeBackup(snapshot(), cloud);
-  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {}, groups: both.groups ?? [], kitty: both.kitty ?? emptyKitty() });
+  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: cleanInfos(both.infos), groups: both.groups ?? [], kitty: both.kitty ?? emptyKitty() });
   merged = true;
   await push();
 }

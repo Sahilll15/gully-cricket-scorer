@@ -17,3 +17,13 @@ export function squareCrop(w: number, h: number, size = PHOTO_SIZE) {
   const side = Math.min(w, h);
   return { sx: (w - side) / 2, sy: (h - side) / 2, side, size };
 }
+
+/** Player details from a backup or the cloud with any photo that is not a small image data URL removed. */
+export function cleanInfos<T extends { photo?: string }>(infos: Record<string, T> | undefined): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [k, v] of Object.entries(infos ?? {})) {
+    if (!v || typeof v !== "object") continue;
+    out[k] = v.photo === undefined || validPhoto(v.photo) ? v : { ...v, photo: undefined };
+  }
+  return out;
+}

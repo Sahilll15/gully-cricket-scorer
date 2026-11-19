@@ -21,3 +21,13 @@ describe("photo", () => {
     expect(squareCrop(200, 400)).toEqual({ sx: 0, sy: 100, side: 200, size: 128 });
   });
 });
+
+describe("cleanInfos", () => {
+  it("drops a photo that is not a small image data URL and keeps everything else", async () => {
+    const { cleanInfos } = await import("./photo");
+    const out = cleanInfos({ ravi: { photo: "https://tracker.test/p.gif", role: "bat" } as never, sam: { photo: ok } });
+    expect(out.ravi).toMatchObject({ role: "bat", photo: undefined });
+    expect(out.sam.photo).toBe(ok);
+    expect(cleanInfos(undefined)).toEqual({});
+  });
+});

@@ -6,6 +6,7 @@ import { useStore } from "./store";
 import { myStats, type GullyWorld } from "@shared/globalStats";
 import { track } from "./track";
 import { EV } from "@shared/events";
+import { cleanInfos } from "@shared/photo";
 import { SUPABASE_KEY as KEY, SUPABASE_URL as URL } from "./env";
 // Off until the backup table exists and email confirmation is switched off in Supabase.
 export const accountsSupported = Boolean(URL && KEY && process.env.EXPO_PUBLIC_ACCOUNTS === "1");
@@ -55,7 +56,7 @@ async function syncNow() {
   // No await between the snapshot and setState, or balls scored during the pull are lost.
   const cloud = await pull();
   const both = mergeBackup(snapshot(), cloud);
-  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: both.infos ?? {}, groups: both.groups ?? [], kitty: both.kitty ?? emptyKitty() });
+  useStore.setState({ matches: both.matches, teams: both.teams, cups: both.cups, series: both.series ?? [], infos: cleanInfos(both.infos), groups: both.groups ?? [], kitty: both.kitty ?? emptyKitty() });
   merged = true;
   await push();
 }
