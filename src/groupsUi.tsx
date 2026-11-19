@@ -198,26 +198,26 @@ export function AddFromGroup({ team, onAdd, onClose }: { team: SavedTeam; onAdd:
   const groups = useStore((s) => s.groups);
   const [gid, setGid] = useState<string | null>(groups[0]?.id ?? null);
   const group = groups.find((g) => g.id === gid) ?? null;
-  const [off, setOff] = useState<string[]>([]);
-  const fresh = group ? playersFrom(group, team.players, group.players.map((p) => p.name).filter((n) => !off.includes(n))) : [];
+  const [picked, setPicked] = useState<string[]>([]);
+  const fresh = group ? playersFrom(group, team.players, picked) : [];
   return (
     <Sheet title="Add from a group" onClose={onClose}
       footer={<PrimaryButton disabled={!fresh.length} onClick={() => { track(EV.group_use, { where: "team" }); onAdd({ ...team, players: [...team.players, ...fresh] }); onClose(); }}>
-        {fresh.length ? `Add ${fresh.length} player${fresh.length === 1 ? "" : "s"}` : "Nothing new to add"}</PrimaryButton>}>
+        {fresh.length ? `Add ${fresh.length} player${fresh.length === 1 ? "" : "s"}` : "Tap players to select them"}</PrimaryButton>}>
       {!groups.length ? <p className="text-sm text-mute">No groups yet. Make one from the Teams screen.</p> : <>
         <div className="flex flex-wrap gap-2">
           {groups.map((g) => (
-            <button key={g.id} onClick={() => { setGid(g.id); setOff([]); }} aria-pressed={gid === g.id}
+            <button key={g.id} onClick={() => { setGid(g.id); setPicked([]); }} aria-pressed={gid === g.id}
               className={cx("press min-h-10 rounded-full border-2 px-4 text-sm font-semibold", gid === g.id ? "border-sun bg-sun text-ink" : "border-line bg-panel text-fg")}>{g.name}</button>
           ))}
         </div>
         {group && <>
-          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Tap to leave someone out</p>
+          <p className="mb-2 mt-4 text-sm font-semibold text-teal">Tap the players to add</p>
           <div className="flex flex-wrap gap-2">
             {group.players.map((p) => {
-              const has = team.players.some((q) => q.name.toLowerCase() === p.name.toLowerCase()), on = !has && !off.includes(p.name);
+              const has = team.players.some((q) => q.name.toLowerCase() === p.name.toLowerCase()), on = !has && picked.includes(p.name);
               return (
-                <button key={p.id} disabled={has} onClick={() => setOff(on ? [...off, p.name] : off.filter((n) => n !== p.name))} aria-pressed={on}
+                <button key={p.id} disabled={has} onClick={() => setPicked(on ? picked.filter((n) => n !== p.name) : [...picked, p.name])} aria-pressed={on}
                   className={cx("press min-h-10 rounded-full border-2 px-4 text-sm font-semibold", on ? "border-sun bg-sun-soft text-fg" : "border-line text-mute", has && "opacity-50")}>
                   {p.name}{has ? " ✓" : ""}
                 </button>

@@ -222,27 +222,27 @@ export function AddFromGroup({ team, onAdd, onClose }: { team: SavedTeam; onAdd:
   const groups = useStore((s) => s.groups);
   const [gid, setGid] = useState<string | null>(groups[0]?.id ?? null);
   const group = groups.find((g) => g.id === gid) ?? null;
-  const [off, setOff] = useState<string[]>([]);
-  const fresh = group ? playersFrom(group, team.players, group.players.map((p) => p.name).filter((n) => !off.includes(n))) : [];
+  const [picked, setPicked] = useState<string[]>([]);
+  const fresh = group ? playersFrom(group, team.players, picked) : [];
   return (
     <Sheet title="Add from a group" onClose={onClose}
       footer={<PrimaryButton disabled={!fresh.length} onPress={() => { track(EV.group_use, { where: "team" }); onAdd({ ...team, players: [...team.players, ...fresh] }); onClose(); }}>
-        {fresh.length ? `Add ${fresh.length} player${fresh.length === 1 ? "" : "s"}` : "Nothing new to add"}</PrimaryButton>}>
+        {fresh.length ? `Add ${fresh.length} player${fresh.length === 1 ? "" : "s"}` : "Tap players to select them"}</PrimaryButton>}>
       {!groups.length ? <Txt style={tw`text-sm text-mute`}>No groups yet. Make one from the Teams screen.</Txt> : <>
         <View style={tw`flex-row flex-wrap gap-2`}>
           {groups.map((g) => (
-            <Press key={g.id} onPress={() => { setGid(g.id); setOff([]); }} accessibilityState={{ selected: gid === g.id }} style={pill(gid === g.id)}>
+            <Press key={g.id} onPress={() => { setGid(g.id); setPicked([]); }} accessibilityState={{ selected: gid === g.id }} style={pill(gid === g.id)}>
               <Txt style={tw`text-sm font-medium ${gid === g.id ? "text-ink" : "text-fg"}`}>{g.name}</Txt>
             </Press>
           ))}
         </View>
         {group && <>
-          <View style={tw`mt-4`}><SectionTitle>Tap to leave someone out</SectionTitle></View>
+          <View style={tw`mt-4`}><SectionTitle>Tap the players to add</SectionTitle></View>
           <View style={tw`flex-row flex-wrap gap-2`}>
             {group.players.map((p) => {
-              const has = team.players.some((q) => q.name.toLowerCase() === p.name.toLowerCase()), on = !has && !off.includes(p.name);
+              const has = team.players.some((q) => q.name.toLowerCase() === p.name.toLowerCase()), on = !has && picked.includes(p.name);
               return (
-                <Press key={p.id} disabled={has} onPress={() => setOff(on ? [...off, p.name] : off.filter((n) => n !== p.name))} accessibilityState={{ selected: on }}
+                <Press key={p.id} disabled={has} onPress={() => setPicked(on ? picked.filter((n) => n !== p.name) : [...picked, p.name])} accessibilityState={{ selected: on }}
                   style={tw`min-h-10 rounded-full border px-4 items-center justify-center ${on ? "border-sun bg-sun-soft" : "border-line"} ${has ? "opacity-50" : ""}`}>
                   <Txt style={tw`text-sm font-medium ${on ? "text-fg" : "text-mute"}`}>{has ? `${p.name} ✓` : p.name}</Txt>
                 </Press>
