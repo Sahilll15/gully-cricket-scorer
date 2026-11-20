@@ -79,7 +79,7 @@ function GroupEditor({ group, onClose }: { group: PlayerGroup; onClose: () => vo
   const canShare = g.players.length > 0;
   return (<>
     <Sheet title="Edit group" onClose={onClose}>
-      <input value={g.name} onChange={(e) => save({ ...g, name: e.target.value.slice(0, 24) })} maxLength={24}
+      <input aria-label="Group name" value={g.name} onChange={(e) => save({ ...g, name: e.target.value.slice(0, 24) })} maxLength={24}
         className="min-h-12 w-full rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none" />
       <p className="mb-2 mt-4 text-sm font-semibold text-teal">Players ({g.players.length})</p>
       <div className="flex flex-wrap gap-2">
@@ -91,7 +91,7 @@ function GroupEditor({ group, onClose }: { group: PlayerGroup; onClose: () => vo
         ))}
       </div>
       <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}>
-        <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Add players, commas for several" className={cx(input, "flex-1")} />
+        <input aria-label="Add players" value={v} onChange={(e) => setV(e.target.value)} placeholder="Add players, commas for several" className={cx(input, "flex-1")} />
         <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
       </form>
       <GroupPlay group={g} />
@@ -102,7 +102,7 @@ function GroupEditor({ group, onClose }: { group: PlayerGroup; onClose: () => vo
         <button disabled={!canShare} onClick={() => { track(EV.group_share, { how: "link" }); copy(groupLink(g, base()), "Link"); }}
           className="press min-h-12 rounded-2xl border-2 border-line font-semibold text-fg disabled:opacity-40">Copy link</button>
       </div>
-      <p className="mt-2 text-xs text-mute">{note || "Anyone who opens the link gets their own copy of this group. Later edits are not synced."}</p>
+      <p className="mt-2 text-xs text-mute">{note || "They get a copy. Edits don't sync."}</p>
       <button onClick={() => setAskDel(true)} className="press mt-4 min-h-12 w-full rounded-2xl font-semibold text-out">Delete group</button>
     </Sheet>
     {askDel && <ConfirmSheet title={`Delete ${g.name}?`} body="Teams already made from it keep their players." yes="Delete" danger
@@ -127,9 +127,9 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
   };
   return (<>
     <Sheet title="Player groups" onClose={onClose}>
-      <p className="text-sm text-mute">Save a squad once, then fill any team from it, or send it to a friend.</p>
+      <p className="text-sm text-mute">Save a squad once. Reuse it for any team.</p>
       <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); create(); }}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New group, e.g. Sunday boys" maxLength={24} className={cx(input, "flex-1")} />
+        <input aria-label="New group name" value={name} onChange={(e) => setName(e.target.value)} placeholder="New group, e.g. Sunday boys" maxLength={24} className={cx(input, "flex-1")} />
         <button className="press min-h-12 rounded-2xl bg-sun px-5 font-bold text-ink">Create</button>
       </form>
       <div className="mt-3 space-y-2">
@@ -143,7 +143,7 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
       </div>
       <p className="mb-2 mt-4 text-sm font-semibold text-teal">Import a group</p>
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); doImport(); }}>
-        <input value={code} onChange={(e) => { setCode(e.target.value); setMsg(""); }} placeholder="Paste a link or code" className={cx(input, "flex-1")} />
+        <input aria-label="Link or code" value={code} onChange={(e) => { setCode(e.target.value); setMsg(""); }} placeholder="Paste a link or code" className={cx(input, "flex-1")} />
         <button disabled={!code.trim()} className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white disabled:opacity-40">Import</button>
       </form>
       {msg && <p className="mt-2 text-sm text-mute">{msg}</p>}

@@ -26,7 +26,7 @@ export function Chip({ on, onPress, children, a11y }: { on?: boolean; onPress: (
 function Input({ value, set, placeholder }: { value: string; set: (v: string) => void; placeholder: string }) {
   const [focus, setFocus] = useState(false);
   return (
-    <TextInput value={value} onChangeText={set} placeholder={placeholder} maxLength={40} placeholderTextColor={C.mute} selectionColor={C.sun}
+    <TextInput value={value} onChangeText={set} placeholder={placeholder} accessibilityLabel={placeholder} maxLength={40} placeholderTextColor={C.mute} selectionColor={C.sun}
       onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
       style={[tw`mt-3 min-h-12 rounded-[18px] border bg-panel px-4 text-[15px] text-fg ${focus ? "border-sun" : "border-line"}`, { fontFamily: "Inter_500Medium" }]} />
   );

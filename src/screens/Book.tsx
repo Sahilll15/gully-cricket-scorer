@@ -66,7 +66,7 @@ const METRICS: [BoardMetric, string][] = [["matches", "Matches"], ["runs", "Runs
 
 /** Opt-in world leaderboard of scorers, by nickname. */
 function WorldBoard() {
-  const phone = useAccount((a) => a.phone);
+  const phone = useAccount((a) => a.phone ?? a.google?.name ?? null);
   const [m, setM] = useState<BoardMetric>("matches");
   const [rows, setRows] = useState<BoardRow[] | null>(null);
   const [me, setMe] = useState<MyBoard | null>(null);
@@ -105,7 +105,7 @@ function WorldBoard() {
       {open && (
         <Sheet title="Rename on the leaderboard" onClose={() => setOpen(false)}>
           <p className="text-sm text-mute">Others see this name with your matches, runs, sixes and wickets. Never your number or player names.</p>
-          <input value={nick} onChange={(e) => setNick(e.target.value)} maxLength={20} className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-panel px-4 text-fg" />
+          <input aria-label="Leaderboard name" value={nick} onChange={(e) => setNick(e.target.value)} maxLength={20} className="mt-3 min-h-12 w-full rounded-2xl border border-line bg-panel px-4 text-fg" />
           {err && <p className="mt-2 text-sm text-out">{err}</p>}
           <button onClick={() => void rename()} className="press mt-4 min-h-14 w-full rounded-2xl bg-sun font-bold text-ink">Save</button>
         </Sheet>
@@ -315,7 +315,7 @@ function Streaks({ d }: { d: BookData }) {
       <div className="flex flex-wrap gap-2">
         {teams.map((t) => (
           <span key={t.name} className="flex items-center gap-2 rounded-full border border-line bg-panel py-1.5 pl-1.5 pr-3">
-            <Badge name={t.name} size={24} />
+            <Badge name={t.name} size={24} kind="team" />
             <span className="text-sm font-medium text-fg">{t.name}</span>
             <span className="text-xs text-mute">best {t.best}{t.current > 1 ? `, now ${t.current}` : ""}</span>
           </span>
@@ -340,7 +340,7 @@ function PickSheet({ title, names, exclude, slots, onDone, onClose }: { title: s
   return (
     <Sheet title={title} onClose={onClose}>
       {slots === 2 && <p className="mb-2 text-sm text-mute">{chosen.length ? `${chosen[0]} and ...` : "Tap the first, then the second."}</p>}
-      {names.length > 8 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" autoFocus
+      {names.length > 8 && <input aria-label="Search players" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" autoFocus
         className="mb-3 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />}
       <div className="pb-4">
         {list.map((x) => (
@@ -433,7 +433,7 @@ function Rivals({ d, fmt }: { d: BookData; fmt: Fmt }) {
         <Card className="!p-0 overflow-hidden">
           {r.last5.map((x) => (
             <button key={x.matchId} onClick={() => go("scorecard", x.matchId)} className="press flex w-full items-center gap-3 border-t border-line px-4 py-3 text-left first:border-0">
-              {x.winner ? <Badge name={x.winner} size={32} />
+              {x.winner ? <Badge name={x.winner} size={32} kind="team" />
                 : <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-key text-xs font-bold text-mute">=</span>}
               <span className="min-w-0 flex-1 text-sm font-medium text-fg">{x.text}</span>
               <span className="shrink-0 text-xs text-mute">{dateText(x.date)}</span>

@@ -9,7 +9,7 @@ import { canScore } from "@/lib/device";
 import { useMatch, useStore } from "@/lib/store";
 import { sendText, shareImage, sharePdf, shareText, type ImageKind } from "@/lib/share";
 import { AdBanner } from "@/ui/AdBanner";
-import { Badge, Board, C, Card, GhostButton, Header, Num, Page, Press, PrimaryButton, ScoreHero, Sheet, Txt, tw } from "@/ui/ui";
+import { Badge, Board, C, Card, GhostButton, Header, Num, Page, Press, PrimaryButton, ScoreHero, Sheet, Txt, tw, NotFound } from "@/ui/ui";
 import { SmallCard } from "@/ui/ScorecardImages";
 import { MatchPoster, WinnerPoster } from "@/ui/Posters";
 import { AwardsCard } from "@/ui/Charts";
@@ -103,7 +103,7 @@ function Rematch({ m }: { m: Match }) {
           <Txt style={tw`mt-1 text-center text-[15px] font-semibold text-fg`}>{tally}</Txt>
         </Card>
       )}
-      {canRematch(m) && canScore(m) && <PrimaryButton tone="navy" onPress={() => setNext(rematchMatch(m))}><IconLabel icon={RotateCcw}>{E.isSolo(m) ? "Rematch, same players and rules" : "Rematch, same teams and rules"}</IconLabel></PrimaryButton>}
+      {rematchShown(m) && <PrimaryButton tone="navy" onPress={() => setNext(rematchMatch(m))}><IconLabel icon={RotateCcw}>{E.isSolo(m) ? "Rematch, same players and rules" : "Rematch, same teams and rules"}</IconLabel></PrimaryButton>}
       {next && (E.isSolo(next) ? <SoloTurnSheet match={next} onClose={() => setNext(null)} onStart={start} />
         : <OpenersSheet match={next} onClose={() => setNext(null)} onStart={start} />)}
     </>
@@ -156,7 +156,6 @@ function Sharing({ m, text, textLabel }: { m: Match; text: () => void; textLabel
       </View>
       <View style={tw`mt-2 flex-row items-center justify-between`}>
         <Txt style={lbl}>Posters</Txt>
-        <Txt style={tw`text-xs text-mute`}>tap one to send it</Txt>
       </View>
       <View style={tw`flex-row gap-2`}>
         <PosterTile m={m} kind="match" label="Match poster" />
@@ -181,15 +180,15 @@ function scores(m: Match) {
   });
 }
 
+const rematchShown = (m: Match) => canRematch(m) && canScore(m);
+
 /** Right after a match ends: one tap to send the scorecard to the group chat. */
 function SharePrompt({ m }: { m: Match }) {
   const [open, setOpen] = useState(() => shouldPrompt(m));
   if (!open) return null;
   return (
     <Sheet title="Send the result to your group?" onClose={() => setOpen(false)}
-      footer={<PrimaryButton onPress={() => { track(EV.result_prompt, { act: "send" }); void shareImage(m, "full"); setOpen(false); }}>Send scorecard on WhatsApp</PrimaryButton>}>
-      <Txt style={tw`text-sm text-mute`}>The full scorecard goes as one image, with the link to score your own matches.</Txt>
-    </Sheet>
+      footer={<PrimaryButton onPress={() => { track(EV.result_prompt, { act: "send" }); void shareImage(m, "full"); setOpen(false); }}>Send scorecard on WhatsApp</PrimaryButton>}>{null}</Sheet>
   );
 }
 
@@ -198,7 +197,8 @@ export default function Result() {
   const { go, put, undo } = useStore();
   const [superOver, setSuperOver] = useState(false);
   useEffect(() => { if (m && m.status !== "done") go("live"); }, [m, go]);
-  if (!m || m.status !== "done") return null;
+  if (!m) return <NotFound what="match" />;
+  if (m.status !== "done") return null;
 
   if (E.isSolo(m)) return <SoloResult m={m} />;
   const res = E.result(m)!, aw = E.awards(m), potm = playerOfTheMatch(m);
@@ -265,8 +265,8 @@ export default function Result() {
           </View>
           <Rematch m={m} />
           {m.series ? null : m.cup
-            ? <PrimaryButton tone="navy" onPress={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>
-            : <PrimaryButton tone="navy" onPress={() => go("setup")}>Play again, same teams</PrimaryButton>}
+            ? <PrimaryButton tone="navy" onPress={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the cup</PrimaryButton>
+            : rematchShown(m) ? null : <PrimaryButton tone="navy" onPress={() => go("setup")}>Play again, same teams</PrimaryButton>}
           <View style={tw`pt-3`}><AdBanner /></View>
         </View>
       </Page>
@@ -353,7 +353,7 @@ function SoloResult({ m }: { m: Match }) {
             ) : <View style={tw`flex-1`} />}
           </View>
           <Rematch m={m} />
-          <PrimaryButton tone="navy" onPress={again}><IconLabel icon={RotateCcw}>Play again, same players</IconLabel></PrimaryButton>
+          {rematchShown(m) ? null : <PrimaryButton tone="navy" onPress={again}><IconLabel icon={RotateCcw}>Play again, same players</IconLabel></PrimaryButton>}
           <View style={tw`pt-3`}><AdBanner /></View>
         </View>
       </Page>

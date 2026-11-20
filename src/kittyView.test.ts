@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ev, Match } from "./engine/types";
 import { balances, emptyKitty, newExpense, newSettlement, newStake, openDebts, type Kitty } from "./kitty";
-import { history, inr, isEmpty, kittyActions, knownNames, pot, scanMatches } from "./kittyView";
+import { expenseDefaults, history, inr, isEmpty, kittyActions, knownNames, pot, scanMatches } from "./kittyView";
 
 const ball = (runs: number, extra: Partial<Extract<Ev, { t: "ball" }>> = {}): Ev => ({ t: "ball", runs, bowler: "b1", ...extra });
 const lost = ball(0, { wicket: { kind: "hit out", out: "s", newId: "a2", outId: "a1" } });
@@ -89,5 +89,15 @@ describe("kitty screen helpers", () => {
     const k = { ...emptyKitty(), expenses: [newExpense({ what: "chai", amount: 20, paidBy: "Om", split: ["rahul"] })] };
     const names = knownNames([{ id: "t", name: "T", players: [{ id: "x", name: "Sam" }, { id: "y", name: "amit" }] }], [match("m1", [], [])], k);
     expect(names).toEqual(["Rahul", "Amit", "Vikas", "Sam", "Om"]);
+  });
+});
+
+describe("expenseDefaults", () => {
+  it("pays as me and splits among everyone", () => {
+    expect(expenseDefaults(["Rahul", "Amit", "rahul"], "rahul")).toEqual({ paidBy: "Rahul", split: ["Rahul", "Amit"] });
+  });
+  it("leaves paid by empty when me is unknown or not listed", () => {
+    expect(expenseDefaults(["Rahul"], null).paidBy).toBe("");
+    expect(expenseDefaults(["Rahul"], "Zed").paidBy).toBe("");
   });
 });

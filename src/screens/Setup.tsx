@@ -34,7 +34,7 @@ function TeamCard({ label, name, setName, names, setNames, size, setSize, locked
   return (
     <Card>
       <label className="flex items-center gap-3">
-        <Badge name={name || label} />
+        <Badge name={name || label} kind="team" />
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder={label} maxLength={18} readOnly={locked || lockName} aria-label={`${label} name`}
           className="min-h-12 flex-1 rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none placeholder:text-mute focus:ring-2 focus:ring-sun" />
         {!locked && !lockName && <span className="text-mute" aria-hidden>✎</span>}

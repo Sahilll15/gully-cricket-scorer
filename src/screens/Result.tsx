@@ -9,7 +9,7 @@ import { canRematch, rematchMatch, tallyText } from "../afterMatch";
 import { imageFor, printScoresheet, shareImage, shareText, soloLines, type ImageKind } from "../share";
 import { playerOfTheMatch } from "../mvp";
 import { AwardsCard } from "../chartsView";
-import { Badge, Card, Header, PrimaryButton, Sheet } from "../ui";
+import { Badge, Card, Header, NotFound, PrimaryButton, Sheet } from "../ui";
 import { shouldPrompt } from "../sharePrompt";
 import { SeriesAfterMatch } from "./Series";
 import { track } from "../track";
@@ -47,9 +47,7 @@ function SharePrompt({ m }: { m: Match }) {
   if (!open) return null;
   return (
     <Sheet title="Send the result to your group?" onClose={() => setOpen(false)}
-      footer={<PrimaryButton onClick={() => { track(EV.result_prompt, { act: "send" }); void shareImage(m, "full"); setOpen(false); }}>Send scorecard on WhatsApp</PrimaryButton>}>
-      <p className="text-sm text-mute">The full scorecard goes as one image, with the link to score your own matches.</p>
-    </Sheet>
+      footer={<PrimaryButton onClick={() => { track(EV.result_prompt, { act: "send" }); void shareImage(m, "full"); setOpen(false); }}>Send scorecard on WhatsApp</PrimaryButton>}>{null}</Sheet>
   );
 }
 
@@ -58,7 +56,8 @@ export default function Result() {
   const { go, put, undo } = useStore();
   const [superOver, setSuperOver] = useState(false);
   useEffect(() => { if (m && m.status !== "done") go("live"); }, [m, go]);
-  if (!m || m.status !== "done") return null;
+  if (!m) return <NotFound what="match" />;
+  if (m.status !== "done") return null;
 
   if (E.isSolo(m)) return <SoloResult m={m} />;
   const res = E.result(m)!, aw = E.awards(m), potm = playerOfTheMatch(m);
@@ -69,9 +68,9 @@ export default function Result() {
     <div className="min-h-screen pb-10">
       {winner && <Confetti />}
       <SharePrompt m={m} />
-      <Header title="Match Summary" back={() => go("home")}>
+      <Header title="Match summary" back={() => go("home")}>
         <div className="mt-2 flex flex-col items-center text-center">
-          {winner ? <Badge name={winner} size={72} /> : <span className="text-5xl">🤝</span>}
+          {winner ? <Badge name={winner} size={72} kind="team" /> : <span className="text-5xl">🤝</span>}
           <p className="mt-3 text-[26px] font-extrabold leading-tight text-fg">{res.text}</p>
         </div>
       </Header>
@@ -91,14 +90,16 @@ export default function Result() {
         </div>
         <a href="/cards/" className="press flex min-h-12 w-full items-center justify-center rounded-2xl border-2 border-line bg-panel font-semibold text-teal">Who played best? Make everyone's player card</a>
         <Rematch m={m} />
-        {m.series ? null : m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the tournament</PrimaryButton>
-          : <PrimaryButton tone="navy" onClick={() => go("setup")}>Play again, same teams</PrimaryButton>}
+        {m.series ? null : m.cup ? <PrimaryButton tone="navy" onClick={() => { useStore.setState({ cupId: m.cup!.id }); go("cup"); }}>Back to the cup</PrimaryButton>
+          : rematchShown(m) ? null : <PrimaryButton tone="navy" onClick={() => go("setup")}>Play again, same teams</PrimaryButton>}
         <div className="pt-6"><AdBox /></div>
       </main>
       {superOver && <OpenersSheet match={m} onClose={() => setSuperOver(false)} onStart={(n) => { put(n); setSuperOver(false); go("live"); }} />}
     </div>
   );
 }
+
+const rematchShown = (m: Match) => canRematch(m) && canScore(m);
 
 /** Solo standings as WhatsApp text. */
 const soloText = (m: Match) =>
@@ -113,7 +114,7 @@ function Rematch({ m }: { m: Match }) {
   return (
     <>
       {tally && <Card className="text-center"><p className="text-xs font-semibold text-mute">This evening</p><p className="mt-1 font-bold text-fg">{tally}</p></Card>}
-      {canRematch(m) && canScore(m) && <PrimaryButton tone="navy" onClick={() => setNext(rematchMatch(m))}>{E.isSolo(m) ? "Rematch, same players and rules" : "Rematch, same teams and rules"}</PrimaryButton>}
+      {rematchShown(m) && <PrimaryButton tone="navy" onClick={() => setNext(rematchMatch(m))}>{E.isSolo(m) ? "Rematch, same players and rules" : "Rematch, same teams and rules"}</PrimaryButton>}
       {next && (E.isSolo(next) ? <SoloTurnSheet match={next} onClose={() => setNext(null)} onStart={start} />
         : <OpenersSheet match={next} onClose={() => setNext(null)} onStart={start} />)}
     </>
@@ -161,7 +162,7 @@ function Sharing({ m, text, textLabel }: { m: Match; text: () => void; textLabel
         <button onClick={() => shareImage(m, "card")} className="press min-h-12 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Send highlights</button>
         <button onClick={text} className="press min-h-12 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">{textLabel}</button>
       </div>
-      <p className="pt-2 text-sm font-semibold text-teal">Posters <span className="text-xs font-normal text-mute">· tap one to send it</span></p>
+      <p className="pt-2 text-sm font-semibold text-teal">Posters</p>
       <div className="grid grid-cols-2 gap-2">
         <PosterTile m={m} kind="match" label="Match poster" />
         <PosterTile m={m} kind="winner" label="Winner poster" />
@@ -184,7 +185,7 @@ function SoloResult({ m }: { m: Match }) {
   return (
     <div className="min-h-screen pb-10">
       {winner && <Confetti />}
-      <Header title="Match Summary" back={() => go("home")}>
+      <Header title="Match summary" back={() => go("home")}>
         <div className="mt-2 flex flex-col items-center text-center">
           {winner ? <Badge name={winner.name} size={72} /> : <span className="text-5xl">🤝</span>}
           <p className="mt-3 text-[26px] font-extrabold leading-tight text-fg">{res.text}</p>
@@ -218,7 +219,7 @@ function SoloResult({ m }: { m: Match }) {
           {canScore(m) && <button onClick={() => undo(m.id)} className="press min-h-12 rounded-2xl bg-panel font-semibold text-mute">↶ Undo last ball</button>}
         </div>
         <Rematch m={m} />
-        <PrimaryButton tone="navy" onClick={again}>Play again, same players</PrimaryButton>
+        {rematchShown(m) ? null : <PrimaryButton tone="navy" onClick={again}>Play again, same players</PrimaryButton>}
         <div className="pt-6"><AdBox /></div>
       </main>
     </div>

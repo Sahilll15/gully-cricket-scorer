@@ -9,11 +9,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Ball } from "@shared/engine/types";
 import { ballLabel } from "@shared/engine/engine";
-import { BarChart3, ChevronLeft, History as HistoryIcon, House, Trophy, Users, X, type LucideIcon } from "lucide-react-native";
+import { BarChart3, ChevronLeft, House, Trophy, Users, X, type LucideIcon } from "lucide-react-native";
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useStore, type Screen } from "@/lib/store";
 import { photoOf } from "@shared/photo";
 import { ChalkRing } from "./gully";
+import { AvatarSvg } from "./AvatarSvg";
 
 /** Same palette as the web app: black ground, orange as the only accent. */
 export const C = {
@@ -43,7 +44,7 @@ const FONT: Record<string, string> = {
 export function Txt({ style, ...p }: TextProps) {
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
   const { fontWeight, ...rest } = flat;
-  return <Text {...p} style={[{ color: C.fg, fontFamily: FONT[String(fontWeight ?? "400")] ?? FONT["400"] }, rest]} />;
+  return <Text maxFontSizeMultiplier={1.6} {...p} style={[{ color: C.fg, fontFamily: FONT[String(fontWeight ?? "400")] ?? FONT["400"] }, rest]} />;
 }
 
 const MONO: Record<string, string> = { "400": "Poppins_500Medium", "500": "Poppins_500Medium", "600": "Poppins_600SemiBold", "700": "Poppins_700Bold", "800": "Poppins_800ExtraBold", "900": "Poppins_800ExtraBold" };
@@ -52,17 +53,18 @@ const MONO: Record<string, string> = { "400": "Poppins_500Medium", "500": "Poppi
 export function Num({ style, ...p }: TextProps) {
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
   const { fontWeight, ...rest } = flat;
-  return <Text {...p} style={[{ color: C.fg, fontFamily: MONO[String(fontWeight ?? "700")] ?? MONO["700"], includeFontPadding: false }, rest]} />;
+  return <Text maxFontSizeMultiplier={1.4} {...p} style={[{ color: C.fg, fontFamily: MONO[String(fontWeight ?? "700")] ?? MONO["700"], includeFontPadding: false }, rest]} />;
 }
 /** Kept for screens that put numbers in Display; it is the mono numeral face now. */
 export const Display = Num;
 
 /** The big live score, bold white like the web app. */
 export function Board({ style, ...p }: TextProps) {
-  return <Text {...p} style={[{ color: C.fg, fontFamily: "Poppins_800ExtraBold", includeFontPadding: false }, style]} />;
+  return <Text maxFontSizeMultiplier={1.2} {...p} style={[{ color: C.fg, fontFamily: "Poppins_800ExtraBold", includeFontPadding: false }, style]} />;
 }
 
 /** Kept so screens compile; the web app has no backdrop art. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function Beams(_: { height?: number }) {
   return null;
 }
@@ -105,12 +107,12 @@ export const buzz = (kind: "tap" | "heavy" | "warn" = "tap") => {
 
 const APressable = Animated.createAnimatedComponent(Pressable);
 
-/** Pressable that shrinks a little while held, like the web app's .press class. Style sits on the Pressable so flex-1 works. */
-export function Press({ style, children, disabled, onPress, haptic = true, ...p }: PressableProps & { style?: StyleProp<ViewStyle>; haptic?: boolean; children?: ReactNode }) {
+/** Pressable that shrinks a little while held, like the web app's .press class. Style sits on the Pressable so flex-1 works. Default hitSlop lifts 36 to 40dp controls to the 44dp minimum. */
+export function Press({ style, children, disabled, onPress, haptic = true, hitSlop = 4, ...p }: PressableProps & { style?: StyleProp<ViewStyle>; haptic?: boolean; children?: ReactNode }) {
   const scale = useRef(new Animated.Value(1)).current;
   const to = (v: number) => Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
   return (
-    <APressable {...p} disabled={disabled} onPressIn={() => to(0.95)} onPressOut={() => to(1)}
+    <APressable {...p} hitSlop={hitSlop} disabled={disabled} accessibilityState={{ ...p.accessibilityState, disabled: !!disabled || p.accessibilityState?.disabled }} onPressIn={() => to(0.95)} onPressOut={() => to(1)}
       onPress={(e: Parameters<NonNullable<PressableProps["onPress"]>>[0]) => { if (haptic) buzz(); onPress?.(e); }}
       accessibilityRole={p.accessibilityRole ?? "button"}
       style={[disabled ? { opacity: 0.4 } : null, style, { transform: [{ scale }] }]}>
@@ -139,8 +141,9 @@ export function Glow({ children, style }: { children?: ReactNode; style?: StyleP
 
 export function IconButton({ icon: I, onPress, label, tone = "key", size = 44 }: { icon: LucideIcon; onPress?: () => void; label: string; tone?: "key" | "sun" | "glass"; size?: number }) {
   const bg = tone === "sun" ? C.sun : tone === "glass" ? "rgba(255,255,255,0.08)" : C.key;
+  const slop = Math.max(0, Math.ceil((44 - size) / 2));
   return (
-    <Press onPress={onPress} accessibilityLabel={label} style={{ width: size, height: size, borderRadius: size > 40 ? 16 : size, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+    <Press onPress={onPress} accessibilityLabel={label} hitSlop={slop} style={{ width: size, height: size, borderRadius: size > 40 ? 16 : size, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
       <I size={Math.round(size * 0.48)} color={tone === "sun" ? C.ink : C.fg} strokeWidth={2.4} />
     </Press>
   );
@@ -152,7 +155,7 @@ export function Header({ title, back, right, children }: { title: string; back?:
     <Glow style={[tw`px-4 pb-5`, { paddingTop: Math.max(14, top + 6) }]}>
       <View style={tw`flex-row items-center gap-3 h-12`}>
         {back ? <IconButton icon={ChevronLeft} onPress={back} label="Back" size={44} /> : <View style={tw`w-11`} />}
-        <Txt style={tw`flex-1 text-center text-[18px] font-bold text-fg`} numberOfLines={1}>{title}</Txt>
+        <Txt accessibilityRole="header" style={tw`flex-1 text-center text-[18px] font-bold text-fg`} numberOfLines={1}>{title}</Txt>
         <View style={tw`min-w-11 flex-row justify-end`}>{right}</View>
       </View>
       {children}
@@ -214,19 +217,14 @@ export function LiveDot({ size = 8 }: { size?: number }) {
 
 export const LivePill = () => (
   <View style={tw`flex-row items-center gap-1.5`}>
-    <LiveDot size={7} /><Txt style={tw`text-[12px] font-medium text-sun`}>Live</Txt>
+    <LiveDot size={7} /><Txt accessibilityLabel="Live" style={tw`text-[12px] font-medium text-sun`}>Live</Txt>
   </View>
 );
 
-export function Badge({ name, size = 44 }: { name: string; size?: number }) {
+export function Badge({ name, size = 44, kind = "player" }: { name: string; size?: number; kind?: "player" | "team" }) {
   const photo = useStore((s) => photoOf(s.infos, name));
-  if (photo) return <Image source={{ uri: photo }} accessibilityIgnoresInvertColors style={{ width: size, height: size, borderRadius: size, borderWidth: 1, borderColor: "#24242d" }} />;
-  const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
-  return (
-    <View style={{ width: size, height: size, borderRadius: size, backgroundColor: "#1c1c24", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#24242d" }}>
-      <Txt style={{ fontSize: size * 0.34, fontWeight: "600", color: C.fg }}>{initials}</Txt>
-    </View>
-  );
+  if (photo) return <Image source={{ uri: photo }} accessibilityIgnoresInvertColors accessible={false} importantForAccessibility="no" style={{ width: size, height: size, borderRadius: size, borderWidth: 1, borderColor: "#24242d" }} />;
+  return <AvatarSvg name={name} kind={kind} size={size} />;
 }
 
 const OUT_TINT = "#2b1311";
@@ -266,14 +264,14 @@ export function Sheet({ title, onClose, children, footer }: { title: string; onC
   return (
     <Modal visible transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={() => onClose?.()}>
       <View style={[tw`flex-1 justify-end`, { paddingBottom: kb }]}>
-        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.7)" }]} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.7)" }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
         <View style={[tw`rounded-t-[28px] border-t border-line`, { maxHeight: kb ? room : win * 0.88, backgroundColor: C.panel }]}>
           <ScrollView ref={scroll} style={[tw`px-5`, { flexShrink: 1 }]} contentContainerStyle={{ paddingTop: 12, paddingBottom: footer ? 16 : kb ? 16 : Math.max(16, bottom + 8) }}
             keyboardShouldPersistTaps="handled" bounces={false} onTouchEnd={() => { if (kb) setTimeout(() => revealRef.current(), 200); }}>
             <View ref={content} collapsable={false}>
               <View style={tw`self-center mb-3 h-1.5 w-12 rounded-full bg-line`} />
               <View style={tw`mb-4 flex-row items-center justify-between`}>
-                <Txt style={tw`flex-1 text-[19px] font-semibold`}>{title}</Txt>
+                <Txt accessibilityRole="header" style={tw`flex-1 text-[19px] font-semibold`}>{title}</Txt>
                 {onClose && (
                   <IconButton icon={X} onPress={onClose} label="Close" size={40} />
                 )}
@@ -290,7 +288,7 @@ export function Sheet({ title, onClose, children, footer }: { title: string; onC
 
 export function Pill({ active, children, onPress, disabled }: { active?: boolean; children: ReactNode; onPress?: () => void; disabled?: boolean }) {
   return (
-    <Press onPress={onPress} disabled={disabled}
+    <Press onPress={onPress} disabled={disabled} accessibilityState={{ selected: !!active, disabled: !!disabled }}
       style={tw`min-h-11 rounded-full border px-4 items-center justify-center ${active ? "border-sun bg-sun" : "border-line"}`}>
       <Txt style={tw`font-medium text-[14px] ${active ? "text-ink" : "text-teal"}`}>{children}</Txt>
     </Press>
@@ -325,11 +323,11 @@ export function GhostButton({ children, onPress, disabled, danger }: { children:
 export function Stepper({ value, set, min = 1, max = 50 }: { value: number; set: (n: number) => void; min?: number; max?: number }) {
   return (
     <View style={tw`flex-row items-center justify-between rounded-2xl bg-key p-1.5`}>
-      <Press style={tw`w-12 h-12 rounded-xl bg-panel items-center justify-center`} onPress={() => set(Math.max(min, value - 1))} accessibilityLabel="Less">
+      <Press style={tw`w-12 h-12 rounded-xl bg-panel items-center justify-center`} onPress={() => set(Math.max(min, value - 1))} accessibilityLabel="Decrease" accessibilityState={{ disabled: value <= min }}>
         <Txt style={tw`text-2xl font-bold`}>−</Txt>
       </Press>
-      <Num style={tw`text-[26px]`}>{value}</Num>
-      <Press style={tw`w-12 h-12 rounded-xl bg-panel items-center justify-center`} onPress={() => set(Math.min(max, value + 1))} accessibilityLabel="More">
+      <Num accessibilityLiveRegion="polite" style={tw`text-[26px]`}>{value}</Num>
+      <Press style={tw`w-12 h-12 rounded-xl bg-panel items-center justify-center`} onPress={() => set(Math.min(max, value + 1))} accessibilityLabel="Increase" accessibilityState={{ disabled: value >= max }}>
         <Txt style={tw`text-2xl font-bold`}>+</Txt>
       </Press>
     </View>
@@ -340,7 +338,7 @@ export function Toggle({ on, set, label, hint }: { on: boolean; set: (v: boolean
   const x = useRef(new Animated.Value(on ? 1 : 0)).current;
   useEffect(() => { Animated.timing(x, { toValue: on ? 1 : 0, duration: 150, useNativeDriver: true }).start(); }, [on, x]);
   return (
-    <Pressable onPress={() => { buzz(); set(!on); }} style={tw`flex-row w-full items-center gap-3 py-3`} accessibilityRole="switch" accessibilityState={{ checked: on }}>
+    <Pressable onPress={() => { buzz(); set(!on); }} style={tw`flex-row w-full items-center gap-3 py-3`} accessibilityRole="switch" accessibilityLabel={hint ? `${label}. ${hint}` : label} accessibilityState={{ checked: on }}>
       <View style={tw`flex-1`}>
         <Txt style={tw`font-medium text-[15px]`}>{label}</Txt>
         {hint && <Txt style={tw`text-xs text-mute`}>{hint}</Txt>}
@@ -357,40 +355,25 @@ const NAV: { s: Screen; label: string; icon: LucideIcon }[] = [
   { s: "cups", label: "Cups", icon: Trophy },
   { s: "teams", label: "Teams", icon: Users },
   { s: "stats", label: "Stats", icon: BarChart3 },
-  { s: "history", label: "History", icon: HistoryIcon },
 ];
-
-/** Tab bar like the web app, in the page flow so ads and lists never slide under it: icon over label, the active tab is an orange pill. */
-export function BottomNav() {
+function NavTab({ s, label, icon: I }: (typeof NAV)[number]) {
   const { screen, go } = useStore();
-  const bottom = useSafeAreaInsets().bottom;
-  const still = useReduceMotion();
-  const [w, setW] = useState(0);
-  const slot = w / NAV.length;
-  const at = Math.max(0, NAV.findIndex((n) => n.s === screen));
-  const x = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!slot) return;
-    Animated.timing(x, { toValue: at * slot, duration: still ? 0 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-  }, [at, slot, still, x]);
+  const on = screen === s;
   return (
-    <View style={[tw`bg-cream px-4 pt-2`, { paddingBottom: Math.max(16, bottom + 6) }]}>
-      <View style={[tw`rounded-full border border-line bg-panel px-2 py-1.5`, { elevation: 16, shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }]}>
-        {/* The orange pill slides under the active tab; the tabs themselves stay put. */}
-        <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={tw`flex-row items-center`}>
-          {slot > 0 && <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: slot, borderRadius: 24, backgroundColor: C.sun, transform: [{ translateX: x }] }} />}
-          {NAV.map(({ s, label, icon: I }) => {
-            const on = screen === s;
-            return (
-              <Press key={s} onPress={() => go(s)} accessibilityLabel={label} accessibilityState={{ selected: on }}
-                style={{ flex: 1, minHeight: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", gap: 2 }}>
-                <I size={18} color={on ? C.ink : C.teal} strokeWidth={2.2} />
-                <Txt numberOfLines={1} style={{ fontSize: 11, fontWeight: "600", color: on ? C.ink : C.teal }}>{label}</Txt>
-              </Press>
-            );
-          })}
-        </View>
-      </View>
+    <Press onPress={() => go(s)} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected: on }}
+      style={{ flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 4 }}>
+      <I size={22} color={on ? C.sun : C.mute} strokeWidth={on ? 2 : 1.6} />
+      <Txt numberOfLines={1} style={{ fontSize: 11, fontWeight: on ? "600" : "400", color: on ? C.sun : C.mute }}>{label}</Txt>
+    </Press>
+  );
+}
+
+/** Flat docked tab bar in the page flow, so ads and lists never slide under it. */
+export function BottomNav() {
+  const bottom = useSafeAreaInsets().bottom;
+  return (
+    <View style={[tw`bg-cream flex-row px-2`, { paddingTop: 6, paddingBottom: Math.max(8, bottom), borderTopWidth: 0.5, borderTopColor: C.line }]}>
+      {NAV.map((n) => <NavTab key={n.s} {...n} />)}
     </View>
   );
 }
@@ -399,7 +382,7 @@ export function Segmented<T extends string | number>({ items, value, set }: { it
   return (
     <View style={tw`flex-row gap-1 rounded-full border border-line bg-panel p-1`}>
       {items.map((it) => (
-        <Press key={String(it.v)} onPress={() => set(it.v)} style={tw`min-h-11 flex-1 rounded-full px-3 items-center justify-center ${value === it.v ? "bg-sun" : ""}`}>
+        <Press key={String(it.v)} onPress={() => set(it.v)} accessibilityRole="radio" accessibilityState={{ selected: value === it.v }} style={tw`min-h-11 flex-1 rounded-full px-3 items-center justify-center ${value === it.v ? "bg-sun" : ""}`}>
           {isText(it.label)
             ? <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={tw`text-sm font-semibold ${value === it.v ? "text-ink" : "text-mute"}`}>{it.label}</Txt> : it.label}
         </Press>
@@ -440,6 +423,21 @@ function useReduceMotion() {
     return () => sub.remove();
   }, []);
   return on;
+}
+
+/** Shown when a screen's match, cup or series is gone (deleted, or a stale link) so the user is never left on a blank page. */
+export function NotFound({ what }: { what: string }) {
+  const go = useStore((s) => s.go);
+  return (
+    <Page>
+      <Header title="Not found" back={() => go("home")} />
+      <View style={tw`items-center gap-4 px-6 pt-16`}>
+        <Txt accessibilityRole="header" style={tw`text-center text-[18px] font-semibold`}>{`This ${what} is not on this phone`}</Txt>
+        <Txt style={tw`text-center text-[14px] text-mute`}>It may have been deleted.</Txt>
+        <PrimaryButton onPress={() => go("home")}>Go home</PrimaryButton>
+      </View>
+    </Page>
+  );
 }
 
 /** Full-height screen body on the brand background with safe-area bottom padding. */

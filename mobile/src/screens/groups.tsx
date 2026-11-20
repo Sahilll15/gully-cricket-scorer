@@ -11,7 +11,7 @@ import { copyText, sendText } from "@/lib/share";
 import { setWeekly, weeklyOn } from "@/lib/weekly";
 import { WEB_BASE } from "@/lib/env";
 import { ChevronRight, Copy, Send, X } from "lucide-react-native";
-import { C, Card, ConfirmSheet, GhostButton, Press, PrimaryButton, SectionTitle, Sheet, Toggle, tw, Txt } from "@/ui/ui";
+import { C, Card, ConfirmSheet, Press, PrimaryButton, SectionTitle, Sheet, Toggle, tw, Txt } from "@/ui/ui";
 import { TextField } from "./Teams";
 
 const ghost = (off: boolean) => tw`flex-1 min-h-12 rounded-[16px] border border-line items-center justify-center ${off ? "opacity-40" : ""}`;
@@ -112,7 +112,7 @@ function GroupEditor({ group, onClose }: { group: PlayerGroup; onClose: () => vo
           <Copy size={16} color={C.teal} strokeWidth={2} /><Txt style={tw`font-medium text-fg`}>Copy link</Txt>
         </Press>
       </View>
-      <Txt style={tw`mt-2 text-xs text-mute`}>{note || "Anyone who opens the link gets their own copy of this group. Later edits are not synced."}</Txt>
+      <Txt style={tw`mt-2 text-xs text-mute`}>{note || "They get a copy. Edits don't sync."}</Txt>
       <Press onPress={() => setAskDel(true)} style={tw`mt-4 min-h-12 w-full rounded-[16px] items-center justify-center`}><Txt style={tw`font-medium text-out`}>Delete group</Txt></Press>
     </Sheet>
     {askDel && <ConfirmSheet title={`Delete ${g.name}?`} body="Teams already made from it keep their players." yes="Delete" danger
@@ -139,7 +139,7 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
   };
   return (<>
     <Sheet title="Player groups" onClose={onClose}>
-      <Txt style={tw`text-sm text-mute`}>Save a squad once, then fill any team from it, or send it to a friend.</Txt>
+      <Txt style={tw`text-sm text-mute`}>Save a squad once. Reuse it for any team.</Txt>
       <View style={tw`mt-3 flex-row gap-2`}>
         <TextField value={name} onChangeText={setName} placeholder="New group, e.g. Sunday boys" maxLength={24} outline onSubmitEditing={create} returnKeyType="done" style={tw`min-h-12 flex-1`} />
         <Press onPress={create} style={tw`min-h-12 rounded-[16px] bg-sun px-5 items-center justify-center`}><Txt style={tw`font-semibold text-ink`}>Create</Txt></Press>
@@ -159,7 +159,7 @@ export function GroupsSheet({ onClose }: { onClose: () => void }) {
         {!groups.length && <Txt style={tw`py-3 text-center text-sm text-mute`}>No groups yet.</Txt>}
       </View>
       <View style={tw`mt-4`}><SectionTitle>Sunday reminder</SectionTitle></View>
-      <Toggle on={weekly} label="Remind me on Sunday evening" hint="One notification a week to check the leaderboard and plan the game."
+      <Toggle on={weekly} label="Remind me on Sunday evening" hint="A weekly nudge to plan the game."
         set={(v) => { void setWeekly(v).then((now) => { track(EV.weekly_reminder, { on: now ? 1 : 0 }); setWeeklyState(now); }); }} />
       <View style={tw`mt-4`}><SectionTitle>Import a group</SectionTitle></View>
       <View style={tw`flex-row gap-2`}>

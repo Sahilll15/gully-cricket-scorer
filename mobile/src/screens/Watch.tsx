@@ -98,12 +98,12 @@ export function JoinScoring() {
       <Header title="Move scoring here" back={() => go("home")}>
         <CodePanel code={joinCode}>
           {status === "BAD" ? "That match couldn't be read. Ask for a fresh link."
-            : status === "USED" ? "This link was already used or cancelled. Ask the scorer for a new one."
-            : status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
+            : status === "USED" ? "Link already used. Ask for a new one."
+            : status === "SUBSCRIBED" ? "Getting the match. Keep the other app open." : "Connecting..."}
         </CodePanel>
       </Header>
       <View style={tw`gap-3 px-4 pt-4`}>
-        <Txt style={tw`text-center text-sm text-mute`}>Once it loads, scoring moves to this phone and the other phone just follows along.</Txt>
+        <Txt style={tw`text-center text-sm text-mute`}>Scoring moves here. The other phone follows.</Txt>
         {status === "USED" && fpShown && <PrimaryButton onPress={() => watchMatch(joinCode, fpShown)}>Just watch the match</PrimaryButton>}
         <PrimaryButton tone="navy" onPress={() => go("home")}>Cancel</PrimaryButton>
       </View>
@@ -140,7 +140,7 @@ function LiveScore({ m }: { m: NonNullable<LiveState["match"]> }) {
   return (
     <ScoreHero style={tw`mt-3`}>
       <View style={tw`flex-row items-center gap-2`}>
-        <Badge name={solo ? who : batTeam.name} size={28} />
+        <Badge name={solo ? who : batTeam.name} kind={solo ? "player" : "team"} size={28} />
         <Txt numberOfLines={1} style={tw`flex-1 text-[13px] font-medium text-teal`}>
           {solo ? `${who} ${m.status === "live" ? "batting" : "· turn over"}${E.isFrench(m) ? " · French cricket" : ""}` : `${batTeam.name} · ${label}`}
         </Txt>
@@ -212,7 +212,7 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
         <Card style={tw`px-3.5 py-1`}>
           {others.map(({ x, st: s }, i) => (
             <View key={i} style={tw`flex-row items-center gap-3 py-2.5 ${i ? "border-t border-line" : ""}`}>
-              <Badge name={m.teams[x.bat].name} size={28} />
+              <Badge name={m.teams[x.bat].name} size={28} kind="team" />
               <Txt numberOfLines={1} style={tw`flex-1 text-[14px] text-teal`}>{m.teams[x.bat].name}{x.superOver ? " (super over)" : ""}</Txt>
               <Num style={tw`text-[16px] text-fg`}>{E.inningsScore(m, i)} <Num style={tw`text-[12px] text-mute`}>({E.oversText(s.legal)})</Num></Num>
             </View>

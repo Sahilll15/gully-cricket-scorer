@@ -32,6 +32,8 @@ button { cursor: pointer; touch-action: manipulation; }
 input { min-width: 0; }
 #root { overflow-x: clip; }
 button:disabled { cursor: not-allowed; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--color-sun); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .press, .sheet-in, .live-dot { animation: none !important; transition: none !important; } }
 
 .press { transition: transform 0.08s ease; }
 .press:active { transform: scale(0.95); }

@@ -35,6 +35,14 @@ export function dayOptions(now = Date.now(), n = 8): { at: number; label: string
 export const atTime = (day: number, minutes: number) => { const d = new Date(day); d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0); return d.getTime(); };
 export const minutesOf = (t: number) => { const d = new Date(t); return d.getHours() * 60 + d.getMinutes(); };
 
+/** One-tap start times so reaching the evening is not fifteen taps on the stepper. */
+export const TIME_PRESETS = [
+  { label: "Morning", minutes: 7 * 60 },
+  { label: "Afternoon", minutes: 16 * 60 },
+  { label: "Evening", minutes: 18 * 60 },
+  { label: "Night", minutes: 20 * 60 },
+] as const;
+
 /** Shown on Home until a few hours after the start, so it can still be shared on the way. */
 export const isOver = (g: NextGame, now = Date.now()) => now > g.at + 3 * HOUR;
 

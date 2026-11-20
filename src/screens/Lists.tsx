@@ -18,31 +18,20 @@ export function History() {
     (f === "all" || (f === "done" ? m.status === "done" : m.status !== "done")) &&
     m.teams.some((t) => t.name.toLowerCase().includes(q.toLowerCase())));
   return (
-    <div className="min-h-screen pb-28">
-      <Header title="Match History">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a team"
+    <div className="min-h-screen pb-10">
+      <Header title="History" back={() => go("home")}>
+        <input aria-label="Search a team" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a team"
           className="mt-3 min-h-12 w-full rounded-2xl bg-panel px-4 font-medium outline-none placeholder:text-mute" />
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <button onClick={() => go("book")} className="press flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-line bg-panel px-4 py-2 text-left">
-          <span className="text-2xl">📖</span>
-          <span className="flex-1"><span className="block font-semibold text-fg">Gully Book</span><span className="text-xs text-mute">Records, milestones and bragging rights</span></span>
-          <span className="text-mute">›</span>
-        </button>
-        <Segmented value={f} set={setF} items={[{ v: "all", label: "All" }, { v: "live", label: "Live" }, { v: "done", label: "Completed" }]} />
-        {list.map((m) => (
-          <div key={m.id} className="relative">
-            <MatchCard m={m} />
-            <button onClick={() => setAsk(m)}
-              className="press absolute bottom-3 right-3 min-h-10 rounded-full px-3 text-xs font-semibold text-out" aria-label="Delete match">Delete</button>
-          </div>
-        ))}
+        <Segmented value={f} set={setF} items={[{ v: "all", label: "All" }, { v: "live", label: "Live" }, { v: "done", label: "Results" }]} />
+        {list.map((m) => <MatchCard key={m.id} m={m} onHold={() => setAsk(m)} />)}
+        {list.length > 0 && <p className="text-center text-xs text-mute">Hold a match to delete it.</p>}
         {!list.length && <p className="pt-8 text-center text-mute">No matches here yet.</p>}
       </main>
       {ask && <ConfirmSheet title="Delete this match?" body={`${ask.teams[0].name} vs ${ask.teams[1].name}. Its runs and wickets come off everyone's stats.`}
         yes="Delete" danger onYes={() => remove(ask.id)} onClose={() => setAsk(null)} />}
       <AdBox />
-      <BottomNav />
     </div>
   );
 }
@@ -81,13 +70,12 @@ export function Stats() {
   }[b];
   return (
     <div className="min-h-screen pb-28">
-      <Header title="Leaderboard" />
+      <Header title="Stats" />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         <FmtSwitch value={fmt} set={(v) => useStore.setState({ fmt: v })} />
         <Summary matches={matches} fmt={fmt} players={all.length} />
         <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <p className="text-center text-xs text-mute">Players with at least 10 balls faced</p>}
-        {rows.length > 0 && <p className="text-center text-xs text-mute">Tap a player to open their card.</p>}
         <Card className="!p-0 overflow-hidden">
           {rows.map(([r, big, sub], i) => (
             <button key={r.name} onClick={() => openPlayer(r.name)} className="press flex w-full items-center gap-3 border-t border-line px-4 py-3 text-left first:border-0">
@@ -98,11 +86,11 @@ export function Stats() {
             </button>
           ))}
           {!rows.length && <p className="p-6 text-center text-sm text-mute">{matches.some((m) => fmtOf(m) === fmt)
-            ? b === "field" ? "Name the fielder when you record a catch, run out or stumping, and it counts here." : "Nothing here yet."
+            ? b === "field" ? "Name the fielder on a wicket to count it." : "Nothing here yet."
             : fmt === "test" ? "No Test matches yet. Pick Test match when you set one up." : "Name your players when setting up a match and they show up here."}</p>}
         </Card>
         {all.length > 0 && <button onClick={() => downloadCsv(statsCsv(matches, fmt), csvName(fmt))}
-          className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Download all player stats (CSV)</button>}
+          className="press mx-auto block min-h-10 px-3 text-sm font-semibold text-mute">Export CSV</button>}
       </main>
       <AdBox />
       <BottomNav />

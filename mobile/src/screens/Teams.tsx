@@ -32,7 +32,7 @@ const FONTS = { "400": "Inter_400Regular", "500": "Inter_500Medium", "600": "Int
 export function TextField({ style, outline, weight = "400", ...p }: Omit<TextInputProps, "style"> & { style?: StyleProp<TextStyle>; outline?: boolean; weight?: keyof typeof FONTS }) {
   const [focus, setFocus] = useState(false);
   return (
-    <TextInput {...p} placeholderTextColor={C.mute} selectionColor={C.sun}
+    <TextInput accessibilityLabel={p.placeholder} {...p} placeholderTextColor={C.mute} selectionColor={C.sun}
       onFocus={(e) => { setFocus(true); p.onFocus?.(e); }} onBlur={(e) => { setFocus(false); p.onBlur?.(e); }}
       style={[tw`rounded-[16px] px-4 text-[15px]`, outline && tw`border bg-panel`, outline && { borderColor: focus ? C.sun : C.line }, style, { color: C.fg, fontFamily: FONTS[weight] }]} />
   );
@@ -65,7 +65,7 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
   const add = () => { if (v.trim()) { save({ ...t, players: [...t.players, { id: E.uid(), name: v.trim() }] }); setV(""); } };
   return (<>
     <Sheet title="Edit team" onClose={onClose}>
-      <TextField value={t.name} onChangeText={(name) => save({ ...t, name })} maxLength={18} weight="700"
+      <TextField value={t.name} onChangeText={(name) => save({ ...t, name })} maxLength={18} weight="700" accessibilityLabel="Team name"
         style={tw`min-h-12 w-full bg-key text-[17px]`} />
       <View style={tw`mt-5`}><SectionTitle>{`Squad (${t.players.length})`}</SectionTitle></View>
       <View style={tw`flex-row flex-wrap gap-2`}>
@@ -121,7 +121,7 @@ function MergeSheet({ onClose }: { onClose: () => void }) {
   return (<>
     <Sheet title="Merge players" onClose={onClose}
       footer={<PrimaryButton disabled={!from || !into} onPress={() => setAsk(true)}>{from && into ? `Merge ${from} into ${into}` : "Merge"}</PrimaryButton>}>
-      <Txt style={tw`text-[13px] leading-5 text-mute`}>Same person saved under two names? Merge them and their matches, teams, details and kitty all add up under one name.</Txt>
+      <Txt style={tw`text-[13px] leading-5 text-mute`}>Same person, two names? Merge them to add up the stats.</Txt>
       {names.length > 8 && <TextField value={q} onChangeText={setQ} placeholder="Search names" maxLength={20} outline style={tw`mt-3 min-h-12`} />}
       <View style={tw`mt-4`}><SectionTitle>Name to drop</SectionTitle></View>
       <View style={tw`flex-row flex-wrap gap-2`}>
@@ -152,7 +152,7 @@ export function Teams() {
   const create = () => { if (name.trim()) { track(EV.team_save); setEdit(saveTeam(name, [])); setName(""); } };
   return (
     <Page tabs>
-      <Header title="My Teams" />
+      <Header title="Teams" />
       <View style={tw`gap-3 px-4 pt-4`}>
         <View style={tw`flex-row gap-2`}>
           <TextField value={name} onChangeText={setName} placeholder="New team name" maxLength={18} outline weight="600"
@@ -161,18 +161,6 @@ export function Teams() {
             <Txt style={tw`font-semibold text-ink`}>Create</Txt>
           </Press>
         </View>
-        <GhostButton onPress={() => setGroupsOpen(true)}>
-          <View style={tw`flex-row items-center gap-2`}>
-            <Users size={18} color={C.teal} strokeWidth={2} />
-            <Txt style={tw`font-medium text-fg`}>Player groups</Txt>
-          </View>
-        </GhostButton>
-        <GhostButton onPress={() => setMerging(true)}>
-          <View style={tw`flex-row items-center gap-2`}>
-            <Merge size={18} color={C.teal} strokeWidth={2} />
-            <Txt style={tw`font-medium text-fg`}>Merge players</Txt>
-          </View>
-        </GhostButton>
         {lastMerge && (
           <Card style={tw`flex-row items-center gap-3 py-3`}>
             <Txt style={tw`flex-1 text-[14px] text-teal`}>Merged <Txt style={tw`font-semibold text-fg`}>{lastMerge.from}</Txt> into <Txt style={tw`font-semibold text-fg`}>{lastMerge.into}</Txt>.</Txt>
@@ -185,7 +173,7 @@ export function Teams() {
           <Press key={t.id} onPress={() => setEdit(t)}>
             <Card>
               <View style={tw`flex-row items-center gap-3`}>
-                <Badge name={t.name} size={44} />
+                <Badge name={t.name} size={44} kind="team" />
                 <View style={tw`flex-1 min-w-0`}>
                   <Txt style={tw`text-[17px] font-semibold`} numberOfLines={1}>{t.name}</Txt>
                   {!t.players.length && <Txt style={tw`text-[13px] text-mute`}>No players yet</Txt>}
@@ -202,7 +190,21 @@ export function Teams() {
             </Card>
           </Press>
         ))}
-        {!teams.length && <Txt style={tw`pt-6 text-center text-sm text-mute`}>Teams you play with are saved here automatically, with their squads.</Txt>}
+        {!teams.length && <Txt style={tw`pt-6 text-center text-sm text-mute`}>Teams you play are saved here.</Txt>}
+        <View style={tw`flex-row gap-2 pt-2`}>
+          <View style={tw`flex-1`}><GhostButton onPress={() => setGroupsOpen(true)}>
+          <View style={tw`flex-row items-center gap-2`}>
+            <Users size={18} color={C.teal} strokeWidth={2} />
+            <Txt style={tw`font-medium text-fg`}>Player groups</Txt>
+          </View>
+        </GhostButton></View>
+          <View style={tw`flex-1`}><GhostButton onPress={() => setMerging(true)}>
+          <View style={tw`flex-row items-center gap-2`}>
+            <Merge size={18} color={C.teal} strokeWidth={2} />
+            <Txt style={tw`font-medium text-fg`}>Merge players</Txt>
+          </View>
+        </GhostButton></View>
+        </View>
       </View>
       {edit && <TeamEditor team={edit} onClose={() => setEdit(null)} />}
       {merging && <MergeSheet onClose={() => setMerging(false)} />}
@@ -237,7 +239,7 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
       footer={<PrimaryButton disabled={!upiOk} onPress={save}>Save</PrimaryButton>}>
       {label("Photo", true)}
       <View style={tw`flex-row items-center gap-3`}>
-        {validPhoto(i.photo) ? <Image source={{ uri: i.photo }} style={{ width: 64, height: 64, borderRadius: 64 }} /> : <Badge name={name} size={64} />}
+        {validPhoto(i.photo) ? <Image source={{ uri: i.photo }} accessibilityLabel={`${name} photo`} style={{ width: 64, height: 64, borderRadius: 64 }} /> : <Badge name={name} size={64} />}
         <Press onPress={() => { void pickPhoto().then((p) => { if (p) { track(EV.player_photo_set); put({ photo: p }); } }); }}
           style={tw`min-h-11 rounded-full border border-line px-4 items-center justify-center`}>
           <Txt style={tw`text-sm font-medium`}>{i.photo ? "Change photo" : "Add photo"}</Txt>
@@ -259,7 +261,7 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
       {label("UPI ID (optional)")}
       <TextField value={upi} onChangeText={setUpi} placeholder="name@okaxis" autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
         maxLength={60} outline style={tw`min-h-12`} />
-      <Txt style={tw`mt-1.5 text-xs ${upiOk ? "text-mute" : "text-out"}`}>{upiOk ? "Lets the kitty show a QR when someone owes them. Stays on this phone." : "A UPI ID looks like name@bank."}</Txt>
+      <Txt style={tw`mt-1.5 text-xs ${upiOk ? "text-mute" : "text-out"}`}>{upiOk ? "Add a UPI ID to show a QR." : "A UPI ID looks like name@bank."}</Txt>
     </Sheet>
   );
 }
@@ -359,13 +361,17 @@ export function PlayerProfile() {
         <Txt style={tw`text-center text-sm text-mute`}>{matchesLine(p.matches, kind, year)}</Txt>
         {card.matches > 0 && <>
           <View ref={cardRef} collapsable={false} style={{ backgroundColor: C.cream }}><SkillCardView c={card} /></View>
+          <View style={tw`flex-row gap-2`}>
+            <View style={tw`flex-1`}>
           <GhostButton disabled={sharing} onPress={() => void share()}>
             <View style={tw`flex-row items-center gap-2`}>
               <Share2 size={18} color={C.teal} strokeWidth={2} />
               <Txt style={tw`font-medium text-fg`}>{sharing ? "One sec…" : "Share card"}</Txt>
             </View>
           </GhostButton>
-          {!!recap && <GhostButton onPress={() => { track(EV.recap_share, { year: recapYear }); void sendText(recap); }}><Txt style={tw`font-medium text-fg`}>{`Share my ${recapYear}`}</Txt></GhostButton>}
+            </View>
+            {!!recap && <View style={tw`flex-1`}><GhostButton onPress={() => { track(EV.recap_share, { year: recapYear }); void sendText(recap); }}><Txt style={tw`font-medium text-fg`}>{`Share my ${recapYear}`}</Txt></GhostButton></View>}
+          </View>
         </>}
         <Card>
           <SectionTitle>Batting</SectionTitle>
@@ -387,7 +393,6 @@ export function PlayerProfile() {
         <Card>
           <SectionTitle>Fielding</SectionTitle>
           <Grid cols={3}>{stat("Catches", p.catches)}{stat("Run outs", p.runOuts)}{stat("Stumpings", p.stumpings)}</Grid>
-          <Txt style={tw`mt-2 text-xs text-mute`}>Counted when you name the fielder on the wicket.</Txt>
         </Card>
         {p.recent.length > 0 && (
           <Card style={tw`p-0 overflow-hidden`}>
@@ -407,7 +412,6 @@ export function PlayerProfile() {
             ))}
           </Card>
         )}
-        <PrimaryButton tone="navy" onPress={() => go("stats")}>Back to leaderboard</PrimaryButton>
       </View>
       {editing && <InfoEditor name={p.name} info={info} onClose={() => setEditing(false)} />}
     </Page>

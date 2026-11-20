@@ -4,7 +4,7 @@ import * as Notifications from "expo-notifications";
 import { Bell, CalendarDays, ChevronRight, Minus, Plus, Share2 } from "lucide-react-native";
 import { uniqueNames } from "@shared/kitty";
 import {
-  atTime, dayOptions, dayText, isOver, minutesOf, nextGameText, reminderAt, startOfDay, timeText, type NextGame,
+  atTime, dayOptions, dayText, isOver, minutesOf, nextGameText, reminderAt, startOfDay, TIME_PRESETS, timeText, type NextGame,
 } from "@shared/nextGame";
 import { playerPool } from "@shared/stats";
 import { useStore } from "@/lib/store";
@@ -79,6 +79,7 @@ function NextGameSheet({ game, onClose }: { game: NextGame | null; onClose: () =
       <SectionTitle>Day</SectionTitle>
       <View style={tw`flex-row flex-wrap gap-2`}>{days.map((d) => <Chip key={d.at} on={day === d.at} onPress={() => setDay(d.at)}>{d.label}</Chip>)}</View>
       <Label t="Time" />
+      <View style={tw`mb-2 flex-row flex-wrap gap-2`}>{TIME_PRESETS.map((p) => <Chip key={p.label} on={mins === p.minutes} onPress={() => setMins(p.minutes)}>{p.label}</Chip>)}</View>
       <View style={tw`flex-row items-center justify-between rounded-2xl bg-key p-1.5`}>
         <Press style={tw`w-12 h-12 rounded-xl bg-panel items-center justify-center`} onPress={() => setMins((mins + 1440 - 30) % 1440)} accessibilityLabel="Earlier">
           <Minus size={20} color={C.fg} strokeWidth={2.4} />
@@ -101,7 +102,7 @@ function NextGameSheet({ game, onClose }: { game: NextGame | null; onClose: () =
       </View>
       <Label t="Note (optional)" />
       <TextField value={note} onChangeText={setNote} placeholder="Bring the tape ball" maxLength={80} outline style={tw`min-h-12`} />
-      <Txt style={tw`mt-4 text-xs text-mute`}>You get a reminder an hour before. The app asks to send notifications when you save.</Txt>
+      <Txt style={tw`mt-4 text-xs text-mute`}>You get a reminder an hour before.</Txt>
       {game && (
         <Press onPress={() => setAskClear(true)} style={tw`mt-5 min-h-12 w-full rounded-[16px] items-center justify-center`}>
           <Txt style={tw`font-medium text-out`}>Remove this game</Txt>
@@ -124,7 +125,7 @@ export function NextGameCard() {
       <View style={tw`h-10 w-10 rounded-full border border-line bg-panel items-center justify-center`}><CalendarDays size={20} color={C.teal} strokeWidth={2} /></View>
       <View style={tw`flex-1`}>
         <Txt style={tw`text-[15px] font-semibold text-fg`}>Plan the next game</Txt>
-        <Txt style={tw`mt-0.5 text-[13px] text-teal`}>Day, place and who's in. Share it to the group.</Txt>
+        <Txt style={tw`mt-0.5 text-[13px] text-teal`}>Day, place, who's in.</Txt>
       </View>
       <ChevronRight size={18} color={C.mute} strokeWidth={2} />
     </Press>

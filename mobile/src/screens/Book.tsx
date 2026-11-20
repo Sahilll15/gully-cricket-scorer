@@ -79,7 +79,7 @@ const METRICS: [BoardMetric, string][] = [["matches", "Matches"], ["runs", "Runs
 
 /** Opt-in world leaderboard of scorers, by nickname. */
 function WorldBoard() {
-  const phone = useAccount((a) => a.phone);
+  const phone = useAccount((a) => a.phone ?? a.google?.name ?? null);
   const [m, setM] = useState<BoardMetric>("matches");
   const [rows, setRows] = useState<BoardRow[] | null>(null);
   const [me, setMe] = useState<MyBoard | null>(null);
@@ -122,7 +122,7 @@ function WorldBoard() {
       {open && (
         <Sheet title="Rename on the leaderboard" onClose={() => setOpen(false)}>
           <Txt style={tw`text-[13px] leading-5 text-mute`}>Others see this name with your matches, runs, sixes and wickets. Never your number or player names.</Txt>
-          <TextInput value={nick} onChangeText={setNick} maxLength={20} placeholderTextColor={C.mute} selectionColor={C.sun} autoCorrect={false}
+          <TextInput value={nick} onChangeText={setNick} maxLength={20} accessibilityLabel="Leaderboard name" placeholderTextColor={C.mute} selectionColor={C.sun} autoCorrect={false}
             style={[tw`mt-3 min-h-12 rounded-2xl border border-line bg-panel px-4 text-[16px] text-fg`, { fontFamily: "Poppins_500Medium" }]} />
           {err && <Txt style={tw`mt-2 text-[13px] text-out`}>{err}</Txt>}
           <View style={tw`mt-4`}><GhostButton onPress={() => void rename()}><Txt style={tw`font-semibold text-sun`}>Save</Txt></GhostButton></View>
@@ -349,7 +349,7 @@ function Streaks({ d }: { d: BookData }) {
       <View style={tw`flex-row flex-wrap gap-2`}>
         {teams.map((t) => (
           <View key={t.name} style={tw`flex-row items-center gap-2 rounded-full border border-line bg-panel py-1.5 pl-1.5 pr-3`}>
-            <Badge name={t.name} size={24} />
+            <Badge name={t.name} size={24} kind="team" />
             <Txt style={tw`text-[14px] font-medium text-fg`}>{t.name}</Txt>
             <Txt style={tw`text-[12px] text-mute`}>best {t.best}{t.current > 1 ? `, now ${t.current}` : ""}</Txt>
           </View>
@@ -375,7 +375,7 @@ function PickSheet({ title, names, exclude, slots, onDone, onClose }: { title: s
     <Sheet title={title} onClose={onClose}>
       {slots === 2 && <Txt style={tw`mb-2 text-[13px] text-mute`}>{chosen.length ? `${chosen[0]} and ...` : "Tap the first, then the second."}</Txt>}
       {names.length > 8 && (
-        <TextInput value={q} onChangeText={setQ} placeholder="Search" placeholderTextColor={C.mute} selectionColor={C.sun}
+        <TextInput value={q} onChangeText={setQ} placeholder="Search" accessibilityLabel="Search players" placeholderTextColor={C.mute} selectionColor={C.sun}
           style={[tw`mb-2 min-h-12 rounded-[16px] border border-line bg-panel px-4 text-[15px]`, { color: C.fg, fontFamily: "Poppins_500Medium" }]} />
       )}
       {list.map((x, i) => (
@@ -477,7 +477,7 @@ function Rivals({ d, fmt }: { d: BookData; fmt: Fmt }) {
         <Card style={tw`py-1`}>
           {r.last5.map((x, i) => (
             <Press key={x.matchId} onPress={() => go("scorecard", x.matchId)} style={[rowCls(i === 0), tw`py-3`]}>
-              {x.winner ? <Badge name={x.winner} size={30} /> : <View style={tw`h-[30px] w-[30px] items-center justify-center rounded-full bg-key`}><Txt style={tw`text-[12px] font-bold text-mute`}>=</Txt></View>}
+              {x.winner ? <Badge name={x.winner} size={30} kind="team" /> : <View style={tw`h-[30px] w-[30px] items-center justify-center rounded-full bg-key`}><Txt style={tw`text-[12px] font-bold text-mute`}>=</Txt></View>}
               <Txt style={tw`flex-1 text-[14px] font-medium text-fg`}>{x.text}</Txt>
               <Num style={tw`text-[12px] font-medium text-mute`}>{dateText(x.date)}</Num>
             </Press>

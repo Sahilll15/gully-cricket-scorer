@@ -6,26 +6,28 @@ import { myStats, type GullyWorld } from "./globalStats";
 import { track } from "./track";
 import { EV } from "./events";
 import { cleanInfos } from "./photo";
+import { googleError, loginFor, whoIs, type GoogleWho, type Who } from "./accountName";
 
 const URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
 // Off until the backup table exists and email confirmation is switched off in Supabase.
 export const accountsSupported = Boolean(URL && KEY && import.meta.env.VITE_ACCOUNTS === "1");
+// Off until the Google provider is set up in Supabase and Google Cloud.
+export const googleSupported = accountsSupported && import.meta.env.VITE_GOOGLE_AUTH === "1";
 
 let client: SupabaseClient | null = null;
-const db = () => (client ??= createClient(URL!, KEY!, { auth: { persistSession: true, storageKey: "gully-auth" } }));
+const db = () => (client ??= createClient(URL!, KEY!, { auth: { persistSession: true, storageKey: "gully-auth", flowType: "pkce" } }));
 let uid: string | null = null;
 // Stays false until the account's copy is merged in, so a fresh phone never overwrites the cloud.
 let merged = false;
 
-// The number is the login name only. No SMS is sent, so it maps to an address nobody receives mail at.
-// Non-Indian numbers get an "intl" prefix so they can never collide with a 10-digit Indian login.
-const loginFor = (phone: string) => `${phone.startsWith("+") ? `intl${phone.slice(1)}` : phone}@phone.gully-scorer.app`;
-const phoneOf = (email?: string) => { const n = email?.split("@")[0]; return n?.startsWith("intl") ? `+${n.slice(4)}` : n ?? null; };
+// Set before leaving for Google, so the return trip can be counted once and a cancel cleaned up.
+const GOOGLE_PENDING = "gully-google-pending";
 
 type Sync = "idle" | "saving" | "saved" | "error";
-interface Account { phone: string | null; sync: Sync; savedAt: number | null }
-export const useAccount = create<Account>(() => ({ phone: null, sync: "idle", savedAt: null }));
+interface Account { phone: string | null; google: GoogleWho | null; sync: Sync; savedAt: number | null }
+const signedOut: Account = { phone: null, google: null, sync: "idle", savedAt: null };
+export const useAccount = create<Account>(() => signedOut);
 
 const snapshot = (): KittyBackup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos, groups: s.groups, kitty: s.kitty }; };
 
@@ -62,9 +64,9 @@ async function syncNow() {
   await push();
 }
 
-function startSession(id: string, phone: string) {
+function startSession(id: string, who: Who) {
   uid = id;
-  useAccount.setState({ phone });
+  useAccount.setState({ phone: who.phone, google: who.google });
   return syncNow().catch(syncFailed);
 }
 
@@ -80,14 +82,31 @@ export async function signIn(phone: string, passcode: string, isNew: boolean): P
     return "Something went wrong on our side. Try again in a minute.";
   }
   if (!data.session) return "Sign-up isn't open yet. Try again later.";
-  await startSession(data.session.user.id, phone);
+  await startSession(data.session.user.id, { phone, google: null });
   return null;
+}
+
+/** Leaves for Google and comes back to the app signed in. Returns an error message, or null while it redirects. */
+export async function signInWithGoogle(): Promise<string | null> {
+  try { sessionStorage.setItem(GOOGLE_PENDING, "1"); } catch { /* private mode */ }
+  const { error } = await db().auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${location.origin}${import.meta.env.BASE_URL}` } });
+  if (!error) return null;
+  try { sessionStorage.removeItem(GOOGLE_PENDING); } catch { /* private mode */ }
+  return googleError(error.message);
+}
+
+/** True once per return from Google. Clears a cancelled sign-in's error from the address bar. */
+function backFromGoogle(signedIn: boolean): boolean {
+  let pending = false;
+  try { pending = sessionStorage.getItem(GOOGLE_PENDING) === "1"; sessionStorage.removeItem(GOOGLE_PENDING); } catch { /* private mode */ }
+  if (pending && !signedIn && /[?#&]error/.test(location.href)) history.replaceState(null, "", import.meta.env.BASE_URL);
+  return pending && signedIn;
 }
 
 export async function signOut() {
   await db().auth.signOut();
   uid = null; merged = false;
-  useAccount.setState({ phone: null, sync: "idle", savedAt: null });
+  useAccount.setState(signedOut);
 }
 
 /** Deletes the login and its cloud backup for good. Matches on this phone stay. */
@@ -96,7 +115,7 @@ export async function deleteAccount(): Promise<string | null> {
   if (error) return "Couldn't delete the account. Check your internet and try again.";
   uid = null; merged = false;
   await db().auth.signOut({ scope: "local" }).catch(() => {});
-  useAccount.setState({ phone: null, sync: "idle", savedAt: null });
+  useAccount.setState(signedOut);
   return null;
 }
 
@@ -107,8 +126,9 @@ export function startAccountSync() {
   if (!accountsSupported) return () => {};
   let timer: ReturnType<typeof setTimeout> | undefined;
   void db().auth.getSession().then(({ data }) => {
-    const phone = phoneOf(data.session?.user.email);
-    if (data.session && phone) void startSession(data.session.user.id, phone);
+    const who = whoIs(data.session?.user);
+    if (backFromGoogle(!!who?.google)) track(EV.sign_in, { method: "google" });
+    if (data.session && who) void startSession(data.session.user.id, who);
   });
   const unsub = useStore.subscribe((s, prev) => {
     if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos && s.groups === prev.groups && s.kitty === prev.kitty)) return;

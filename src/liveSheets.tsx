@@ -186,7 +186,7 @@ export function BallLostSheet({ match: m, onSave, onClose }: { match: Match; onS
     <Sheet title="Ball lost" onClose={onClose} footer={<PrimaryButton onClick={() => { onSave(E.ballLost(m, reason)); onClose(); }}>Ball lost</PrimaryButton>}>
       <p className="mb-3 text-sm text-mute">A dead ball: nothing counts and the over carries on.</p>
       <div className="flex flex-wrap gap-2">{K.LOST_REASONS.map((r) => <Pill key={r} active={reason === r} onClick={() => setReason(r)}>{r}</Pill>)}</div>
-      <input value={K.LOST_REASONS.includes(reason) ? "" : reason} onChange={(e) => setReason(e.target.value || K.LOST_REASONS[0])} placeholder="Or say what happened" maxLength={40}
+      <input aria-label="Reason" value={K.LOST_REASONS.includes(reason) ? "" : reason} onChange={(e) => setReason(e.target.value || K.LOST_REASONS[0])} placeholder="Or say what happened" maxLength={40}
         className="mt-3 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 font-medium outline-none focus:border-sun" />
     </Sheet>
   );
@@ -204,7 +204,7 @@ export function PenaltySheet({ match: m, onSave, onClose }: { match: Match; onSa
       <Segmented value={side} set={setSide} items={[0, 1].map((s) => ({ v: s as Side, label: `${m.teams[s].name}${s === inn.bat ? " (batting)" : ""}` }))} />
       <Label className="mt-5">Runs</Label>
       <Stepper value={runs} set={setRuns} min={1} max={20} />
-      <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why? Ball hit the helmet, say" maxLength={40}
+      <input aria-label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why? Ball hit the helmet, say" maxLength={40}
         className="mt-4 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 font-medium outline-none focus:border-sun" />
       {side !== inn.bat && <p className="mt-3 text-xs text-mute">The fielding side gets them on its own innings.</p>}
     </Sheet>

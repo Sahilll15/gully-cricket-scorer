@@ -86,7 +86,7 @@ export default function Root() {
       <SafeAreaProvider>
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false, animation: "slide_from_right", animationDuration: 320, contentStyle: { backgroundColor: C.cream } }}>
-          {["cups", "teams", "stats", "history"].map((n) => <Stack.Screen key={n} name={n} options={{ animation: "fade", animationDuration: 220 }} />)}
+          {["cups", "teams", "stats"].map((n) => <Stack.Screen key={n} name={n} options={{ animation: "fade", animationDuration: 220 }} />)}
           {["setup", "newcup", "newseries", "join"].map((n) => <Stack.Screen key={n} name={n} options={{ animation: "fade_from_bottom", animationDuration: 320 }} />)}
         </Stack>
         {liveSupported && <LivePublisher />}

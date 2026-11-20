@@ -6,7 +6,7 @@ import { strikeRate } from "@shared/stats";
 import { useMatch, useStore } from "@/lib/store";
 import { canScore } from "@/lib/device";
 import { shareImage, sharePdf } from "@/lib/share";
-import { Badge, BallChip, C, Card, GhostButton, Header, LivePill, Num, Page, Press, PrimaryButton, SectionTitle, Segmented, Txt, tw } from "@/ui/ui";
+import { Badge, BallChip, C, Card, GhostButton, Header, LivePill, Num, Page, Press, PrimaryButton, SectionTitle, Segmented, Txt, tw, NotFound } from "@/ui/ui";
 import { ChartsTab, MvpTab } from "@/ui/Charts";
 import { ChalkStumps, Crease } from "@/ui/gully";
 import { EditBallSheet } from "./sheets";
@@ -33,7 +33,7 @@ export default function Scorecard() {
   const [edit, setEdit] = useState<number | null>(null);
   const [tab, setTab] = useState<"card" | "charts" | "mvp">("card");
   const [pdfBusy, setPdfBusy] = useState(false);
-  if (!m || !m.innings.length) return null;
+  if (!m || !m.innings.length) return <NotFound what="match" />;
 
   const inn = m.innings[idx], st = E.replay(m, idx), name = (id: string) => E.playerName(m, id);
   const live = m.status === "live" || m.status === "break", test = E.isTest(m);
@@ -84,7 +84,7 @@ export default function Scorecard() {
     const bowlers = rows.filter((r) => r.bowled > 0).sort((a, b) => b.wickets - a.wickets || a.conceded - b.conceded);
     return (
       <Page>
-        <Header title="Match Score Board" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
+        <Header title="Scorecard" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
           <Txt style={tw`mt-2 text-center text-[13px] text-mute`}>{E.formatText(m)}</Txt>
           <Txt style={tw`mt-1 text-center text-[16px] font-semibold text-sun`}>{res?.text ?? (lead && lead.turns ? `${lead.name} leads with ${lead.runs}` : "First turn under way")}</Txt>
         </Header>
@@ -144,21 +144,21 @@ export default function Scorecard() {
     const h = head(s);
     return (
       <View key={s} style={tw`flex-1 items-center`}>
-        <Badge name={m.teams[s].name} size={44} />
+        <Badge name={m.teams[s].name} size={44} kind="team" />
         <Txt style={tw`mt-2 text-center text-[13px] font-medium text-teal`} numberOfLines={1}>{m.teams[s].name}</Txt>
         {test ? <Num style={tw`mt-1 text-center text-[18px]`}>{E.sideScore(m, s) ?? "Yet to bat"}</Num>
           : h ? <>
             <Num style={tw`mt-1 text-center text-[28px]`}>{h.st.runs}/{h.st.wickets}</Num>
-            <Num style={tw`mt-0.5 text-center text-[12px] text-teal`}>({E.oversText(h.st.legal, h.st.bpo)} Over)</Num>
+            <Num style={tw`mt-0.5 text-center text-[12px] text-teal`}>({E.oversText(h.st.legal, h.st.bpo)} over)</Num>
           </> : <Txt style={tw`mt-1 text-center text-[13px] text-mute`}>Yet to bat</Txt>}
-        {h && !test && <Txt style={tw`mt-1 text-center text-[11px] text-mute`}>Wide: {h.st.extras.wd} | No Ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</Txt>}
+        {h && !test && <Txt style={tw`mt-1 text-center text-[11px] text-mute`}>Wide: {h.st.extras.wd} | No ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</Txt>}
       </View>
     );
   };
 
   return (
     <Page>
-      <Header title="Match Score Board" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
+      <Header title="Scorecard" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
         <View style={tw`mt-3 flex-row items-start gap-2`}>
           {side(0)}
           <Txt style={tw`mt-4 text-[13px] font-medium text-mute`}>vs</Txt>

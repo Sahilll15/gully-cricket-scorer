@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { FlatList, TextInput, View } from "react-native";
-import { BookOpen, ChevronRight, Download, Search } from "lucide-react-native";
+import { Search } from "lucide-react-native";
 import { useStore } from "@/lib/store";
 import { economy, fmtOf, leaders, strikeRate } from "@shared/stats";
 import { overview } from "@shared/records";
 import type { Match } from "@shared/engine/types";
 import { AdBanner } from "@/ui/AdBanner";
 import { ChalkStumps } from "@/ui/gully";
-import { Badge, Board as Score, C, ConfirmSheet, FmtSwitch, GhostButton, Header, Num, Page, Press, ScoreHero, Segmented, tw, Txt } from "@/ui/ui";
+import { Badge, Board as Score, C, ConfirmSheet, FmtSwitch, Header, Num, Page, Press, ScoreHero, Segmented, tw, Txt } from "@/ui/ui";
 import { csvName, statsCsv } from "@shared/csv";
 import { shareCsv } from "@/lib/share";
 import { MatchCard } from "./Home";
 
 export function History() {
-  const { matches, remove, go } = useStore();
+  const { matches, remove } = useStore();
   const [q, setQ] = useState("");
   const [focus, setFocus] = useState(false);
   const [f, setF] = useState<"all" | "live" | "done">("all");
@@ -22,7 +22,7 @@ export function History() {
     (f === "all" || (f === "done" ? m.status === "done" : m.status !== "done")) &&
     m.teams.some((t) => t.name.toLowerCase().includes(q.toLowerCase())));
   return (
-    <Page tabs scroll={false}>
+    <Page scroll={false}>
       <FlatList
         data={list}
         keyExtractor={(m) => m.id}
@@ -30,36 +30,23 @@ export function History() {
         contentContainerStyle={{ paddingBottom: 24 }}
         ListHeaderComponent={
           <View style={tw`gap-3 pb-4`}>
-            <Header title="Match History">
+            <Header title="History" back={() => useStore.getState().go("home")}>
               <View style={[tw`mt-3 min-h-12 flex-row items-center gap-2.5 rounded-[16px] border bg-panel px-4`, { borderColor: focus ? C.sun : C.line }]}>
                 <Search size={18} color={C.mute} strokeWidth={2} />
-                <TextInput value={q} onChangeText={setQ} placeholder="Search a team" placeholderTextColor={C.mute} selectionColor={C.sun}
+                <TextInput value={q} onChangeText={setQ} placeholder="Search a team" accessibilityLabel="Search a team" returnKeyType="search" placeholderTextColor={C.mute} selectionColor={C.sun}
                   onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
                   style={[tw`min-h-12 flex-1 text-[15px]`, { color: C.fg, fontFamily: "Inter_500Medium" }]} />
               </View>
             </Header>
             <View style={tw`gap-3 px-4`}>
-              <Press onPress={() => go("book")} style={tw`min-h-14 flex-row items-center gap-3 rounded-[18px] border border-line bg-panel px-4 py-3`}>
-                <BookOpen size={20} color={C.teal} strokeWidth={2} />
-                <View style={tw`flex-1`}>
-                  <Txt style={tw`text-[15px] font-semibold text-fg`}>Gully Book</Txt>
-                  <Txt style={tw`text-[12px] text-mute`}>Records, milestones and bragging rights</Txt>
-                </View>
-                <ChevronRight size={18} color={C.mute} strokeWidth={2} />
-              </Press>
-              <Segmented value={f} set={setF} items={[{ v: "all", label: "All" }, { v: "live", label: "Live" }, { v: "done", label: "Completed" }]} />
+              <Segmented value={f} set={setF} items={[{ v: "all", label: "All" }, { v: "live", label: "Live" }, { v: "done", label: "Results" }]} />
             </View>
           </View>
         }
         ItemSeparatorComponent={() => <View style={tw`h-3`} />}
         renderItem={({ item: m }) => (
           <View style={tw`px-4`}>
-            <MatchCard m={m} />
-            <View style={tw`absolute bottom-2.5 right-6`}>
-              <Press onPress={() => setAsk(m)} accessibilityLabel="Delete match" style={tw`min-h-10 rounded-full px-3 items-center justify-center`}>
-                <Txt style={tw`text-xs font-semibold text-out`}>Delete</Txt>
-              </Press>
-            </View>
+            <MatchCard m={m} onLongPress={() => setAsk(m)} />
           </View>
         )}
         ListEmptyComponent={
@@ -68,7 +55,10 @@ export function History() {
             <Txt style={tw`mt-2 text-center text-sm text-mute`}>No matches here yet.</Txt>
           </View>
         }
-        ListFooterComponent={<View style={tw`px-4`}><AdBanner /></View>}
+        ListFooterComponent={<View style={tw`gap-3 px-4`}>
+          {list.length > 0 && <Txt style={tw`text-center text-xs text-mute`}>Hold a match to delete it.</Txt>}
+          <AdBanner />
+        </View>}
       />
       {ask && <ConfirmSheet title="Delete this match?" body={`${ask.teams[0].name} vs ${ask.teams[1].name}. Its runs and wickets come off everyone's stats.`}
         yes="Delete" danger onYes={() => remove(ask.id)} onClose={() => setAsk(null)} />}
@@ -133,13 +123,12 @@ export function Stats() {
   }[b];
   return (
     <Page tabs>
-      <Header title="Leaderboard" />
+      <Header title="Stats" />
       <View style={tw`gap-3 px-4 pt-4`}>
         <FmtSwitch value={fmt} set={(v) => useStore.setState({ fmt: v })} />
         <Summary matches={matches} fmt={fmt} players={all.length} />
         <Segmented value={b} set={setB} items={[{ v: "runs", label: "Runs" }, { v: "wickets", label: "Wkts" }, { v: "sr", label: "SR" }, { v: "sixes", label: "6s" }, { v: "field", label: "Field" }]} />
         {b === "sr" && <Txt style={tw`text-center text-xs text-mute`}>Players with at least 10 balls faced</Txt>}
-        {rows.length > 0 && <Txt style={tw`text-center text-xs text-mute`}>Tap a player to open their card.</Txt>}
         <View>
           {rows.map(([r, big, sub], i) => (
             <RankRow key={r.name} rank={i + 1} name={r.name} sub={sub} big={big} first={i === 0} onPress={() => openPlayer(r.name)} />
@@ -148,18 +137,15 @@ export function Stats() {
             <View style={tw`items-center p-6`}>
               <ChalkStumps />
               <Txt style={tw`mt-2 text-center text-sm text-mute`}>{matches.some((m) => fmtOf(m) === fmt)
-                ? b === "field" ? "Name the fielder when you record a catch, run out or stumping, and it counts here." : "Nothing here yet."
+                ? b === "field" ? "Name the fielder on a wicket to count it." : "Nothing here yet."
                 : fmt === "test" ? "No Test matches yet. Pick Test match when you set one up." : "Name your players when setting up a match and they show up here."}</Txt>
             </View>
           )}
         </View>
         {all.length > 0 && (
-          <GhostButton onPress={() => void shareCsv(statsCsv(matches, fmt), csvName(fmt))}>
-            <View style={tw`flex-row items-center justify-center gap-2`}>
-              <Download size={18} color={C.fg} strokeWidth={2} />
-              <Txt style={tw`text-[15px] font-medium text-fg`}>Download all player stats (CSV)</Txt>
-            </View>
-          </GhostButton>
+          <Press onPress={() => void shareCsv(statsCsv(matches, fmt), csvName(fmt))} accessibilityLabel="Export CSV" style={tw`min-h-10 self-center px-3 items-center justify-center`}>
+            <Txt style={tw`text-sm font-semibold text-mute`}>Export CSV</Txt>
+          </Press>
         )}
       </View>
       <View style={tw`px-4`}><AdBanner /></View>

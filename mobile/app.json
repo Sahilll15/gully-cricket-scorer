@@ -3,14 +3,14 @@
     "name": "Gully Cricket Scorer",
     "slug": "gully-cricket-scorer",
     "scheme": "gullyscorer",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#050507",
     "android": {
       "package": "com.sahilchalke.gullyscorer",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/android-icon-background.png",
@@ -48,6 +48,7 @@
       "expo-router",
       "expo-sharing",
       "expo-font",
+      "@react-native-google-signin/google-signin",
       [
         "expo-splash-screen",
         {

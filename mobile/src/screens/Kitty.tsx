@@ -9,7 +9,7 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import { cleanUpi, upiLink, validUpi } from "@shared/upi";
 import {
-  expenseTitle, history, inr, isEmpty, KINDS, knownNames, liveStakes, matchTitle, pickableMatches, pot, shortDate, STAKE_IDEAS, type HistoryItem,
+  expenseDefaults, expenseTitle, history, inr, isEmpty, KINDS, knownNames, liveStakes, matchTitle, pickableMatches, pot, shortDate, STAKE_IDEAS, type HistoryItem,
 } from "@shared/kittyView";
 import { useStore } from "@/lib/store";
 import { track } from "@/lib/track";
@@ -74,12 +74,13 @@ function MatchPicker({ matches, value, set }: { matches: Match[]; value: string 
 }
 
 function ExpenseSheet({ names, onClose }: { names: string[]; onClose: () => void }) {
-  const { matches, addExpense } = useStore();
+  const { matches, addExpense, me } = useStore();
+  const init = useState(() => expenseDefaults(names, me))[0];
   const [what, setWhat] = useState<ExpenseKind>("ball");
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState("");
-  const [split, setSplit] = useState<string[]>([]);
+  const [paidBy, setPaidBy] = useState(init.paidBy);
+  const [split, setSplit] = useState<string[]>(init.split);
   const [match, setMatch] = useState<Match | null>(null);
   const [extra, setExtra] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
@@ -196,7 +197,7 @@ function UpiSheet({ t, onClose }: { t: Transfer; onClose: () => void }) {
   const saveId = () => { if (ok) { track(EV.kitty_qr_show); setInfo(t.to, { ...info, upi: cleanUpi(v) }); setEditing(false); } };
   if (editing || !info.upi) return (
     <Sheet title={`${t.to}'s UPI ID`} onClose={onClose} footer={<PrimaryButton disabled={!ok} onPress={saveId}>Save and show QR</PrimaryButton>}>
-      <Txt style={tw`text-[15px] leading-6 text-teal`}>Add it once and the kitty can show a QR for anyone paying {t.to}.</Txt>
+      <Txt style={tw`text-[15px] leading-6 text-teal`}>Add a UPI ID to show a QR for {t.to}.</Txt>
       <TextField value={v} onChangeText={setV} placeholder="name@okaxis" autoFocus autoCapitalize="none" autoCorrect={false} keyboardType="email-address"
         maxLength={60} outline onSubmitEditing={saveId} returnKeyType="done" style={tw`mt-4 min-h-12`} />
       {!!v.trim() && !ok && <Txt style={tw`mt-2 text-xs text-out`}>A UPI ID looks like name@bank.</Txt>}
@@ -216,7 +217,7 @@ function UpiSheet({ t, onClose }: { t: Transfer; onClose: () => void }) {
         <Txt style={tw`text-[13px] text-mute`}>{info.upi}</Txt>
         <Press onPress={() => setEditing(true)} style={tw`min-h-9 justify-center px-1`}><Txt style={tw`text-[13px] font-semibold text-sun`}>Change</Txt></Press>
       </View>
-      <Txt style={tw`mt-3 text-center text-xs text-mute`}>The app never sees the money. Mark it paid once it goes through.</Txt>
+      <Txt style={tw`mt-3 text-center text-xs text-mute`}>Counts only. No money moves here.</Txt>
     </Sheet>
   );
 }
@@ -277,7 +278,7 @@ export default function Kitty() {
             <Txt style={tw`mt-2 text-[13px] text-mute text-center`}>It only keeps count. No money moves through the app.</Txt>
           </View>
           {actions}
-          <Txt style={tw`text-[13px] text-mute text-center`}>Balls hit out of the ground in your matches show up here as lost balls.</Txt>
+          <Txt style={tw`text-[13px] text-mute text-center`}>Lost balls show up here.</Txt>
         </View>
         {sheets}
       </Page>

@@ -13,6 +13,12 @@ export const KINDS: { v: ExpenseKind; label: string }[] = [
 export const kindLabel = (k: ExpenseKind) => KINDS.find((x) => x.v === k)?.label ?? "Other";
 export const expenseTitle = (e: Expense) => e.label ?? kindLabel(e.what);
 
+/** A new expense starts as "I paid, everyone shares" when I am a known name. */
+export function expenseDefaults(names: string[], me: string | null): { paidBy: string; split: string[] } {
+  const people = uniqueNames(names);
+  return { paidBy: (me && people.find((n) => n.toLowerCase() === me.toLowerCase())) || "", split: people };
+}
+
 export const STAKE_IDEAS = ["Losers buy chai", "Losers pay the turf", "Losers buy the next ball"];
 
 /** Whole rupees with Indian grouping (1,23,456), no symbol. Hand-rolled because Hermes Intl varies by build. */

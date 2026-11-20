@@ -13,7 +13,7 @@ import { say } from "@/lib/speak";
 import { BowlerSheet, EditBallSheet, FrenchNextSheet, Note, OpenersSheet, OversSheet, RainSheet, RetireSheet, SoloTable, SoloTurnSheet, WicketSheet } from "./sheets";
 import { AddPlayerSheet, BallLostSheet, ChangeLogSheet, Chip, DidRunSheet, OverthrowSheet, PairsStrip, PenaltySheet, PlayerLeftSheet, RulesSheet, TurfChip, TurfSheet, WagonSheet } from "./liveSheets";
 import { FirstBallCoach } from "@/ui/guide";
-import { BallChip, Beams, Board, buzz, C, Card, ChaseRing, ConfirmSheet, IconButton, LiveDot, LivePill, Num, Press, PrimaryButton, Sheet, Toggle, Txt, tw } from "@/ui/ui";
+import { BallChip, Beams, Board, buzz, C, Card, ChaseRing, ConfirmSheet, IconButton, LiveDot, LivePill, Num, Press, PrimaryButton, Sheet, Toggle, Txt, tw, NotFound } from "@/ui/ui";
 import { Crease } from "@/ui/gully";
 import { listen, parse, voiceSupported } from "@/lib/voice";
 import { liveSupported, newCode, newLiveKey, newMoveToken, scoreLink, watchLink } from "@/lib/live";
@@ -44,7 +44,6 @@ export default function Live() {
   const [rainOpen, setRainOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [retireFor, setRetireFor] = useState<string | null>(null);
-  const [retireHurt, setRetireHurt] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
   const [touched, setTouched] = useState(false);
   const [missed, setMissed] = useState(false);
@@ -87,7 +86,7 @@ export default function Live() {
   const locked = !!m && !canScore(m);
   useEffect(() => () => stopRef.current(), []);
   useEffect(() => { if (locked && mic) { stopRef.current(); setMic(false); } }, [locked, mic]);
-  if (!m || !m.innings.length) return null;
+  if (!m || !m.innings.length) return <NotFound what="match" />;
 
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const tgt = E.target(m, idx), batTeam = m.teams[inn.bat], fieldTeam = m.teams[E.otherSide(inn.bat)];
@@ -146,7 +145,7 @@ export default function Live() {
     const i = after.innings.length - 1, id = after.status === "live" ? E.dueToRetire(after, i) : null;
     if (id && (E.replay(before, i).bat.get(id)?.runs ?? 0) < (after.rules.retireAt ?? 0)) { setRetireFor(id); setRetireOpen(true); }
   }
-  const closeRetire = () => { setRetireOpen(false); setRetireFor(null); setRetireHurt(false); };
+  const closeRetire = () => { setRetireOpen(false); setRetireFor(null); };
 
   function toggleMic() {
     if (mic) { track(EV.voice_off); stopRef.current(); setMic(false); setHeard(""); return; }
@@ -478,7 +477,7 @@ export default function Live() {
           : <>{batTeam.name} finish on <B>{st.runs}/{st.wickets}</B> in <B>{E.oversText(st.legal, bpo)}</B> overs.{tgt !== null ? " That ends the match." : ""} You can undo it.</>}</Body>} />}
       {stopping && <ConfirmSheet title="Stop the match?" yes="Call it a draw" danger onClose={() => setStopping(false)}
         onYes={() => { put(E.stopMatch(m)); setStopping(false); setPickBowler(false); useStore.setState({ redo: [] }); }}
-        body={<Body>Nobody has won yet, so the match ends as a draw. You can undo it.</Body>} />}
+        body={<Body>Ends as a draw. You can undo it.</Body>} />}
       {panel === "frenchStop" && <ConfirmSheet title="Stop the game?" yes="Stop, most runs wins" danger onClose={() => setPanel(null)}
         onYes={() => { put(E.stopMatch(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
         body={<Body>French cricket goes on until you stop it. Whoever has the most runs wins. You can undo it.</Body>} />}
@@ -487,7 +486,7 @@ export default function Live() {
         body={<Body>The match ends here and the side ahead on runs per ball wins. You can undo it.</Body>} />}
       {rainOpen && <RainSheet match={m} onClose={() => setRainOpen(false)} onSave={(n) => { track(EV.rain_rule); put(n); setRainOpen(false); }} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
-      {retireOpen && <RetireSheet match={m} batter={retireFor} hurt={retireHurt} onClose={closeRetire} onSave={(n) => { put(n); closeRetire(); useStore.setState({ redo: [] }); }} />}
+      {retireOpen && <RetireSheet match={m} batter={retireFor} onClose={closeRetire} onSave={(n) => { put(n); closeRetire(); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} preset={wicketKind} onDone={confirmWicket} onClose={() => { setWicket(false); setWicketKind(null); }} />}
       {didRun && <DidRunSheet match={m} input={didRun} onClose={() => setDidRun(null)}
         onRan={(r) => { const input = { ...didRun, runs: r }; setDidRun(null); commit(input); }}
@@ -528,7 +527,6 @@ export default function Live() {
           <View style={{ borderTopWidth: 1, borderTopColor: HAIR }}>
             <Row onPress={closeMore(() => setPanel("lost"))}>Ball lost</Row>
             {!solo && <Row onPress={closeMore(() => setPanel("penalty"))}>Penalty runs</Row>}
-            {!solo && <Row onPress={closeMore(() => { setRetireHurt(true); setRetireOpen(true); })}>Retired hurt</Row>}
             <Row onPress={closeMore(() => setPanel("add"))}>Add a player</Row>
             <Row onPress={closeMore(() => setPanel("left"))}>Player left</Row>
             {leader && <Row onPress={closeMore(() => setPanel("leader"))}>Stop now, leader wins</Row>}
@@ -536,7 +534,7 @@ export default function Live() {
             <Row onPress={closeMore(() => setPanel("log"))}>Change log</Row>
           </View>
           <Txt style={[LBL, tw`mt-5`]}>On this phone</Txt>
-          <Toggle on={!!prefs.wagon} set={(v) => { if (v) track(EV.wagon_wheel_on); setPrefs(m.id, { wagon: v }); }} label="Wagon wheel" hint="After a scoring shot, tap where it went. You can skip it." />
+          <Toggle on={!!prefs.wagon} set={(v) => { if (v) track(EV.wagon_wheel_on); setPrefs(m.id, { wagon: v }); }} label="Wagon wheel" hint="Tap where each shot went." />
           <Toggle on={!!prefs.speak} set={(v) => { if (v) track(EV.commentary_on); setPrefs(m.id, { speak: v }); }} label="Spoken commentary" hint={mic ? "Quiet while the mic is on, so it doesn't score itself." : "Says each ball out loud."} />
           <Row onPress={closeMore(() => setPanel("turf"))}>{turf ? `Turf timer, ends ${new Date(turf).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Turf timer"}</Row>
         </Sheet>
@@ -552,7 +550,7 @@ function ShareSheet({ match: m, onClose }: { match: Match; onClose: () => void }
   const moveButton = (onPress: () => void) => <Wide onPress={onPress} border>Move scoring to another phone</Wide>;
   if (!m.live) return (
     <Sheet title="Share this match live" onClose={onClose}>
-      <Txt style={tw`text-[14px] leading-5 text-teal`}>Anyone with the code or link can follow every ball as you score it. Keep this app open while you score.</Txt>
+      <Txt style={tw`text-[14px] leading-5 text-teal`}>Anyone with the code or link follows every ball. Keep this app open.</Txt>
       <View style={tw`mt-4 gap-2`}>
         <PrimaryButton onPress={() => void newLiveKey().then((k) => { track(EV.live_share_start); put({ ...m, live: newCode(), ...k }); })}>Start live sharing</PrimaryButton>
         {moveButton(() => void newLiveKey().then((k) => move({ live: newCode(), ...k })))}
@@ -590,7 +588,7 @@ function Locked({ match: m }: { match: Match }) {
     <Card style={tw`mt-3`}>
       {waiting ? (<>
         <Txt style={tw`text-[16px] font-semibold text-fg`}>Moving scoring to another phone</Txt>
-        <Txt style={tw`mt-1 text-[14px] leading-5 text-teal`}>Scoring is paused here. Send this link to the new scorer. When they open it, scoring moves to their phone and this one follows along.</Txt>
+        <Txt style={tw`mt-1 text-[14px] leading-5 text-teal`}>Scoring pauses here. Send the link to the new scorer only.</Txt>
         <Note style="mt-3">Send it only to the new scorer, not to the group. The app opens it once, but the link holds this match's scoring key.</Note>
         <View style={tw`mt-4 gap-2`}>
           <PrimaryButton onPress={() => void sendText(text)}>Send on WhatsApp</PrimaryButton>
@@ -841,7 +839,7 @@ function SixOverlay({ six, onDone, onUndo }: { six: SixMoment; onDone: () => voi
   const scale = o.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] });
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity: o, zIndex: 60, elevation: 60 }]}>
-      <Pressable onPress={() => done.current()} accessibilityLabel="Six. Tap to close" style={[StyleSheet.absoluteFill, { backgroundColor: C.sun }]}>
+      <Pressable onPress={() => done.current()} accessibilityRole="button" accessibilityLabel="Six. Tap to close" style={[StyleSheet.absoluteFill, { backgroundColor: C.sun }]}>
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <Svg width="100%" height="100%">
             {Array.from({ length: 22 }, (_, i) => <Circle key={i} cx="50%" cy="42%" r={22 * (i + 1)} stroke={C.ink} strokeOpacity={0.06} strokeWidth={2} fill="none" />)}

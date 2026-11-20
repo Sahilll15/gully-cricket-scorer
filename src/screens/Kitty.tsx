@@ -10,7 +10,7 @@ import {
 import { cleanUpi, upiLink, validUpi } from "../upi";
 import { QrCode } from "../qr";
 import {
-  expenseTitle, history, inr, isEmpty, KINDS, knownNames, liveStakes, matchTitle, pickableMatches, pot, shortDate, STAKE_IDEAS, type HistoryItem,
+  expenseDefaults, expenseTitle, history, inr, isEmpty, KINDS, knownNames, liveStakes, matchTitle, pickableMatches, pot, shortDate, STAKE_IDEAS, type HistoryItem,
 } from "../kittyView";
 import { Card, ConfirmSheet, cx, Header, PrimaryButton, Sheet } from "../ui";
 
@@ -51,12 +51,13 @@ function MatchPicker({ matches, value, set }: { matches: Match[]; value: string 
 const money = (v: string) => v.replace(/\D/g, "").slice(0, 7);
 
 function ExpenseSheet({ names, onClose }: { names: string[]; onClose: () => void }) {
-  const { matches, addExpense } = useStore();
+  const { matches, addExpense, me } = useStore();
+  const init = useState(() => expenseDefaults(names, me))[0];
   const [what, setWhat] = useState<ExpenseKind>("ball");
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState("");
-  const [split, setSplit] = useState<string[]>([]);
+  const [paidBy, setPaidBy] = useState(init.paidBy);
+  const [split, setSplit] = useState<string[]>(init.split);
   const [match, setMatch] = useState<Match | null>(null);
   const [extra, setExtra] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
@@ -84,12 +85,12 @@ function ExpenseSheet({ names, onClose }: { names: string[]; onClose: () => void
       footer={<PrimaryButton onClick={save} disabled={!ok}>{amt > 0 ? `Add ${rs(amt)}` : "Add expense"}</PrimaryButton>}>
       <Label>What</Label>
       <div className="flex flex-wrap gap-2">{KINDS.map((k) => <Chip key={k.v} on={what === k.v} onClick={() => setWhat(k.v)}>{k.label}</Chip>)}</div>
-      <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={30} className={cx(field, "mt-3")}
+      <input aria-label="Label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={30} className={cx(field, "mt-3")}
         placeholder={what === "other" ? "What was it? e.g. Stumps" : "Label (optional), e.g. Cosco ball"} />
       <Label>Amount</Label>
       <div className="flex items-center gap-2 rounded-2xl border-2 border-line bg-panel px-4 focus-within:border-sun">
         <span className="text-xl font-bold text-mute">₹</span>
-        <input value={amount} onChange={(e) => setAmount(money(e.target.value))} inputMode="numeric" placeholder="0"
+        <input aria-label="Amount" value={amount} onChange={(e) => setAmount(money(e.target.value))} inputMode="numeric" placeholder="0"
           className="min-h-14 flex-1 bg-transparent text-2xl font-extrabold tabular-nums text-fg outline-none" />
       </div>
       <Label>From a match (picks its players)</Label>
@@ -107,7 +108,7 @@ function ExpenseSheet({ names, onClose }: { names: string[]; onClose: () => void
       </div>
       <div className="flex flex-wrap gap-2">{people.map((n) => <Chip key={n} on={has(n)} onClick={() => toggle(n)}>{n}</Chip>)}</div>
       <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); addName(); }}>
-        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Someone else" maxLength={20} className={cx(field, "flex-1")} />
+        <input aria-label="Someone else" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Someone else" maxLength={20} className={cx(field, "flex-1")} />
         <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
       </form>
       {amt > 0 && split.length > 0 && (
@@ -138,7 +139,7 @@ function TurfSheet({ onClose }: { onClose: () => void }) {
       <Label>Turf fee</Label>
       <div className="flex items-center gap-2 rounded-2xl border-2 border-line bg-panel px-4 focus-within:border-sun">
         <span className="text-xl font-bold text-mute">₹</span>
-        <input value={fee} onChange={(e) => setFee(money(e.target.value))} inputMode="numeric" placeholder="0"
+        <input aria-label="Turf fee" value={fee} onChange={(e) => setFee(money(e.target.value))} inputMode="numeric" placeholder="0"
           className="min-h-14 flex-1 bg-transparent text-2xl font-extrabold tabular-nums text-fg outline-none" />
       </div>
       {match && <>
@@ -162,7 +163,7 @@ function StakeSheet({ onClose }: { onClose: () => void }) {
       <Label>Match</Label>
       <MatchPicker matches={list} value={match?.id ?? null} set={setMatch} />
       <Label>What the losers do</Label>
-      <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} placeholder="Losers buy chai" className={field} />
+      <input aria-label="What the losers buy" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} placeholder="Losers buy chai" className={field} />
       <div className="mt-3 flex flex-wrap gap-2">{STAKE_IDEAS.map((s) => <Chip key={s} on={label === s} onClick={() => setLabel(s)}>{s}</Chip>)}</div>
       <p className="mt-4 text-sm text-mute">Once the match has a result, the losing side shows up here.</p>
     </Sheet>
@@ -179,8 +180,8 @@ function UpiSheet({ t, onClose }: { t: Transfer; onClose: () => void }) {
   if (editing || !info.upi) return (
     <Sheet title={`${t.to}'s UPI ID`} onClose={onClose}
       footer={<PrimaryButton disabled={!ok} onClick={() => { track(EV.kitty_qr_show); setInfo(t.to, { ...info, upi: cleanUpi(v) }); setEditing(false); }}>Save and show QR</PrimaryButton>}>
-      <p className="text-[15px] text-fg/85">Add it once and the kitty can show a QR for anyone paying {t.to}.</p>
-      <input value={v} onChange={(e) => setV(e.target.value)} placeholder="name@okaxis" autoFocus autoCapitalize="none" autoCorrect="off" spellCheck={false}
+      <p className="text-[15px] text-fg/85">Add a UPI ID to show a QR for {t.to}.</p>
+      <input aria-label="UPI ID" value={v} onChange={(e) => setV(e.target.value)} placeholder="name@okaxis" autoFocus autoCapitalize="none" autoCorrect="off" spellCheck={false}
         maxLength={60} className={cx(field, "mt-4")} />
       {v.trim() && !ok && <p className="mt-2 text-xs text-out">A UPI ID looks like name@bank.</p>}
       <p className="mt-3 text-xs text-mute">Saved on this phone with {t.to}'s player details.</p>
@@ -195,7 +196,7 @@ function UpiSheet({ t, onClose }: { t: Transfer; onClose: () => void }) {
         <span className="text-mute">{info.upi}</span>
         <button onClick={() => setEditing(true)} className="font-semibold text-sun">Change</button>
       </div>
-      <p className="mt-3 text-center text-xs text-mute">The app never sees the money. Mark it paid once it goes through.</p>
+      <p className="mt-3 text-center text-xs text-mute">Counts only. No money moves here.</p>
     </Sheet>
   );
 }
@@ -250,7 +251,7 @@ export default function Kitty() {
             <button onClick={() => setSheet("turf")} className="press min-h-14 rounded-2xl border-2 border-line font-semibold text-fg">Split turf fee</button>
             <button onClick={() => setSheet("stake")} className="press min-h-14 rounded-2xl border-2 border-line font-semibold text-fg">Losers pay</button>
           </div>
-          <p className="pt-2 text-center text-sm text-mute">Balls hit out of the ground in your matches show up here as lost balls.</p>
+          <p className="pt-2 text-center text-sm text-mute">Lost balls show up here.</p>
         </main>
         {sheets}
       </div>

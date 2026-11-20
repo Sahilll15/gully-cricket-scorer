@@ -7,9 +7,13 @@ import { myStats, type GullyWorld } from "@shared/globalStats";
 import { track } from "./track";
 import { EV } from "@shared/events";
 import { cleanInfos } from "@shared/photo";
+import { googleError, loginFor, whoIs, type GoogleWho, type Who } from "@shared/accountName";
 import { SUPABASE_KEY as KEY, SUPABASE_URL as URL } from "./env";
 // Off until the backup table exists and email confirmation is switched off in Supabase.
 export const accountsSupported = Boolean(URL && KEY && process.env.EXPO_PUBLIC_ACCOUNTS === "1");
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+// Off until the Google OAuth clients exist, so builds without the client id keep phone sign-in only.
+export const googleSupported = accountsSupported && Boolean(GOOGLE_WEB_CLIENT_ID);
 
 let client: SupabaseClient | null = null;
 const db = () => (client ??= createClient(URL!, KEY!, { auth: { persistSession: true, storageKey: "gully-auth", storage: AsyncStorage, autoRefreshToken: true, detectSessionInUrl: false } }));
@@ -17,14 +21,11 @@ let uid: string | null = null;
 // Stays false until the account's copy is merged in, so a fresh phone never overwrites the cloud.
 let merged = false;
 
-// The number is the login name only. No SMS is sent, so it maps to an address nobody receives mail at.
-// Non-Indian numbers get an "intl" prefix so they can never collide with a 10-digit Indian login.
-const loginFor = (phone: string) => `${phone.startsWith("+") ? `intl${phone.slice(1)}` : phone}@phone.gully-scorer.app`;
-const phoneOf = (email?: string) => { const n = email?.split("@")[0]; return n?.startsWith("intl") ? `+${n.slice(4)}` : n ?? null; };
 
 type Sync = "idle" | "saving" | "saved" | "error";
-interface Account { phone: string | null; sync: Sync; savedAt: number | null }
-export const useAccount = create<Account>(() => ({ phone: null, sync: "idle", savedAt: null }));
+interface Account { phone: string | null; google: GoogleWho | null; sync: Sync; savedAt: number | null }
+const signedOut: Account = { phone: null, google: null, sync: "idle", savedAt: null };
+export const useAccount = create<Account>(() => signedOut);
 
 const snapshot = (): KittyBackup => { const s = useStore.getState(); return { v: 1, matches: s.matches, teams: s.teams, cups: s.cups, series: s.series, infos: s.infos, groups: s.groups, kitty: s.kitty }; };
 
@@ -61,9 +62,9 @@ async function syncNow() {
   await push();
 }
 
-function startSession(id: string, phone: string) {
+function startSession(id: string, who: Who) {
   uid = id;
-  useAccount.setState({ phone });
+  useAccount.setState({ phone: who.phone, google: who.google });
   return syncNow().catch(syncFailed);
 }
 
@@ -79,14 +80,51 @@ export async function signIn(phone: string, passcode: string, isNew: boolean): P
     return "Something went wrong on our side. Try again in a minute.";
   }
   if (!data.session) return "Sign-up isn't open yet. Try again later.";
-  await startSession(data.session.user.id, phone);
+  await startSession(data.session.user.id, { phone, google: null });
   return null;
 }
 
+export type GoogleResult = { ok: true } | { ok: false; error: string | null };
+
+// Loaded on tap, so a build without the native module still opens; the button is hidden there anyway.
+const googleModule = () => import("@react-native-google-signin/google-signin");
+
+/** Signs in with the Google account picker. A cancel comes back with no error to show. */
+export async function signInWithGoogle(): Promise<GoogleResult> {
+  let gs: Awaited<ReturnType<typeof googleModule>> | null = null;
+  try {
+    gs = await googleModule();
+    gs.GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+    await gs.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const res = await gs.GoogleSignin.signIn();
+    if (!gs.isSuccessResponse(res)) return { ok: false, error: null };
+    const token = res.data.idToken;
+    if (!token) return { ok: false, error: googleError("") };
+    const { data, error } = await db().auth.signInWithIdToken({ provider: "google", token });
+    if (error) return { ok: false, error: googleError(error.message) };
+    const who = whoIs(data.user);
+    if (!who) return { ok: false, error: googleError("") };
+    await startSession(data.user.id, who);
+    return { ok: true };
+  } catch (e) {
+    const { statusCodes } = gs ?? {};
+    if (gs?.isErrorWithCode(e) && (e.code === statusCodes?.SIGN_IN_CANCELLED || e.code === statusCodes?.IN_PROGRESS)) return { ok: false, error: null };
+    if (gs?.isErrorWithCode(e) && e.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) return { ok: false, error: "Google sign-in needs Google Play services. Use your phone number instead." };
+    return { ok: false, error: googleError(e instanceof Error ? e.message : "") };
+  }
+}
+
+/** Forgets the Google account on this phone so the next sign-in shows the picker again. */
+async function leaveGoogle() {
+  if (!useAccount.getState().google) return;
+  try { await (await googleModule()).GoogleSignin.signOut(); } catch { /* already signed out */ }
+}
+
 export async function signOut() {
+  await leaveGoogle();
   await db().auth.signOut();
   uid = null; merged = false;
-  useAccount.setState({ phone: null, sync: "idle", savedAt: null });
+  useAccount.setState(signedOut);
 }
 
 /** Deletes the login and its cloud backup for good. Matches on this phone stay. */
@@ -94,8 +132,9 @@ export async function deleteAccount(): Promise<string | null> {
   const { error } = await db().rpc("gully_delete_my_account");
   if (error) return "Couldn't delete the account. Check your internet and try again.";
   uid = null; merged = false;
+  await leaveGoogle();
   await db().auth.signOut({ scope: "local" }).catch(() => {});
-  useAccount.setState({ phone: null, sync: "idle", savedAt: null });
+  useAccount.setState(signedOut);
   return null;
 }
 
@@ -106,8 +145,8 @@ export function startAccountSync() {
   if (!accountsSupported) return () => {};
   let timer: ReturnType<typeof setTimeout> | undefined;
   void db().auth.getSession().then(({ data }) => {
-    const phone = phoneOf(data.session?.user.email);
-    if (data.session && phone) void startSession(data.session.user.id, phone);
+    const who = whoIs(data.session?.user);
+    if (data.session && who) void startSession(data.session.user.id, who);
   });
   const unsub = useStore.subscribe((s, prev) => {
     if (!uid || (s.matches === prev.matches && s.teams === prev.teams && s.cups === prev.cups && s.series === prev.series && s.infos === prev.infos && s.groups === prev.groups && s.kitty === prev.kitty)) return;

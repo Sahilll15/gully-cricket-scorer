@@ -7,7 +7,7 @@ import { AddPlayerSheet, BallLostSheet, ChangeLogSheet, Chip, DidRunSheet, Overt
 import * as K from "../liveKit";
 import { useLivePrefs, type LivePrefs } from "../livePrefs";
 import { say, speakSupported } from "../speak";
-import { Badge, BallChip, Card, ConfirmSheet, cx, Header, LivePill, PrimaryButton, Sheet, Toggle } from "../ui";
+import { Badge, BallChip, Card, ConfirmSheet, cx, Header, LivePill, NotFound, PrimaryButton, Sheet, Toggle } from "../ui";
 import { listen, parse, voiceSupported } from "../voice";
 import { liveSupported, newCode, newLiveKey, newMoveToken, scoreLink, watchLink } from "../live";
 import { canScore, deviceId, movedAway } from "../device";
@@ -32,7 +32,6 @@ export default function Live() {
   const [rainOpen, setRainOpen] = useState(false);
   const [retireOpen, setRetireOpen] = useState(false);
   const [retireFor, setRetireFor] = useState<string | null>(null);
-  const [retireHurt, setRetireHurt] = useState(false);
   const [ending, setEnding] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -67,7 +66,7 @@ export default function Live() {
   const locked = !!m && !canScore(m);
   useEffect(() => () => stopRef.current(), []);
   useEffect(() => { if (locked && mic) { stopRef.current(); setMic(false); } }, [locked, mic]);
-  if (!m || !m.innings.length) return null;
+  if (!m || !m.innings.length) return <NotFound what="match" />;
 
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const tgt = E.target(m, idx), batTeam = m.teams[inn.bat], fieldTeam = m.teams[E.otherSide(inn.bat)];
@@ -119,7 +118,7 @@ export default function Live() {
     const i = after.innings.length - 1, id = after.status === "live" ? E.dueToRetire(after, i) : null;
     if (id && (E.replay(before, i).bat.get(id)?.runs ?? 0) < (after.rules.retireAt ?? 0)) { setRetireFor(id); setRetireOpen(true); }
   }
-  const closeRetire = () => { setRetireOpen(false); setRetireFor(null); setRetireHurt(false); };
+  const closeRetire = () => { setRetireOpen(false); setRetireFor(null); };
 
   function toggleMic() {
     if (mic) { track(EV.voice_off); stopRef.current(); setMic(false); setHeard(""); return; }
@@ -169,7 +168,7 @@ export default function Live() {
 
   return (
     <div className="min-h-screen pb-10">
-      <Header title="Live Scoring" back={() => go("home")} right={<LivePill />}>
+      <Header title="Live scoring" back={() => go("home")} right={<LivePill />}>
         <div className="stadium relative mt-3 overflow-hidden rounded-3xl px-5 pb-5 pt-4 text-white">
           {solo ? <>
           <div className="flex items-center gap-2 text-[13px] font-medium text-white/85">
@@ -188,7 +187,7 @@ export default function Live() {
           </div>}
           </> : <>
           <div className="flex items-center gap-2 text-[13px] font-medium text-white/85">
-            <Badge name={batTeam.name} size={28} /><span className="truncate">{batTeam.name} · {label}</span>
+            <Badge name={batTeam.name} size={28} kind="team" /><span className="truncate">{batTeam.name} · {label}</span>
             {st.freeHit && m.status === "live" && <span className="ml-auto rounded-full bg-sun px-2.5 py-0.5 text-[11px] font-extrabold text-ink">FREE HIT</span>}
           </div>
           <p className={cx("mt-2 flex items-baseline gap-2", voiceSupported && "pr-[68px]")}>
@@ -315,7 +314,7 @@ export default function Live() {
                 {(["wd", "nb", "b", "lb"] as Extra[]).map((x) => (
                   <button key={x} onClick={() => setArmed(x)} disabled={waiting}
                     className="press min-h-12 rounded-full border-2 border-sun/80 bg-panel text-sm font-semibold text-fg">
-                    {{ wd: "Wide", nb: "No Ball", b: "Byes", lb: "Leg Bye" }[x]}
+                    {{ wd: "Wide", nb: "No ball", b: "Byes", lb: "Leg bye" }[x]}
                   </button>
                 ))}
               </div>
@@ -358,7 +357,7 @@ export default function Live() {
           : <>{batTeam.name} finish on <b>{st.runs}/{st.wickets}</b> in {E.oversText(st.legal, bpo)} overs.{tgt !== null ? " That ends the match." : ""} You can undo it.</>} />}
       {stopping && <ConfirmSheet title="Stop the match?" yes="Call it a draw" danger onClose={() => setStopping(false)}
         onYes={() => { put(E.stopMatch(m)); setStopping(false); setPickBowler(false); useStore.setState({ redo: [] }); }}
-        body={<>Nobody has won yet, so the match ends as a draw. You can undo it.</>} />}
+        body={<>Ends as a draw. You can undo it.</>} />}
       {panel === "frenchStop" && <ConfirmSheet title="Stop the game?" yes="Stop, most runs wins" danger onClose={() => setPanel(null)}
         onYes={() => { put(E.stopMatch(m)); setPickBowler(false); useStore.setState({ redo: [] }); }}
         body={<>French cricket goes on until you stop it. Whoever has the most runs wins. You can undo it.</>} />}
@@ -367,7 +366,7 @@ export default function Live() {
         body={<>The match ends here and the side ahead on runs per ball wins. You can undo it.</>} />}
       {rainOpen && <RainSheet match={m} onClose={() => setRainOpen(false)} onSave={(n) => { track(EV.rain_rule); put(n); setRainOpen(false); }} />}
       {oversOpen && <OversSheet match={m} onClose={() => setOversOpen(false)} onSave={(n) => { put(n); setOversOpen(false); }} />}
-      {retireOpen && <RetireSheet match={m} batter={retireFor} hurt={retireHurt} onClose={closeRetire} onSave={(n) => { put(n); closeRetire(); useStore.setState({ redo: [] }); }} />}
+      {retireOpen && <RetireSheet match={m} batter={retireFor} onClose={closeRetire} onSave={(n) => { put(n); closeRetire(); useStore.setState({ redo: [] }); }} />}
       {wicket !== false && <WicketSheet match={m} extra={wicket} preset={wicketKind} onDone={confirmWicket} onClose={() => { setWicket(false); setWicketKind(null); }} />}
       {didRun && <DidRunSheet match={m} input={didRun} onClose={() => setDidRun(null)}
         onRan={(r) => { const input = { ...didRun, runs: r }; setDidRun(null); commit(input); }}
@@ -408,7 +407,6 @@ export default function Live() {
           <div className="grid grid-cols-2 gap-2">
             <MoreItem onClick={closeMore(() => setPanel("lost"))}>Ball lost</MoreItem>
             {!solo && <MoreItem onClick={closeMore(() => setPanel("penalty"))}>Penalty runs</MoreItem>}
-            {!solo && <MoreItem onClick={closeMore(() => { setRetireHurt(true); setRetireOpen(true); })}>Retired hurt</MoreItem>}
             <MoreItem onClick={closeMore(() => setPanel("add"))}>Add a player</MoreItem>
             <MoreItem onClick={closeMore(() => setPanel("left"))}>Player left</MoreItem>
             {leader && <MoreItem onClick={closeMore(() => setPanel("leader"))}>Stop now, leader wins</MoreItem>}
@@ -416,7 +414,7 @@ export default function Live() {
             <MoreItem onClick={closeMore(() => setPanel("log"))}>Change log</MoreItem>
           </div>
           <p className="mb-1 mt-5 text-sm font-semibold text-teal">On this phone</p>
-          <Toggle on={!!prefs.wagon} set={(v) => { if (v) track(EV.wagon_wheel_on); setPrefs(m.id, { wagon: v }); }} label="Wagon wheel" hint="After a scoring shot, tap where it went. You can skip it." />
+          <Toggle on={!!prefs.wagon} set={(v) => { if (v) track(EV.wagon_wheel_on); setPrefs(m.id, { wagon: v }); }} label="Wagon wheel" hint="Tap where each shot went." />
           {speakSupported && <Toggle on={!!prefs.speak} set={(v) => { if (v) track(EV.commentary_on); setPrefs(m.id, { speak: v }); }} label="Spoken commentary" hint={mic ? "Quiet while the mic is on, so it doesn't score itself." : "Says each ball out loud."} />}
           <button onClick={closeMore(() => setPanel("turf"))} className="flex w-full items-center gap-3 py-3 text-left">
             <span className="flex-1"><span className="block font-semibold text-fg">Turf timer</span><span className="block text-xs text-mute">{turf ? `Ends at ${new Date(turf).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Count down the booked time"}</span></span>
@@ -444,7 +442,7 @@ function ShareSheet({ match: m, onClose }: { match: Match; onClose: () => void }
   );
   if (!m.live) return (
     <Sheet title="Share this match live" onClose={onClose}>
-      <p className="text-sm text-mute">Anyone with the code or link can follow every ball as you score it. Keep this app open while you score.</p>
+      <p className="text-sm text-mute">Anyone with the code or link follows every ball. Keep this app open.</p>
       <div className="mt-4 grid gap-2">
         <PrimaryButton onClick={() => void newLiveKey().then((k) => { track(EV.live_share_start); put({ ...m, live: newCode(), ...k }); })}>Start live sharing</PrimaryButton>
         {moveButton(() => void newLiveKey().then((k) => move({ live: newCode(), ...k })))}
@@ -483,7 +481,7 @@ function Locked({ match: m }: { match: Match }) {
     <Card className="mt-4">
       {waiting ? (<>
         <p className="font-bold text-fg">Moving scoring to another phone</p>
-        <p className="mt-1 text-sm text-mute">Scoring is paused here. Send this link to the new scorer. When they open it, scoring moves to their phone and this one follows along.</p>
+        <p className="mt-1 text-sm text-mute">Scoring pauses here. Send the link to the new scorer only.</p>
         <p className="mt-3 rounded-2xl bg-sun-soft p-3 text-sm text-fg">Send it only to the new scorer, not to the group. The app opens it once, but the link holds this match's scoring key.</p>
         <div className="mt-4 grid gap-2">
           <PrimaryButton onClick={() => window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank")}>Send on WhatsApp</PrimaryButton>

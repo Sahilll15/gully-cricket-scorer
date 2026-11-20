@@ -6,6 +6,7 @@ import { BLOCK_TEXT, wicketCost } from "@shared/liveKit";
 import { revisedTarget } from "@shared/season";
 import { Plus } from "lucide-react-native";
 import { Badge, C, GhostButton, Num, Pill, Press, PrimaryButton, SectionTitle, Segmented, Sheet, Stepper, Txt, tw } from "@/ui/ui";
+import { nextBatterId, confirmWicketLabel } from "@shared/nextBatter";
 
 const addPlayer = E.addPlayer;
 
@@ -26,7 +27,7 @@ export function Grid({ cols, gap = 8, children }: { cols: number; gap?: number; 
   );
 }
 
-const capitalize = (s: string) => s.replace(/(^|\s)\w/g, (c) => c.toUpperCase());
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 export function PlayerPick({ players, value, set, disabled, note }: {
   players: Player[]; value: string | null; set: (id: string) => void; disabled?: (id: string) => boolean; note?: (id: string) => string;
@@ -72,7 +73,7 @@ export function AddName({ onAdd, label }: { onAdd: (name: string) => void; label
   const submit = () => { if (v.trim()) { onAdd(v); setV(""); } };
   return (
     <View style={tw`mt-3 flex-row gap-2`}>
-      <TextInput value={v} onChangeText={setV} placeholder={label} maxLength={20} onSubmitEditing={submit} submitBehavior="submit"
+      <TextInput value={v} onChangeText={setV} placeholder={label} accessibilityLabel={label} maxLength={20} onSubmitEditing={submit} submitBehavior="submit"
         returnKeyType="done" autoCapitalize="words" placeholderTextColor={C.mute} selectionColor={C.sun}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
         style={[tw`min-h-12 flex-1 rounded-[18px] border bg-panel px-4 text-[15px] text-fg ${focus ? "border-sun" : "border-line"}`, { fontFamily: "Inter_500Medium" }]} />
@@ -188,7 +189,7 @@ export function WicketSheet({ match, extra, preset, onDone, onClose }: {
   // Retired batters may have gone home, so with only them left nobody has to come in.
   const needNew = fresh.length > 0 && !lastWicket && !stays;
   const offer = needNew ? [...fresh, ...back] : stays ? [] : back;
-  const [newId, setNewId] = useState<string | null>(null);
+  const [newId, setNewId] = useState<string | null>(() => nextBatterId(fresh, needNew));
   const alone = m.rules.lastManStands && !!st.nonStriker;
   const [fielder, setFielder] = useState<string | null>(null);
   const fieldSide = E.otherSide(inn.bat), solo = E.isSolo(m);
@@ -203,10 +204,10 @@ export function WicketSheet({ match, extra, preset, onDone, onClose }: {
     <Sheet title={st.freeHit ? "Free hit: only a run out" : extra === "nb" ? "No ball: only a run out" : extra === "wd" ? "Out on a wide" : extra ? "Out on a bye: only a run out" : "How out?"} onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!ready}
         onPress={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: offer.some((p) => p.id === newId) ? newId : null, ...(byLabel && fielder && { fielderId: fielder }) } })}>
-        Confirm wicket
+        {confirmWicketLabel(needNew, newId ? name(newId) : null)}
       </PrimaryButton>}>
       <Grid cols={2}>
-        {kinds.map((k) => <Pill key={k} active={kind === k} onPress={() => setKind(k)}>{capitalize(k)}</Pill>)}
+        {kinds.map((k) => <Pill key={k} active={kind === k} onPress={() => setKind(k)}>{cap(k)}</Pill>)}
       </Grid>
       {kind === "run out" && (
         <>
@@ -297,7 +298,7 @@ export function RainSheet({ match, onSave, onClose }: { match: Match; onSave: (m
   return (
     <Sheet title="Rain rule" onClose={onClose}
       footer={<PrimaryButton onPress={() => onSave(E.setRevisedTarget(E.setOvers(match, overs), target))}>{`Apply: ${target} to win in ${overs} overs`}</PrimaryButton>}>
-      <Txt style={tw`mb-3 text-sm text-mute`}>{`Rain cut the chase short? Pick the new overs. The target is the first innings (${first} in ${was} overs) scaled down. Change it if you agree a different number.`}</Txt>
+      <Txt style={tw`mb-3 text-sm text-mute`}>Pick the chase overs. The target scales down, or edit it.</Txt>
       <SectionTitle>Overs for the chase</SectionTitle>
       <Stepper value={overs} set={pickOvers} min={min} max={was} />
       <View style={tw`mt-4`}><SectionTitle>Runs to win</SectionTitle></View>
@@ -307,21 +308,26 @@ export function RainSheet({ match, onSave, onClose }: { match: Match; onSave: (m
   );
 }
 
-export function RetireSheet({ match, batter, hurt, onSave, onClose }: { match: Match; batter?: string | null; hurt?: boolean; onSave: (m: Match) => void; onClose: () => void }) {
+export function RetireSheet({ match, batter, onSave, onClose }: { match: Match; batter?: string | null; onSave: (m: Match) => void; onClose: () => void }) {
   const [m, setM] = useState(match);
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const [who, setWho] = useState<"s" | "ns">(batter && batter === st.nonStriker ? "ns" : "s");
+  const [hurt, setHurt] = useState(false);
   const [newId, setNewId] = useState<string | null>(null);
   const remaining = E.yetToBat(m, idx);
   const name = (id: string | null) => E.playerName(m, id);
   return (
-    <Sheet title={hurt ? "Retired hurt" : "Retire a batter"} onClose={onClose}
+    <Sheet title="Retire a batter" onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!newId && !st.nonStriker}
         onPress={() => onSave(E.retire(m, who, newId, !!hurt))}>Retire {name(who === "s" ? st.striker : st.nonStriker)}</PrimaryButton>}>
       <Txt style={tw`mb-3 text-sm text-mute`}>{hurt ? "They go off retired hurt, not out, and can come back in later."
         : batter && m.rules.retireAt
         ? `${name(batter)} has reached ${m.rules.retireAt}, so they retire. They go off not out and can bat again later.`
-        : "Hurt, or has to leave? They go off not out and it isn't a wicket."}</Txt>
+        : "They go off not out and it isn't a wicket."}</Txt>
+      <View style={tw`mb-3`}><Grid cols={2}>
+        <Pill active={!hurt} onPress={() => setHurt(false)}>Not out</Pill>
+        <Pill active={hurt} onPress={() => setHurt(true)}>Retired hurt</Pill>
+      </Grid></View>
       <Grid cols={2}>
         <Pill active={who === "s"} onPress={() => setWho("s")}>{name(st.striker)}</Pill>
         {st.nonStriker && <Pill active={who === "ns"} onPress={() => setWho("ns")}>{name(st.nonStriker)}</Pill>}

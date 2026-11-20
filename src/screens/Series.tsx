@@ -4,7 +4,7 @@ import type { Match, Rules } from "../engine/types";
 import { useStore } from "../store";
 import { track } from "../track";
 import { EV } from "../events";
-import { Badge, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Stepper } from "../ui";
+import { Badge, Card, ConfirmSheet, cx, Header, NotFound, PrimaryButton, Segmented, Stepper } from "../ui";
 import { MatchCard } from "./Home";
 
 const SERIES_RULES: Rules = {
@@ -73,7 +73,7 @@ export function SeriesList() {
       <Card className="text-center">
         <p className="text-4xl">🔁</p>
         <p className="mt-2 font-semibold text-fg">No series yet</p>
-        <p className="text-sm text-mute">Same two teams, as many matches as you like. The team that wins the most matches wins the series. Every next match starts filled in.</p>
+        <p className="text-sm text-mute">Two teams, any number of matches. Most wins takes the series.</p>
       </Card>
     )}
   </>);
@@ -98,12 +98,12 @@ export function NewSeries() {
             {teams.map((t) => (
               <button key={t.id} onClick={() => toggle(t.id)}
                 className={cx("press flex min-h-12 items-center gap-2 rounded-full border-2 py-1 pl-1 pr-4", pick.includes(t.id) ? "border-sun bg-sun text-ink" : "border-line bg-panel text-fg")}>
-                <Badge name={t.name} size={36} /><span className="text-sm font-semibold">{t.name}</span>
+                <Badge name={t.name} size={36} kind="team" /><span className="text-sm font-semibold">{t.name}</span>
               </button>
             ))}
           </div>
           <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { track(EV.team_save); const t = saveTeam(newTeam, []); setPick((p) => [...p.filter((x) => x !== t.id), t.id].slice(-2)); setNewTeam(""); } }}>
-            <input value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
+            <input aria-label="Add a team" value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
               className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
             <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
           </form>
@@ -111,14 +111,14 @@ export function NewSeries() {
         </Card>
         <Card>
           <p className="mb-2 text-sm font-semibold text-teal">Name</p>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder={names.length === 2 ? `${names[0]} v ${names[1]}` : "Sunday series"}
+          <input aria-label="Series name" value={name} onChange={(e) => setName(e.target.value)} maxLength={32} placeholder={names.length === 2 ? `${names[0]} v ${names[1]}` : "Sunday series"}
             className="min-h-12 w-full rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none placeholder:text-mute" />
         </Card>
         <Card>
           <p className="mb-2 text-sm font-semibold text-teal">Number of matches</p>
           <Segmented value={plan ? "set" : "open"} set={(v) => setPlan(v === "set")} items={[{ v: "open", label: "Open series" }, { v: "set", label: "Plan a number" }]} />
           {plan && <div className="mt-2"><Stepper value={games} set={setGames} max={9} /></div>}
-          <p className="mt-2 text-xs text-mute">{plan ? "You can still play on or end it early." : "Play as many matches as you like and end it when you decide. Most wins takes the series."}</p>
+          <p className="mt-2 text-xs text-mute">{plan ? "You can still play on or end it early." : "Play until you end it."}</p>
         </Card>
         <PrimaryButton disabled={pick.length < 2} onClick={() => {
           const s = newSeries(name.trim() || `${names[0]} v ${names[1]}`, pick[0], pick[1], plan ? games : null, SERIES_RULES);
@@ -134,7 +134,7 @@ export function SeriesView() {
   const { series, seriesId, matches, go, removeSeries } = useStore();
   const [askDel, setAskDel] = useState(false);
   const s = series.find((x) => x.id === seriesId);
-  if (!s) return null;
+  if (!s) return <NotFound what="series" />;
   const list = seriesMatches(s, matches);
   return (
     <div className="min-h-screen pb-10">

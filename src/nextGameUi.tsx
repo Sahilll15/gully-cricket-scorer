@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { uniqueNames } from "./kitty";
 import {
-  atTime, dayOptions, dayText, isOver, minutesOf, nextGameIcs, nextGameText, startOfDay, timeText, type NextGame,
+  atTime, dayOptions, dayText, isOver, minutesOf, nextGameIcs, nextGameText, startOfDay, TIME_PRESETS, timeText, type NextGame,
 } from "./nextGame";
 import { playerPool } from "./stats";
 import { useStore } from "./store";
@@ -36,6 +36,7 @@ function NextGameSheet({ game, onClose }: { game: NextGame | null; onClose: () =
       <p className="mb-2 text-sm font-semibold text-teal">Day</p>
       <div className="flex flex-wrap gap-2">{days.map((d) => <button key={d.at} onClick={() => setDay(d.at)} aria-pressed={day === d.at} className={chip(day === d.at)}>{d.label}</button>)}</div>
       <Label t="Time" />
+      <div className="mb-2 flex flex-wrap gap-2">{TIME_PRESETS.map((p) => <button key={p.label} type="button" onClick={() => setMins(p.minutes)} aria-pressed={mins === p.minutes} className={chip(mins === p.minutes)}>{p.label}</button>)}</div>
       <div className="flex items-center justify-between rounded-2xl bg-key p-1.5">
         <button className="press h-12 w-12 rounded-xl bg-panel text-2xl font-bold text-fg" aria-label="Earlier" onClick={() => setMins((mins + 1440 - 30) % 1440)}>−</button>
         <span className="text-2xl font-extrabold tabular-nums text-fg">{timeText(at)}</span>
@@ -43,17 +44,17 @@ function NextGameSheet({ game, onClose }: { game: NextGame | null; onClose: () =
       </div>
       {past && <p className="mt-2 text-xs text-out">That time has passed. Pick a later one.</p>}
       <Label t="Place" />
-      <input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Lane 4, the school ground" maxLength={40} className={field} />
+      <input aria-label="Place" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Lane 4, the school ground" maxLength={40} className={field} />
       <Label t={`Who's in (${who.length})`} />
       <div className="flex flex-wrap gap-2">
         {names.map((n) => <button key={n} onClick={() => setWho(has(n) ? who.filter((x) => x.toLowerCase() !== n.toLowerCase()) : [...who, n])} aria-pressed={has(n)} className={chip(has(n))}>{n}</button>)}
       </div>
       <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); add(); }}>
-        <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Someone else" maxLength={20} className={cx(field, "flex-1")} />
+        <input aria-label="Someone else" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Someone else" maxLength={20} className={cx(field, "flex-1")} />
         <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
       </form>
       <Label t="Note (optional)" />
-      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bring the tape ball" maxLength={80} className={field} />
+      <input aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bring the tape ball" maxLength={80} className={field} />
       {game && <button onClick={() => setAskClear(true)} className="press mt-5 min-h-12 w-full rounded-2xl font-semibold text-out">Remove this game</button>}
     </Sheet>
     {askClear && <ConfirmSheet title="Remove the next game?" yes="Remove" danger onYes={() => { setNextGame(null); onClose(); }} onClose={() => setAskClear(false)} />}
@@ -78,7 +79,7 @@ export function NextGameCard() {
     <button onClick={() => setOpen(true)} className="press flex w-full items-center gap-3 rounded-3xl border-2 border-dashed border-line p-4 text-left">
       <span className="text-2xl">📅</span>
       <span className="flex-1"><span className="block font-bold text-fg">Plan the next game</span>
-        <span className="block text-sm text-mute">Day, place and who's in. Share it to the group.</span></span>
+        <span className="block text-sm text-mute">Day, place, who's in.</span></span>
       <span className="text-mute">›</span>
     </button>
     {sheet}

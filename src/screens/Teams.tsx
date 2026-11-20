@@ -28,7 +28,7 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
   const save = (next: SavedTeam) => { setT(next); putTeam(next); };
   return (<>
     <Sheet title="Edit team" onClose={onClose}>
-      <input value={t.name} onChange={(e) => save({ ...t, name: e.target.value })} maxLength={18}
+      <input aria-label="Team name" value={t.name} onChange={(e) => save({ ...t, name: e.target.value })} maxLength={18}
         className="min-h-12 w-full rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none" />
       <p className="mb-2 mt-4 text-sm font-semibold text-teal">Squad ({t.players.length})</p>
       <div className="flex flex-wrap gap-2">
@@ -40,7 +40,7 @@ function TeamEditor({ team, onClose }: { team: SavedTeam; onClose: () => void })
         ))}
       </div>
       <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (v.trim()) { save({ ...t, players: [...t.players, { id: E.uid(), name: v.trim() }] }); setV(""); } }}>
-        <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Add a player" maxLength={20} autoFocus
+        <input aria-label="Add a player" value={v} onChange={(e) => setV(e.target.value)} placeholder="Add a player" maxLength={20} autoFocus
           className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
         <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
       </form>
@@ -69,8 +69,8 @@ function MergeSheet({ onClose }: { onClose: () => void }) {
   return (<>
     <Sheet title="Merge players" onClose={onClose}
       footer={<PrimaryButton disabled={!from || !into} onClick={() => setAsk(true)}>{from && into ? `Merge ${from} into ${into}` : "Merge"}</PrimaryButton>}>
-      <p className="text-sm text-mute">Same person saved under two names? Merge them and their matches, teams, details and kitty all add up under one name.</p>
-      {names.length > 8 && <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names" maxLength={20}
+      <p className="text-sm text-mute">Same person, two names? Merge them to add up the stats.</p>
+      {names.length > 8 && <input aria-label="Search names" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names" maxLength={20}
         className="mt-3 min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />}
       <p className="mb-2 mt-4 text-sm font-semibold text-teal">Name to drop</p>
       <div className="flex flex-wrap gap-2">
@@ -100,15 +100,13 @@ export function Teams() {
   const [groupsOpen, setGroupsOpen] = useState(false);
   return (
     <div className="min-h-screen pb-28">
-      <Header title="My Teams" />
+      <Header title="Teams" />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (name.trim()) { track(EV.team_save); setEdit(saveTeam(name, [])); setName(""); } }}>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New team name" maxLength={18}
+          <input aria-label="New team name" value={name} onChange={(e) => setName(e.target.value)} placeholder="New team name" maxLength={18}
             className="min-h-14 flex-1 rounded-2xl border-2 border-line bg-panel px-4 font-semibold outline-none focus:border-sun" />
           <button className="press min-h-14 rounded-2xl bg-sun px-5 font-bold text-ink">Create</button>
         </form>
-        <button onClick={() => setGroupsOpen(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Player groups</button>
-        <button onClick={() => setMerging(true)} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Merge players</button>
         {lastMerge && (
           <Card className="flex items-center gap-3 !py-3">
             <span className="flex-1 text-sm text-fg">Merged <b>{lastMerge.from}</b> into <b>{lastMerge.into}</b>.</span>
@@ -118,14 +116,18 @@ export function Teams() {
         {teams.map((t) => (
           <button key={t.id} onClick={() => setEdit(t)} className="press block w-full text-left">
             <Card className="flex items-center gap-3">
-              <Badge name={t.name} />
+              <Badge name={t.name} kind="team" />
               <span className="flex-1"><span className="block font-bold text-fg">{t.name}</span>
                 <span className="text-sm text-mute">{t.players.length ? t.players.map((p) => p.name).join(", ") : "No players yet"}</span></span>
               <span className="text-mute">›</span>
             </Card>
           </button>
         ))}
-        {!teams.length && <p className="pt-6 text-center text-sm text-mute">Teams you play with are saved here automatically, with their squads.</p>}
+        {!teams.length && <p className="pt-6 text-center text-sm text-mute">Teams you play are saved here.</p>}
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          <button onClick={() => setGroupsOpen(true)} className="press min-h-12 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Player groups</button>
+          <button onClick={() => setMerging(true)} className="press min-h-12 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Merge players</button>
+        </div>
       </main>
       {edit && <TeamEditor team={edit} onClose={() => setEdit(null)} />}
       {merging && <MergeSheet onClose={() => setMerging(false)} />}
@@ -177,9 +179,9 @@ function InfoEditor({ name, info, onClose }: { name: string; info: PlayerInfo; o
         <Choice items={STYLES[i.bowl].map((x) => [x, x] as const)} value={i.style} set={(style) => put({ style })} />
       </>}
       {label("UPI ID (optional)")}
-      <input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@okaxis" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={60}
+      <input aria-label="UPI ID" value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@okaxis" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={60}
         className="min-h-12 w-full rounded-2xl border-2 border-line bg-panel px-4 text-fg outline-none focus:border-sun" />
-      <p className={cx("mt-1.5 text-xs", upiOk ? "text-mute" : "text-out")}>{upiOk ? "Lets the kitty show a QR when someone owes them. Stays on this phone." : "A UPI ID looks like name@bank."}</p>
+      <p className={cx("mt-1.5 text-xs", upiOk ? "text-mute" : "text-out")}>{upiOk ? "Add a UPI ID to show a QR." : "A UPI ID looks like name@bank."}</p>
     </Sheet>
   );
 }
@@ -250,8 +252,10 @@ export function PlayerProfile() {
         <p className="text-center text-sm text-mute">{matchesLine(p.matches, kind, year)}</p>
         {card.matches > 0 && <>
           <SkillCardView c={card} />
-          <button onClick={share} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share card</button>
-          {recap && <button onClick={shareYear} className="press min-h-12 w-full rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share my {recapYear}</button>}
+          <div className="flex gap-2">
+            <button onClick={share} className="press min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share card</button>
+            {recap && <button onClick={shareYear} className="press min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel font-semibold text-fg">Share my {recapYear}</button>}
+          </div>
         </>}
         <Card>
           <p className="mb-3 text-sm font-semibold text-teal">Batting</p>
@@ -273,7 +277,6 @@ export function PlayerProfile() {
         <Card>
           <p className="mb-3 text-sm font-semibold text-teal">Fielding</p>
           <div className="grid grid-cols-3 gap-2">{stat("Catches", p.catches)}{stat("Run outs", p.runOuts)}{stat("Stumpings", p.stumpings)}</div>
-          <p className="mt-2 text-xs text-mute">Counted when you name the fielder on the wicket.</p>
         </Card>
         {p.recent.length > 0 && (
           <Card className="!p-0 overflow-hidden">
@@ -287,7 +290,6 @@ export function PlayerProfile() {
             ))}
           </Card>
         )}
-        <PrimaryButton tone="navy" onClick={() => go("stats")}>Back to leaderboard</PrimaryButton>
       </main>
       {editing && <InfoEditor name={p.name} info={info} onClose={() => setEditing(false)} />}
     </div>

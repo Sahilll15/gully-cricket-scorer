@@ -4,8 +4,10 @@ import type { Ball, Extra, Match, Player, Wicket, WicketKind } from "./engine/ty
 import { Badge, cx, Pill, PrimaryButton, Segmented, Sheet, Stepper } from "./ui";
 import { BLOCK_TEXT, wicketCost } from "./liveKit";
 import { revisedTarget } from "./season";
+import { nextBatterId, confirmWicketLabel } from "./nextBatter";
 
 const addPlayer = E.addPlayer;
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 export function PlayerPick({ players, value, set, disabled, note }: {
   players: Player[]; value: string | null; set: (id: string) => void; disabled?: (id: string) => boolean; note?: (id: string) => string;
@@ -29,7 +31,7 @@ export function AddName({ onAdd, label }: { onAdd: (name: string) => void; label
   const [v, setV] = useState("");
   return (
     <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (v.trim()) { onAdd(v); setV(""); } }}>
-      <input value={v} onChange={(e) => setV(e.target.value)} placeholder={label} maxLength={20}
+      <input aria-label={label} value={v} onChange={(e) => setV(e.target.value)} placeholder={label} maxLength={20}
         className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 font-medium outline-none focus:border-sun" />
       <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
     </form>
@@ -130,7 +132,7 @@ export function WicketSheet({ match, extra, preset, onDone, onClose }: {
   // Retired batters may have gone home, so with only them left nobody has to come in.
   const needNew = fresh.length > 0 && !lastWicket && !stays;
   const offer = needNew ? [...fresh, ...back] : stays ? [] : back;
-  const [newId, setNewId] = useState<string | null>(null);
+  const [newId, setNewId] = useState<string | null>(() => nextBatterId(fresh, needNew));
   const alone = m.rules.lastManStands && !!st.nonStriker;
   const [fielder, setFielder] = useState<string | null>(null);
   const fieldSide = E.otherSide(inn.bat), solo = E.isSolo(m);
@@ -145,10 +147,10 @@ export function WicketSheet({ match, extra, preset, onDone, onClose }: {
     <Sheet title={st.freeHit ? "Free hit: only a run out" : extra === "nb" ? "No ball: only a run out" : extra === "wd" ? "Out on a wide" : extra ? "Out on a bye: only a run out" : "How out?"} onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!ready}
         onClick={() => onDone(m, { runs: kind === "run out" ? runs : 0, extra: extra ?? undefined, wicket: { kind: kind!, out: kind === "run out" ? out : "s", outId: (kind === "run out" && out === "ns" ? st.nonStriker : st.striker) ?? undefined, newId: offer.some((p) => p.id === newId) ? newId : null, ...(byLabel && fielder && { fielderId: fielder }) } })}>
-        Confirm wicket
+        {confirmWicketLabel(needNew, newId ? name(newId) : null)}
       </PrimaryButton>}>
       <div className="grid grid-cols-2 gap-2">
-        {kinds.map((k) => <Pill key={k} active={kind === k} onClick={() => setKind(k)}><span className="capitalize">{k}</span></Pill>)}
+        {kinds.map((k) => <Pill key={k} active={kind === k} onClick={() => setKind(k)}>{cap(k)}</Pill>)}
       </div>
       {kind === "run out" && (
         <>
@@ -239,7 +241,7 @@ export function RainSheet({ match, onSave, onClose }: { match: Match; onSave: (m
   return (
     <Sheet title="Rain rule" onClose={onClose}
       footer={<PrimaryButton onClick={() => onSave(E.setRevisedTarget(E.setOvers(match, overs), target))}>Apply: {target} to win in {overs} overs</PrimaryButton>}>
-      <p className="mb-3 text-sm text-mute">Rain cut the chase short? Pick the new overs. The target is the first innings ({first} in {was} overs) scaled down. Change it if you agree a different number.</p>
+      <p className="mb-3 text-sm text-mute">Pick the chase overs. The target scales down, or edit it.</p>
       <p className="mb-2 text-sm font-semibold text-teal">Overs for the chase</p>
       <Stepper value={overs} set={pickOvers} min={min} max={was} />
       <p className="mb-2 mt-4 text-sm font-semibold text-teal">Runs to win</p>
@@ -249,21 +251,26 @@ export function RainSheet({ match, onSave, onClose }: { match: Match; onSave: (m
   );
 }
 
-export function RetireSheet({ match, batter, hurt, onSave, onClose }: { match: Match; batter?: string | null; hurt?: boolean; onSave: (m: Match) => void; onClose: () => void }) {
+export function RetireSheet({ match, batter, onSave, onClose }: { match: Match; batter?: string | null; onSave: (m: Match) => void; onClose: () => void }) {
   const [m, setM] = useState(match);
   const idx = m.innings.length - 1, inn = m.innings[idx], st = E.replay(m, idx);
   const [who, setWho] = useState<"s" | "ns">(batter && batter === st.nonStriker ? "ns" : "s");
+  const [hurt, setHurt] = useState(false);
   const [newId, setNewId] = useState<string | null>(null);
   const remaining = E.yetToBat(m, idx);
   const name = (id: string | null) => E.playerName(m, id);
   return (
-    <Sheet title={hurt ? "Retired hurt" : "Retire a batter"} onClose={onClose}
+    <Sheet title="Retire a batter" onClose={onClose}
       footer={<PrimaryButton tone="navy" disabled={!newId && !st.nonStriker}
         onClick={() => onSave(E.retire(m, who, newId, !!hurt))}>Retire {name(who === "s" ? st.striker : st.nonStriker)}</PrimaryButton>}>
       <p className="mb-3 text-sm text-mute">{hurt ? "They go off retired hurt, not out, and can come back in later."
         : batter && m.rules.retireAt
         ? `${name(batter)} has reached ${m.rules.retireAt}, so they retire. They go off not out and can bat again later.`
-        : "Hurt, or has to leave? They go off not out and it isn't a wicket."}</p>
+        : "They go off not out and it isn't a wicket."}</p>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <Pill active={!hurt} onClick={() => setHurt(false)}>Not out</Pill>
+        <Pill active={hurt} onClick={() => setHurt(true)}>Retired hurt</Pill>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <Pill active={who === "s"} onClick={() => setWho("s")}>{name(st.striker)}</Pill>
         {st.nonStriker && <Pill active={who === "ns"} onClick={() => setWho("ns")}>{name(st.nonStriker)}</Pill>}

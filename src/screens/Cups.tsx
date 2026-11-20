@@ -9,7 +9,7 @@ import { EV } from "../events";
 import { leaders, strikeRate } from "../stats";
 import { GroupChips } from "../groupsUi";
 import { playersFrom } from "../groups";
-import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, PrimaryButton, Segmented, Stepper } from "../ui";
+import { Badge, BottomNav, Card, ConfirmSheet, cx, Header, NotFound, PrimaryButton, Segmented, Stepper } from "../ui";
 
 export const CUP_RULES: Rules = {
   overs: 5, extraRun: true, rebowl: true, freeHit: false, lastManStands: false, oneTipCatch: false,
@@ -31,11 +31,11 @@ export function Cups() {
   const name = (id: string) => teams.find((t) => t.id === id)?.name ?? "?";
   return (
     <div className="min-h-screen pb-28">
-      <Header title={tab === "cups" ? "Tournaments" : "Series"} />
+      <Header title={tab === "cups" ? "Cups" : "Series"} />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <Segmented value={tab} set={setTab} items={[{ v: "cups", label: "Tournaments" }, { v: "series", label: "Series" }]} />
+        <Segmented value={tab} set={setTab} items={[{ v: "cups", label: "Cups" }, { v: "series", label: "Series" }]} />
         {tab === "series" ? <SeriesList /> : <>
-        <PrimaryButton onClick={() => go("newcup")}>+ Create tournament</PrimaryButton>
+        <PrimaryButton onClick={() => go("newcup")}>+ Create cup</PrimaryButton>
         {cups.map((c) => {
           const done = c.fixtures.filter((f) => matches.some((m) => m.id === f.matchId && m.status === "done")).length;
           const champ = champion(c, matches);
@@ -55,8 +55,8 @@ export function Cups() {
         {!cups.length && (
           <Card className="text-center">
             <p className="text-4xl">🏆</p>
-            <p className="mt-2 font-semibold text-fg">No tournaments yet</p>
-            <p className="text-sm text-mute">Pick your teams, and fixtures plus a points table with net run rate are made for you.</p>
+            <p className="mt-2 font-semibold text-fg">No cups yet</p>
+            <p className="text-sm text-mute">Pick teams. Fixtures and a table are made for you.</p>
           </Card>
         )}
         </>}
@@ -80,11 +80,11 @@ export function NewCup() {
 
   return (
     <div className="min-h-screen pb-10">
-      <Header title="New Tournament" back={() => go("cups")} />
+      <Header title="New cup" back={() => go("cups")} />
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
         <Card>
           <p className="mb-2 text-sm font-semibold text-teal">Name</p>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32}
+          <input aria-label="Tournament name" value={name} onChange={(e) => setName(e.target.value)} maxLength={32}
             className="min-h-12 w-full rounded-2xl bg-key px-4 text-lg font-bold text-fg outline-none" />
         </Card>
         <Card>
@@ -93,13 +93,13 @@ export function NewCup() {
             {teams.map((t) => (
               <button key={t.id} onClick={() => toggle(t.id)}
                 className={cx("press flex min-h-12 items-center gap-2 rounded-full border-2 py-1 pl-1 pr-4", pick.includes(t.id) ? "border-sun bg-sun text-ink" : "border-line bg-panel text-fg")}>
-                <Badge name={t.name} size={36} /><span className="text-sm font-semibold">{t.name}</span>
+                <Badge name={t.name} size={36} kind="team" /><span className="text-sm font-semibold">{t.name}</span>
               </button>
             ))}
           </div>
           <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (newTeam.trim()) { track(EV.team_save); const g = groups.find((x) => x.id === groupId); if (g) track(EV.group_use, { where: "cup" });
             const t = saveTeam(newTeam, g ? playersFrom(g, []) : []); setPick([...pick, t.id]); setNewTeam(""); } }}>
-            <input value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
+            <input aria-label="Add a team" value={newTeam} onChange={(e) => setNewTeam(e.target.value)} placeholder="Add a team" maxLength={18}
               className="min-h-12 flex-1 rounded-2xl border-2 border-line bg-panel px-4 outline-none focus:border-sun" />
             <button className="press min-h-12 rounded-2xl bg-raised px-5 font-semibold text-white">Add</button>
           </form>
@@ -120,8 +120,8 @@ export function NewCup() {
             ))}
           </div>
           {pick.length >= 2 && pick.length < min && <p className="mt-2 text-xs text-out">{min} teams needed for this. With {pick.length} it becomes {pick.length >= 3 ? "a top-2 final" : "a league"}.</p>}
-          {format !== "league" && format !== "knockout" && <p className="mt-2 text-xs text-mute">A tied playoff sends the team higher in the table through.</p>}
-          {format === "knockout" && <p className="mt-2 text-xs text-mute">Seeded in the order you picked the teams. A tie sends the higher seed through.</p>}
+          {format !== "league" && format !== "knockout" && <p className="mt-2 text-xs text-mute">Higher in the table wins a tie.</p>}
+          {format === "knockout" && <p className="mt-2 text-xs text-mute">Higher seed wins a tie.</p>}
         </Card>
         <PrimaryButton disabled={pick.length < 2 || !name.trim()} onClick={() => {
           const t = newTournament(name.trim(), pick, { ...CUP_RULES, overs }, format);
@@ -153,7 +153,7 @@ function FixtureRow({ f, cup, matches, name }: { f: Fixture; cup: Tournament; ma
         </div>
         {([[f.a, 0], [f.b, 1]] as const).map(([id, s]) => (
           <div key={id} className="flex items-center gap-3 py-1">
-            <Badge name={name(id)} size={30} />
+            <Badge name={name(id)} size={30} kind="team" />
             <span className={cx("flex-1 truncate font-semibold", res && res.winner === s ? "text-sun" : "text-fg")}>{name(id)}</span>
             <span className="font-bold text-fg tabular-nums">{score(s)}</span>
           </div>
@@ -175,7 +175,7 @@ export function Cup() {
     for (let i = 0; i < 4; i++) next = advance(next, matches);
     if (next !== cup) putCup(next);
   }, [cup, matches, putCup]);
-  if (!cup) return null;
+  if (!cup) return <NotFound what="tournament" />;
   const name = (id: string) => teams.find((t) => t.id === id)?.name ?? "?";
   const table = standings(cup, matches);
   const champ = champion(cup, matches);
@@ -207,7 +207,7 @@ export function Cup() {
                   <td className={cx("px-1.5 pr-3 text-right tabular-nums", r.nrr > 0 ? "text-sun" : r.nrr < 0 ? "text-mute" : "")}>{r.nrr > 0 ? "+" : ""}{r.nrr.toFixed(3)}</td>
                 </tr>))}</tbody>
             </table>
-            <p className="border-t border-line px-3 py-2.5 text-xs text-mute">Win 2 points, tie 1. Net run rate: runs per over scored minus runs per over conceded.{cup.format === "league" ? "" : ` ${FORMATS.find((f) => f.v === cup.format)?.hint ?? ""}.`}</p>
+            <p className="border-t border-line px-3 py-2.5 text-xs text-mute">Win 2, tie 1. Level on points: higher net run rate.{cup.format === "league" ? "" : ` ${FORMATS.find((f) => f.v === cup.format)?.hint ?? ""}.`}</p>
           </Card>
         )}
         {tab === "stats" && (
@@ -231,7 +231,7 @@ export function Cup() {
           </div>
         )}
         <button onClick={() => setAskDel(true)}
-          className="press min-h-12 w-full rounded-2xl font-semibold text-out">Delete tournament</button>
+          className="press min-h-12 w-full rounded-2xl font-semibold text-out">Delete cup</button>
       </main>
       {askDel && <ConfirmSheet title={`Delete ${cup.name}?`} body="Its matches stay in History." yes="Delete" danger
         onYes={() => { removeCup(cup.id); go("cups"); }} onClose={() => setAskDel(false)} />}

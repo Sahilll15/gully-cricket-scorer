@@ -90,13 +90,13 @@ export function JoinScoring() {
           <p className="mt-1 text-4xl font-extrabold tracking-[0.2em]">{joinCode}</p>
           <p className="mt-3 text-sm text-white/80">
             {status === "BAD" ? "That match couldn't be read. Ask for a fresh link."
-              : status === "USED" ? "This link was already used or cancelled. Ask the scorer for a new one."
-              : status === "SUBSCRIBED" ? "Getting the match from the other phone. The app needs to be open on it." : "Connecting..."}
+              : status === "USED" ? "Link already used. Ask for a new one."
+              : status === "SUBSCRIBED" ? "Getting the match. Keep the other app open." : "Connecting..."}
           </p>
         </div>
       </Header>
       <main className="mx-auto max-w-[480px] space-y-3 px-4 pt-4">
-        <p className="text-center text-sm text-mute">Once it loads, scoring moves to this phone and the other phone just follows along.</p>
+        <p className="text-center text-sm text-mute">Scoring moves here. The other phone follows.</p>
         {status === "USED" && fpShown && <PrimaryButton onClick={() => watchMatch(joinCode, fpShown)}>Just watch the match</PrimaryButton>}
         <PrimaryButton tone="navy" onClick={() => go("home")}>Cancel</PrimaryButton>
       </main>
@@ -126,7 +126,7 @@ function Board({ m }: { m: NonNullable<LiveState["match"]> }) {
     <div className="stadium mt-3 overflow-hidden rounded-3xl px-5 pb-5 pt-4 text-white">
       <div className="flex items-center gap-2 text-[13px] font-medium text-white/85">
         {solo ? <><Badge name={who} size={28} /><span className="truncate">{who} {m.status === "live" ? "batting" : "· turn over"}{E.isFrench(m) ? " · French cricket" : ""}</span></>
-          : <><Badge name={batTeam.name} size={28} /><span className="truncate">{batTeam.name} · {label}</span></>}
+          : <><Badge name={batTeam.name} size={28} kind="team" /><span className="truncate">{batTeam.name} · {label}</span></>}
       </div>
       <p className="mt-2 flex items-baseline gap-2">
         {solo ? <>
@@ -183,7 +183,7 @@ function Details({ m }: { m: NonNullable<LiveState["match"]> }) {
       </Card>
       {others.map(({ x, st: s }, i) => (
         <Card key={i} className="flex items-center gap-3 !p-3">
-          <Badge name={m.teams[x.bat].name} size={34} />
+          <Badge name={m.teams[x.bat].name} size={34} kind="team" />
           <span className="flex-1 truncate font-semibold text-teal">{m.teams[x.bat].name}{x.superOver ? " (super over)" : ""}</span>
           <span className="font-bold text-fg tabular-nums">{E.inningsScore(m, i)} ({E.oversText(s.legal)})</span>
         </Card>

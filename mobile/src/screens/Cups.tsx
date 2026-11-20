@@ -8,7 +8,7 @@ import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { leaders, strikeRate } from "@shared/stats";
 import { Trophy } from "lucide-react-native";
-import { Badge, C, Card, ConfirmSheet, Header, LivePill, Num, Page, Press, PrimaryButton, ScoreHero, SectionTitle, Segmented, Stepper, tw, Txt } from "@/ui/ui";
+import { Badge, C, Card, ConfirmSheet, Header, LivePill, Num, Page, Press, PrimaryButton, ScoreHero, SectionTitle, Segmented, Stepper, tw, Txt, NotFound } from "@/ui/ui";
 import { RankRow } from "./Lists";
 import { SeriesList } from "./Series";
 import { TextField } from "./Teams";
@@ -35,11 +35,11 @@ export function Cups() {
   const name = (id: string) => teams.find((t) => t.id === id)?.name ?? "?";
   return (
     <Page tabs>
-      <Header title={tab === "cups" ? "Tournaments" : "Series"} />
+      <Header title={tab === "cups" ? "Cups" : "Series"} />
       <View style={tw`gap-3 px-4 pt-4`}>
-        <Segmented value={tab} set={setTab} items={[{ v: "cups", label: "Tournaments" }, { v: "series", label: "Series" }]} />
+        <Segmented value={tab} set={setTab} items={[{ v: "cups", label: "Cups" }, { v: "series", label: "Series" }]} />
         {tab === "series" ? <SeriesList /> : <>
-        <PrimaryButton onPress={() => go("newcup")}>+ Create tournament</PrimaryButton>
+        <PrimaryButton onPress={() => go("newcup")}>+ Create cup</PrimaryButton>
         {cups.map((c) => {
           const done = c.fixtures.filter((f) => matches.some((m) => m.id === f.matchId && m.status === "done")).length;
           const champ = champion(c, matches);
@@ -65,8 +65,8 @@ export function Cups() {
         {!cups.length && (
           <Card style={tw`items-center py-6`}>
             <View style={tw`h-14 w-14 rounded-full bg-sun-soft items-center justify-center`}><Trophy size={22} color={C.sun} strokeWidth={2} /></View>
-            <Txt style={tw`mt-3 font-semibold text-center`}>No tournaments yet</Txt>
-            <Txt style={tw`text-sm text-mute text-center`}>Pick your teams, and fixtures plus a points table with net run rate are made for you.</Txt>
+            <Txt style={tw`mt-3 font-semibold text-center`}>No cups yet</Txt>
+            <Txt style={tw`text-sm text-mute text-center`}>Pick teams. Fixtures and a table are made for you.</Txt>
           </Card>
         )}
         </>}
@@ -91,11 +91,11 @@ export function NewCup() {
 
   return (
     <Page>
-      <Header title="New Tournament" back={() => go("cups")} />
+      <Header title="New cup" back={() => go("cups")} />
       <View style={tw`gap-3 px-4 pt-4`}>
         <Card>
           <SectionTitle>Name</SectionTitle>
-          <TextField value={name} onChangeText={setName} maxLength={32} weight="600" outline style={tw`min-h-12 w-full text-[17px]`} />
+          <TextField value={name} onChangeText={setName} maxLength={32} weight="600" outline accessibilityLabel="Tournament name" style={tw`min-h-12 w-full text-[17px]`} />
         </Card>
         <Card>
           <SectionTitle>{`Teams (${pick.length} picked)`}</SectionTitle>
@@ -105,7 +105,7 @@ export function NewCup() {
               return (
                 <Press key={t.id} onPress={() => toggle(t.id)} accessibilityState={{ selected: on }}
                   style={tw`flex-row min-h-12 items-center gap-2 rounded-full border py-1 pl-1 pr-4 ${on ? "border-sun bg-sun-soft" : "border-line"}`}>
-                  <Badge name={t.name} size={34} /><Txt style={tw`text-sm font-medium ${on ? "text-sun" : "text-fg"}`}>{t.name}</Txt>
+                  <Badge name={t.name} size={34} kind="team" /><Txt style={tw`text-sm font-medium ${on ? "text-sun" : "text-fg"}`}>{t.name}</Txt>
                 </Press>
               );
             })}
@@ -142,8 +142,8 @@ export function NewCup() {
             })}
           </View>
           {pick.length >= 2 && pick.length < min && <Txt style={tw`mt-2 text-xs text-out`}>{min} teams needed for this. With {pick.length} it becomes {pick.length >= 3 ? "a top-2 final" : "a league"}.</Txt>}
-          {format !== "league" && format !== "knockout" && <Txt style={tw`mt-2 text-xs text-mute`}>A tied playoff sends the team higher in the table through.</Txt>}
-          {format === "knockout" && <Txt style={tw`mt-2 text-xs text-mute`}>Seeded in the order you picked the teams. A tie sends the higher seed through.</Txt>}
+          {format !== "league" && format !== "knockout" && <Txt style={tw`mt-2 text-xs text-mute`}>Higher in the table wins a tie.</Txt>}
+          {format === "knockout" && <Txt style={tw`mt-2 text-xs text-mute`}>Higher seed wins a tie.</Txt>}
         </Card>
         <PrimaryButton disabled={pick.length < 2 || !name.trim()} onPress={() => {
           const t = newTournament(name.trim(), pick, { ...CUP_RULES, overs }, format);
@@ -187,7 +187,7 @@ function FixtureRow({ f, cup, matches, name, first }: { f: Fixture; cup: Tournam
         const won = !!res && res.winner === s;
         return (
           <View key={id} style={tw`flex-row items-center gap-3 py-1`}>
-            <Badge name={name(id)} size={28} />
+            <Badge name={name(id)} size={28} kind="team" />
             <Txt style={tw`flex-1 text-[15px] ${won ? "font-semibold text-sun" : res ? "text-teal" : "font-medium text-fg"}`} numberOfLines={1}>{name(id)}</Txt>
             <Num style={tw`text-[16px] ${won ? "text-sun" : res ? "text-teal" : "text-fg"}`}>{score(s)}</Num>
           </View>
@@ -211,7 +211,7 @@ export function Cup() {
     for (let i = 0; i < 4; i++) next = advance(next, matches);
     if (next !== cup) putCup(next);
   }, [cup, matches, putCup]);
-  if (!cup) return null;
+  if (!cup) return <NotFound what="tournament" />;
   const name = (id: string) => teams.find((t) => t.id === id)?.name ?? "?";
   const table = standings(cup, matches);
   const champ = champion(cup, matches);
@@ -273,7 +273,7 @@ export function Cup() {
                 </View>
               );
             })}
-            <Txt style={tw`py-3 text-xs text-mute`}>Win 2 points, tie 1. Net run rate: runs per over scored minus runs per over conceded.{cup.format === "league" ? "" : ` ${FORMATS.find((f) => f.v === cup.format)?.hint ?? ""}.`}</Txt>
+            <Txt style={tw`py-3 text-xs text-mute`}>Win 2, tie 1. Level on points: higher net run rate.{cup.format === "league" ? "" : ` ${FORMATS.find((f) => f.v === cup.format)?.hint ?? ""}.`}</Txt>
           </View>
         )}
         {tab === "stats" && (
@@ -290,7 +290,7 @@ export function Cup() {
           </View>
         )}
         <Press onPress={() => setAskDel(true)} style={tw`min-h-12 w-full rounded-[16px] items-center justify-center`}>
-          <Txt style={tw`font-medium text-out`}>Delete tournament</Txt>
+          <Txt style={tw`font-medium text-out`}>Delete cup</Txt>
         </Press>
       </View>
       {askDel && <ConfirmSheet title={`Delete ${cup.name}?`} body="Its matches stay in History." yes="Delete" danger

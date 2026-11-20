@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { Repeat } from "lucide-react-native";
-import { Badge, C, Card, ConfirmSheet, Header, Num, Page, Press, PrimaryButton, ScoreHero, SectionTitle, Segmented, Stepper, tw, Txt } from "@/ui/ui";
+import { Badge, C, Card, ConfirmSheet, Header, Num, Page, Press, PrimaryButton, ScoreHero, SectionTitle, Segmented, Stepper, tw, Txt, NotFound } from "@/ui/ui";
 import { MatchCard } from "./Home";
 import { TextField } from "./Teams";
 
@@ -47,12 +47,12 @@ function ScoreBoard({ s, matches }: { s: Series; matches: Match[] }) {
     <ScoreHero style={tw`mt-3`}>
       <View style={tw`flex-row items-center justify-center gap-3`}>
         <View style={tw`flex-1 items-center gap-1.5`}>
-          <Badge name={names[0]} size={40} />
+          <Badge name={names[0]} size={40} kind="team" />
           <Txt style={tw`text-center text-[13px] font-medium text-teal`} numberOfLines={1}>{names[0]}</Txt>
         </View>
         <Num style={tw`text-[44px] text-sun`}>{sc.a}-{sc.b}</Num>
         <View style={tw`flex-1 items-center gap-1.5`}>
-          <Badge name={names[1]} size={40} />
+          <Badge name={names[1]} size={40} kind="team" />
           <Txt style={tw`text-center text-[13px] font-medium text-teal`} numberOfLines={1}>{names[1]}</Txt>
         </View>
       </View>
@@ -84,7 +84,7 @@ export function SeriesList() {
       <Card style={tw`items-center py-6`}>
         <View style={tw`h-14 w-14 rounded-full bg-sun-soft items-center justify-center`}><Repeat size={22} color={C.sun} strokeWidth={2} /></View>
         <Txt style={tw`mt-3 font-semibold text-center`}>No series yet</Txt>
-        <Txt style={tw`text-sm text-mute text-center`}>Same two teams, as many matches as you like. The team that wins the most matches wins the series. Every next match starts filled in.</Txt>
+        <Txt style={tw`text-sm text-mute text-center`}>Two teams, any number of matches. Most wins takes the series.</Txt>
       </Card>
     )}
   </>);
@@ -112,7 +112,7 @@ export function NewSeries() {
               return (
                 <Press key={t.id} onPress={() => toggle(t.id)} accessibilityState={{ selected: on }}
                   style={tw`flex-row min-h-12 items-center gap-2 rounded-full border py-1 pl-1 pr-4 ${on ? "border-sun bg-sun-soft" : "border-line"}`}>
-                  <Badge name={t.name} size={34} /><Txt style={tw`text-sm font-medium ${on ? "text-sun" : "text-fg"}`}>{t.name}</Txt>
+                  <Badge name={t.name} size={34} kind="team" /><Txt style={tw`text-sm font-medium ${on ? "text-sun" : "text-fg"}`}>{t.name}</Txt>
                 </Press>
               );
             })}
@@ -135,7 +135,7 @@ export function NewSeries() {
           <SectionTitle>Number of matches</SectionTitle>
           <Segmented value={plan ? "set" : "open"} set={(v) => setPlan(v === "set")} items={[{ v: "open", label: "Open series" }, { v: "set", label: "Plan a number" }]} />
           {plan && <View style={tw`mt-2`}><Stepper value={games} set={setGames} max={9} /></View>}
-          <Txt style={tw`mt-2 text-xs text-mute`}>{plan ? "You can still play on or end it early." : "Play as many matches as you like and end it when you decide. Most wins takes the series."}</Txt>
+          <Txt style={tw`mt-2 text-xs text-mute`}>{plan ? "You can still play on or end it early." : "Play until you end it."}</Txt>
         </Card>
         <PrimaryButton disabled={pick.length < 2} onPress={() => {
           const s = newSeries(name.trim() || `${names[0]} v ${names[1]}`, pick[0], pick[1], plan ? games : null, SERIES_RULES);
@@ -151,7 +151,7 @@ export function SeriesView() {
   const { series, seriesId, matches, go, removeSeries } = useStore();
   const [askDel, setAskDel] = useState(false);
   const s = series.find((x) => x.id === seriesId);
-  if (!s) return null;
+  if (!s) return <NotFound what="series" />;
   const list = seriesMatches(s, matches);
   return (
     <Page>

@@ -15,8 +15,8 @@ export const showIntro = () => useIntro.setState({ open: true });
 
 const SLIDES: { icon: LucideIcon; title: string; body: string; chips: string[] }[] = [
   { icon: Mic, title: "Score every ball", body: "Tap the big keypad, or just say it. Made a mistake? Undo any ball.", chips: ["0 to 6", "Wide", "Out", "Undo"] },
-  { icon: SlidersHorizontal, title: "Your gully, your rules", body: "One tip one hand, tape ball, box cricket, solo mode. Set the rules your way.", chips: ["Tip and run", "Last man stands", "Solo"] },
-  { icon: Radio, title: "Share it live", body: "Friends follow every ball with a code. Phone dying? Move scoring to another phone in one tap.", chips: ["Live code", "WhatsApp link"] },
+  { icon: SlidersHorizontal, title: "Your gully, your rules", body: "Tip and run, tape ball, box cricket, solo. Your rules.", chips: ["Tip and run", "Last man stands", "Solo"] },
+  { icon: Radio, title: "Share it live", body: "Friends follow every ball. Phone dying? Move scoring in one tap.", chips: ["Live code", "WhatsApp link"] },
   { icon: BookOpen, title: "Settle the arguments", body: "Gully Book keeps records and bragging rights. Kitty tracks who paid for the ball.", chips: ["Records", "Kitty", "Fair play"] },
 ];
 

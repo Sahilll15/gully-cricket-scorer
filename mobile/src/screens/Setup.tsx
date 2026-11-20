@@ -51,7 +51,7 @@ function TeamCard({ label, name, setName, names, setNames, size, setSize, locked
   return (
     <Card>
       <View style={tw`flex-row items-center gap-3`}>
-        <Badge name={name || label} size={44} />
+        <Badge name={name || label} size={44} kind="team" />
         <TextInput value={name} onChangeText={setName} placeholder={label} maxLength={18} editable={!fixedName} accessibilityLabel={`${label} name`}
           placeholderTextColor={C.mute} selectionColor={C.sun} onFocus={() => setNameFocus(true)} onBlur={() => setNameFocus(false)}
           style={[tw`min-h-12 flex-1 rounded-2xl bg-cream pl-4 pr-10 text-[18px] text-fg border ${nameFocus ? "border-sun" : "border-line"}`,

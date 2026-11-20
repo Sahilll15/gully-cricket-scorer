@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Linking, TextInput, View, type TextInputProps } from "react-native";
-import { ChevronRight, Cloud } from "lucide-react-native";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
-import { accountsSupported, deleteAccount, retrySync, signIn, signOut, useAccount } from "@/lib/account";
+import { accountsSupported, deleteAccount, googleSupported, retrySync, signIn, signInWithGoogle, signOut, useAccount } from "@/lib/account";
+import { pillLabel } from "@shared/accountName";
 import { cleanPhone, validPasscode } from "@shared/backup";
 import { backupFileName, readBackupFile, restoreFrom, toBackupFile } from "@shared/backupFile";
 import { useStore } from "@/lib/store";
@@ -12,6 +12,7 @@ import { track } from "@/lib/track";
 import { EV } from "@shared/events";
 import { flag } from "@shared/matchEvents";
 import { C, GhostButton, Num, Press, PrimaryButton, SectionTitle, Segmented, Sheet, Txt, tw } from "@/ui/ui";
+import { GoogleButton, OrDivider } from "@/ui/GoogleButton";
 
 const pretty = (p: string) => (p.startsWith("+") ? p : `+91 ${p.slice(0, 5)} ${p.slice(5)}`);
 const ago = (t: number | null) => { if (!t) return ""; const s = Math.round((Date.now() - t) / 1000); return s < 60 ? "just now" : `${Math.round(s / 60)} min ago`; };
@@ -71,7 +72,7 @@ export function FileBackup() {
   return (
     <View>
       <SectionTitle>Backup file</SectionTitle>
-      <Txt style={tw`text-xs text-mute`}>Matches, teams, cups, series, player details and the kitty in one file. Restoring adds to what's here, it never deletes.</Txt>
+      <Txt style={tw`text-xs text-mute`}>Everything in one file. Restoring never deletes.</Txt>
       <View style={tw`mt-3 flex-row gap-2`}>
         <View style={tw`flex-1`}><GhostButton disabled={busy} onPress={() => void save()}>Save a backup file</GhostButton></View>
         <View style={tw`flex-1`}><GhostButton disabled={busy} onPress={() => void restore()}>Restore from a file</GhostButton></View>
@@ -82,25 +83,29 @@ export function FileBackup() {
 }
 
 export function AccountSheet({ onClose }: { onClose: () => void }) {
-  const { phone, sync, savedAt } = useAccount();
+  const { phone, google, sync, savedAt } = useAccount();
   const [isNew, setIsNew] = useState(false);
   const [cc, setCc] = useState("91"), [num, setNum] = useState(""), [pass, setPass] = useState(""), [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const [gBusy, setGBusy] = useState(false);
   const [focus, setFocus] = useState(false);
   const [del, setDel] = useState(false), [delErr, setDelErr] = useState("");
   const clean = cleanPhone(num, cc), india = cc === "91" && !num.trim().startsWith("+");
   const ok = clean && validPasscode(pass) && (!isNew || pass === again);
 
-  if (phone) return (
+  if (phone || google) return (
     <Sheet title="Your account" onClose={onClose}>
       <View style={tw`rounded-[22px] border border-line bg-panel px-4 py-5 items-center`}>
-        <Txt style={tw`text-[13px] text-mute`}>Signed in as</Txt>
-        <Num style={tw`mt-1.5 text-[24px] text-fg`}>{pretty(phone)}</Num>
+        <Txt style={tw`text-[13px] text-mute`}>{google ? "Signed in with Google as" : "Signed in as"}</Txt>
+        {phone
+          ? <Num style={tw`mt-1.5 text-[24px] text-fg`}>{pretty(phone)}</Num>
+          : <Txt numberOfLines={1} style={tw`mt-1.5 text-[22px] font-semibold text-fg`}>{google!.name}</Txt>}
+        {!!google?.email && google.email !== google.name && <Txt numberOfLines={1} style={tw`mt-0.5 text-[13px] text-mute`}>{google.email}</Txt>}
         <Txt style={tw`mt-2 text-center text-[13px] font-medium ${sync === "error" ? "text-out" : "text-teal"}`}>
           {sync === "saving" ? "Saving…" : sync === "error" ? "Couldn't save. Will retry when you're online." : savedAt ? `All matches saved ${ago(savedAt)}` : "Matches are saved to your account"}
         </Txt>
       </View>
-      <Txt style={tw`mt-3 text-[13px] text-mute`}>Sign in with the same number on any phone to get your matches, teams and tournaments back.</Txt>
+      <Txt style={tw`mt-3 text-[13px] text-mute`}>{google ? "Sign in with the same Google account on any phone to get everything back." : "Sign in on any phone to get everything back."}</Txt>
       <View style={tw`mt-4 gap-2`}>
         {sync === "error" && <PrimaryButton onPress={retrySync}>Try saving again</PrimaryButton>}
         <GhostButton onPress={() => { track(EV.sign_out); void signOut(); onClose(); }}>Sign out</GhostButton>
@@ -140,12 +145,25 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
     setBusy(true); setErr("");
     const e = await signIn(clean!, pass, isNew);
     setBusy(false);
-    if (e) setErr(e); else { track(EV.sign_in, { new: flag(isNew) }); onClose(); }
+    if (e) setErr(e); else { track(EV.sign_in, { method: "phone", new: flag(isNew) }); onClose(); }
+  }
+
+  async function goGoogle() {
+    if (gBusy || busy) return;
+    setGBusy(true); setErr("");
+    const r = await signInWithGoogle();
+    setGBusy(false);
+    if (r.ok) { track(EV.sign_in, { method: "google" }); onClose(); }
+    else if (r.error) setErr(r.error);
   }
 
   return (
     <Sheet title="Save your matches" onClose={onClose}
-      footer={<PrimaryButton disabled={!ok || busy} onPress={() => void go()}>{busy ? "One sec…" : isNew ? "Create account" : "Sign in"}</PrimaryButton>}>
+      footer={<PrimaryButton disabled={!ok || busy || gBusy} onPress={() => void go()}>{busy ? "One sec…" : isNew ? "Create account" : "Sign in"}</PrimaryButton>}>
+      {googleSupported && <>
+        <GoogleButton busy={gBusy} onPress={() => void goGoogle()} />
+        <OrDivider label="or use your phone number" />
+      </>}
       <View style={tw`mb-5`}>
         <Segmented value={isNew ? "new" : "have"} set={(v) => { setIsNew(v === "new"); setErr(""); }}
           items={[{ v: "have", label: "I have an account" }, { v: "new", label: "New here" }]} />
@@ -173,7 +191,7 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
         {isNew && again.length === 6 && pass !== again && <Txt style={tw`-mt-2 text-xs text-out`}>The two passcodes don't match.</Txt>}
       </View>
       {!!err && <Txt style={tw`mt-4 rounded-2xl border border-out/40 bg-out/10 p-3 text-[13px] font-medium text-out`}>{err}</Txt>}
-      <Txt style={tw`mt-4 text-xs text-mute`}>No SMS is sent. Your number is just your login name. Remember the passcode, it can't be reset from the app yet.</Txt>
+      <Txt style={tw`mt-4 text-xs text-mute`}>No SMS is sent. Remember your passcode, it can't be reset yet.</Txt>
       <View style={tw`mt-5 border-t border-line pt-4`}><FileBackup /></View>
       <Press onPress={() => void Linking.openURL("https://ai.sahilchalke.com/privacy/gully-cricket-scorer/")} style={tw`mt-4 min-h-11 items-center justify-center`}>
         <Txt style={tw`text-[13px] text-mute underline`}>Privacy policy</Txt>
@@ -184,7 +202,9 @@ export function AccountSheet({ onClose }: { onClose: () => void }) {
 
 /** Small header button that opens the account sheet. */
 export function AccountButton() {
-  const phone = useAccount((s) => s.phone), sync = useAccount((s) => s.sync);
+  const phone = useAccount((s) => s.phone), google = useAccount((s) => s.google), sync = useAccount((s) => s.sync);
+  const signedIn = !!(phone || google);
+  const hasMatches = useStore((s) => s.matches.length > 0);
   const [open, setOpen] = useState(false);
   if (!accountsSupported) return (
     <>
@@ -196,34 +216,14 @@ export function AccountButton() {
   );
   return (
     <>
-      <Press onPress={() => setOpen(true)} accessibilityLabel={phone ? "Your account" : "Sign in"}
+      <Press onPress={() => setOpen(true)} accessibilityLabel={signedIn ? "Your account" : "Sign in"}
         style={tw`flex-row min-h-11 items-center gap-2 rounded-full border border-line bg-panel px-3.5`}>
-        <View style={tw`h-2 w-2 rounded-full ${!phone ? "bg-mute" : sync === "error" ? "bg-out" : "bg-sun"}`} />
+        <View style={tw`h-2 w-2 rounded-full ${!signedIn ? "bg-mute" : sync === "error" ? "bg-out" : "bg-sun"}`} />
         {phone
-          ? <Num style={tw`text-[12px] font-medium text-fg`}>{`${phone.slice(0, 2)}•••${phone.slice(-3)}`}</Num>
-          : <Txt style={tw`text-[13px] font-medium text-fg`}>Sign in</Txt>}
-      </Press>
-      {open && <AccountSheet onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-/** Nudge on Home once someone has matches worth losing. */
-export function BackupCard() {
-  const phone = useAccount((s) => s.phone);
-  const [open, setOpen] = useState(false);
-  if (!accountsSupported || phone) return null;
-  return (
-    <>
-      <Press onPress={() => setOpen(true)} style={[tw`flex-row w-full items-center gap-3 rounded-[22px] border bg-sun-soft p-4`, { borderColor: "#4a2c14" }]}>
-        <View style={tw`h-10 w-10 rounded-full border border-line bg-panel items-center justify-center`}>
-          <Cloud size={20} color={C.sun} strokeWidth={2} />
-        </View>
-        <View style={tw`flex-1`}>
-          <Txt style={tw`text-[15px] font-semibold text-fg`}>Don't lose your matches</Txt>
-          <Txt style={tw`mt-0.5 text-[13px] text-teal`}>Sign in with your number and passcode. A new phone gets everything back.</Txt>
-        </View>
-        <ChevronRight size={18} color={C.mute} strokeWidth={2} />
+          ? <Num style={tw`text-[12px] font-medium text-fg`}>{pillLabel({ phone, google: null })}</Num>
+          : google
+          ? <Txt numberOfLines={1} style={tw`text-[13px] font-medium text-fg`}>{pillLabel({ phone: null, google })}</Txt>
+          : <Txt style={tw`text-[13px] font-medium text-fg`}>{hasMatches ? "Back up" : "Sign in"}</Txt>}
       </Press>
       {open && <AccountSheet onClose={() => setOpen(false)} />}
     </>

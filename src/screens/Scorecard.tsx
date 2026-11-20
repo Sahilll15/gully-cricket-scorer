@@ -7,7 +7,7 @@ import { canScore } from "../device";
 import { printScoresheet, shareImage } from "../share";
 import { ChartsTab, MvpTab } from "../chartsView";
 import { strikeRate } from "../stats";
-import { Badge, BallChip, Card, cx, Header, LivePill, PrimaryButton, Segmented } from "../ui";
+import { Badge, BallChip, Card, cx, Header, LivePill, NotFound, PrimaryButton, Segmented } from "../ui";
 
 export default function Scorecard() {
   const m = useMatch();
@@ -15,7 +15,7 @@ export default function Scorecard() {
   const [idx, setIdx] = useState(() => Math.max(0, (m?.innings.length ?? 1) - 1));
   const [edit, setEdit] = useState<number | null>(null);
   const [tab, setTab] = useState<"card" | "charts" | "mvp">("card");
-  if (!m || !m.innings.length) return null;
+  if (!m || !m.innings.length) return <NotFound what="match" />;
 
   const inn = m.innings[idx], st = E.replay(m, idx), name = (id: string) => E.playerName(m, id);
   const live = m.status === "live" || m.status === "break", test = E.isTest(m);
@@ -59,7 +59,7 @@ export default function Scorecard() {
     const bowlers = rows.filter((r) => r.bowled > 0).sort((a, b) => b.wickets - a.wickets || a.conceded - b.conceded);
     return (
       <div className="min-h-screen pb-10">
-        <Header title="Match Score Board" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
+        <Header title="Scorecard" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
           <p className="mt-2 text-center text-sm text-mute">{E.formatText(m)}</p>
           <p className="mt-1 text-center text-lg font-bold text-sun">{res?.text ?? (lead && lead.turns ? `${lead.name} leads with ${lead.runs}` : "First turn under way")}</p>
         </Header>
@@ -119,16 +119,16 @@ export default function Scorecard() {
 
   return (
     <div className="min-h-screen pb-10">
-      <Header title="Match Score Board" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
+      <Header title="Scorecard" back={() => go(live ? "live" : "result")} right={live ? <LivePill /> : undefined}>
         <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-2 text-center">
           {([0, 1] as const).map((s) => {
             const h = head(s);
             return (
               <div key={s} className={cx("flex flex-col items-center", s === 1 && "col-start-3")}>
-                <Badge name={m.teams[s].name} size={56} />
+                <Badge name={m.teams[s].name} size={56} kind="team" />
                 <p className="mt-2 font-bold text-teal">{m.teams[s].name}</p>
-                <p className="text-sm font-medium text-fg tabular-nums">{test ? E.sideScore(m, s) ?? "Yet to bat" : h ? `${h.st.runs}/${h.st.wickets} (${E.oversText(h.st.legal, h.st.bpo)} Over)` : "Yet to bat"}</p>
-                {h && !test && <p className="text-[11px] text-fg/70">Wide: {h.st.extras.wd} | No Ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</p>}
+                <p className="text-sm font-medium text-fg tabular-nums">{test ? E.sideScore(m, s) ?? "Yet to bat" : h ? `${h.st.runs}/${h.st.wickets} (${E.oversText(h.st.legal, h.st.bpo)} over)` : "Yet to bat"}</p>
+                {h && !test && <p className="text-[11px] text-fg/70">Wide: {h.st.extras.wd} | No ball: {h.st.extras.nb} | Byes: {h.st.extras.b + h.st.extras.lb}</p>}
               </div>
             );
           }).flatMap((el, i) => i === 0 ? [el, <span key="vs" className="col-start-2 row-start-1 mt-3 text-3xl font-extrabold italic text-teal">VS</span>] : [el])}

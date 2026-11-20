@@ -9,7 +9,7 @@ const ROUTE: Record<Screen, string> = {
   home: "index", setup: "setup", live: "live", scorecard: "scorecard", result: "result", stats: "stats", history: "history",
   cups: "cups", newcup: "newcup", cup: "cup", teams: "teams", player: "player", watch: "watch", join: "join", series: "series", newseries: "newseries", book: "book", kitty: "kitty",
 };
-export const TABS: Screen[] = ["home", "cups", "teams", "stats", "history"];
+export const TABS: Screen[] = ["home", "cups", "teams", "stats"];
 export const screenOf = (route: string): Screen => (Object.keys(ROUTE) as Screen[]).find((s) => ROUTE[s] === route) ?? "home";
 const href = (s: Screen) => (s === "home" ? "/" : `/${ROUTE[s]}`);
 
